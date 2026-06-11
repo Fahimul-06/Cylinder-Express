@@ -1,0 +1,127 @@
+export interface Profile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  avatar_url: string | null;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface Product {
+  id: string;
+  category_id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image_url: string | null;
+  type: 'new' | 'refill' | 'service';
+  size: string | null;
+  unit: string;
+  is_bestseller: boolean;
+  is_available: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  category?: Category;
+}
+
+export interface Address {
+  id: string;
+  user_id: string;
+  label: string;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  district: string | null;
+  area: string | null;
+  postal_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Order {
+  id: string;
+  user_id: string;
+  address_id: string | null;
+  status: 'pending' | 'confirmed' | 'processing' | 'delivered' | 'cancelled';
+  total_amount: number;
+  delivery_fee: number;
+  floor_number: number | null;
+  floor_charge: number;
+  promo_code: string | null;
+  discount_amount: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  items?: OrderItem[];
+  address?: Address;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  created_at: string;
+  product?: Product;
+}
+
+export interface ServiceBooking {
+  id: string;
+  user_id: string;
+  product_id: string;
+  address_id: string | null;
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  product?: Product;
+  address?: Address;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface Offer {
+  id: string;
+  title: string;
+  description: string | null;
+  badge_text: string;
+  discount_type: 'percentage' | 'flat';
+  discount_value: number;
+  code: string | null;
+  product_id: string | null;
+  category_slug: string | null;
+  bg_from: string;
+  bg_to: string;
+  image_url: string | null;
+  valid_from: string;
+  valid_until: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'newest';
+export type TypeFilter = 'all' | 'new' | 'refill' | 'service';

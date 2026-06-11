@@ -1,0 +1,382 @@
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { Order, OrderItem, ServiceBooking } from '../lib/types';
+import {
+  ShoppingBag, Wrench, Clock, Check, X, Truck,
+  ChevronDown, ChevronUp, Package, Calendar, Tag, Building2,
+  MapPin, Navigation, WifiOff
+} from 'lucide-react';
+
+type Tab = 'orders' | 'services';
+
+const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
+  pending: { color: 'bg-amber-50 text-amber-700', icon: Clock, label: 'Pending' },
+  confirmed: { color: 'bg-blue-50 text-blue-700', icon: Check, label: 'Confirmed' },
+  processing: { color: 'bg-purple-50 text-purple-700', icon: Truck, label: 'Processing' },
+  in_progress: { color: 'bg-blue-50 text-blue-700', icon: Wrench, label: 'In Progress' },
+  delivered: { color: 'bg-green-50 text-green-700', icon: Check, label: 'Delivered' },
+  completed: { color: 'bg-green-50 text-green-700', icon: Check, label: 'Completed' },
+  cancelled: { color: 'bg-red-50 text-red-700', icon: X, label: 'Cancelled' },
+};
+
+function LocationShareBanner({ userId }: { userId: string }) {
+  const [isSharing, setIsSharing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const watchRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('customer_locations')
+      .select('is_sharing')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.is_sharing) {
+          setIsSharing(true);
+          startWatching(userId);
+        }
+        setLoading(false);
+      });
+    return () => {
+      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+    };
+  }, [userId]);
+
+  function startWatching(uid: string) {
+    if (!navigator.geolocation) return;
+    watchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        supabase.from('customer_locations').upsert(
+          { user_id: uid, latitude: pos.coords.latitude, longitude: pos.coords.longitude, is_sharing: true, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        );
+      },
+      () => setError('Location access denied'),
+      { enableHighAccuracy: true, maximumAge: 10000 }
+    );
+  }
+
+  async function toggleSharing() {
+    setError('');
+    if (isSharing) {
+      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+      watchRef.current = null;
+      await supabase.from('customer_locations').upsert(
+        { user_id: userId, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+      setIsSharing(false);
+    } else {
+      if (!navigator.geolocation) { setError('Geolocation not supported by your browser'); return; }
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          await supabase.from('customer_locations').upsert(
+            { user_id: userId, latitude: pos.coords.latitude, longitude: pos.coords.longitude, is_sharing: true, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          );
+          setIsSharing(true);
+          startWatching(userId);
+        },
+        () => setError('Please allow location access to share your location')
+      );
+    }
+  }
+
+  if (loading) return null;
+
+  return (
+    <div className={`rounded-2xl border p-4 mb-4 transition-all ${isSharing ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isSharing ? 'bg-blue-600' : 'bg-gray-100'}`}>
+            {isSharing ? <Navigation className="w-5 h-5 text-white" /> : <MapPin className="w-5 h-5 text-gray-400" />}
+          </div>
+          <div>
+            <p className="font-semibold text-sm text-gray-900">
+              {isSharing ? 'Sharing live location' : 'Share your location'}
+            </p>
+            <p className="text-xs text-gray-500">
+              {isSharing ? 'Delivery team can see you in real-time' : 'Help us find you faster for delivery'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={toggleSharing}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${isSharing ? 'bg-blue-600' : 'bg-gray-200'}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isSharing ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
+      {isSharing && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-xs text-green-700 font-medium">Live — updating every few seconds</span>
+        </div>
+      )}
+      {error && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-red-600">
+          <WifiOff className="w-3.5 h-3.5" /> {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function OrdersPage() {
+  const { user } = useAuth();
+  const [tab, setTab] = useState<Tab>('orders');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItem[]>>({});
+  const [bookings, setBookings] = useState<ServiceBooking[]>([]);
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const userId = user.id;
+    async function fetchData() {
+      const [ordRes, bookRes] = await Promise.all([
+        supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('service_bookings').select('*, product:products(name, price)').eq('user_id', userId).order('created_at', { ascending: false }),
+      ]);
+      const orderList = ordRes.data || [];
+      setOrders(orderList);
+      setBookings(bookRes.data || []);
+
+      // Fetch order items for all orders
+      if (orderList.length > 0) {
+        const orderIds = orderList.map(o => o.id);
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*, product:products(name, price, image_url)')
+          .in('order_id', orderIds);
+        if (itemsData) {
+          const map: Record<string, OrderItem[]> = {};
+          for (const item of itemsData) {
+            if (!map[item.order_id]) map[item.order_id] = [];
+            map[item.order_id].push(item);
+          }
+          setOrderItemsMap(map);
+        }
+      }
+      setLoading(false);
+    }
+    fetchData();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-blue-200 rounded-xl" />
+          <div className="h-4 w-40 bg-gray-200 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  const calcTotal = (order: Order) =>
+    order.total_amount + order.delivery_fee + (order.floor_charge || 0) - (order.discount_amount || 0);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Orders & Bookings</h1>
+
+        {user && <LocationShareBanner userId={user.id} />}
+
+        {/* Tabs */}
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-6">
+          <button
+            onClick={() => setTab('orders')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              tab === 'orders' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4" /> Orders ({orders.length})
+          </button>
+          <button
+            onClick={() => setTab('services')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              tab === 'services' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+            }`}
+          >
+            <Wrench className="w-4 h-4" /> Services ({bookings.length})
+          </button>
+        </div>
+
+        {tab === 'orders' ? (
+          orders.length > 0 ? (
+            <div className="space-y-3">
+              {orders.map(order => {
+                const sc = statusConfig[order.status] || statusConfig.pending;
+                const StatusIcon = sc.icon;
+                const expanded = expandedOrder === order.id;
+                const orderItems = orderItemsMap[order.id] || [];
+                return (
+                  <div key={order.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <button
+                      onClick={() => setExpandedOrder(expanded ? null : order.id)}
+                      className="w-full p-4 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                          <Package className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-semibold text-gray-900 text-sm">Order #{order.id.slice(0, 8)}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(order.created_at).toLocaleDateString('en-BD', {
+                              day: 'numeric', month: 'short', year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.color}`}>
+                          <StatusIcon className="w-3 h-3" /> {sc.label}
+                        </span>
+                        <span className="font-bold text-orange-600">৳{calcTotal(order).toLocaleString()}</span>
+                        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                      </div>
+                    </button>
+                    {expanded && (
+                      <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
+                        {/* Items */}
+                        {orderItems.length > 0 && (
+                          <div className="divide-y divide-gray-50">
+                            {orderItems.map(item => (
+                              <div key={item.id} className="flex items-center justify-between py-2 text-sm">
+                                <span className="text-gray-700">{item.product?.name || 'Item'} &times; {item.quantity}</span>
+                                <span className="font-medium text-gray-900">৳{(item.unit_price * item.quantity).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Charge breakdown */}
+                        <div className="space-y-2 text-sm pt-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium">৳{order.total_amount.toLocaleString()}</span>
+                          </div>
+
+                          {(order.discount_amount || 0) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-green-600 flex items-center gap-1">
+                                <Tag className="w-3.5 h-3.5" /> Discount {order.promo_code ? `(${order.promo_code})` : ''}
+                              </span>
+                              <span className="font-semibold text-green-600">-৳{(order.discount_amount || 0).toLocaleString()}</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between">
+                            <span className="text-gray-500 flex items-center gap-1">
+                              <Truck className="w-3.5 h-3.5" /> Delivery Fee
+                            </span>
+                            <span className="font-medium">৳{order.delivery_fee}</span>
+                          </div>
+
+                          {order.floor_number != null && (
+                            <div className="flex justify-between">
+                              <span className="text-gray-500 flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5" /> Floor Charge ({order.floor_number === 1 ? 'Ground' : `${order.floor_number}${getOrdinal(order.floor_number)} fl.`})
+                              </span>
+                              <span className={`font-medium ${(order.floor_charge || 0) > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                {(order.floor_charge || 0) > 0 ? `৳${order.floor_charge}` : 'Free'}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="border-t border-gray-100 pt-2 flex justify-between">
+                            <span className="font-bold text-gray-900">Total</span>
+                            <span className="font-bold text-blue-600">৳{calcTotal(order).toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        {order.notes && (
+                          <div className="text-sm bg-gray-50 rounded-xl p-3 mt-2">
+                            <span className="text-gray-500">Notes: </span>
+                            <span className="text-gray-700">{order.notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ShoppingBag className="w-10 h-10 text-gray-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+              <p className="text-gray-500 text-sm">Place your first order to see it here</p>
+            </div>
+          )
+        ) : (
+          bookings.length > 0 ? (
+            <div className="space-y-3">
+              {bookings.map(booking => {
+                const sc = statusConfig[booking.status] || statusConfig.pending;
+                const StatusIcon = sc.icon;
+                return (
+                  <div key={booking.id} className="bg-white rounded-2xl border border-gray-100 p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <Wrench className="w-5 h-5 text-amber-500" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">{booking.product?.name || 'Service'}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {new Date(booking.created_at).toLocaleDateString('en-BD', {
+                              day: 'numeric', month: 'short', year: 'numeric'
+                            })}
+                          </p>
+                          {booking.scheduled_date && (
+                            <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
+                              <Calendar className="w-3 h-3" />
+                              {booking.scheduled_date} {booking.scheduled_time && `at ${booking.scheduled_time}`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.color}`}>
+                          <StatusIcon className="w-3 h-3" /> {sc.label}
+                        </span>
+                        <span className="font-bold text-blue-600 text-sm">৳{(booking.product?.price || 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    {booking.notes && (
+                      <p className="text-xs text-gray-500 mt-2 pl-13">{booking.notes}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Wrench className="w-10 h-10 text-gray-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No service bookings</h3>
+              <p className="text-gray-500 text-sm">Book a service to see it here</p>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+function getOrdinal(n: number): string {
+  if (n === 1) return 'st';
+  if (n === 2) return 'nd';
+  if (n === 3) return 'rd';
+  return 'th';
+}
