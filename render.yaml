@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: cylinder-express-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev --no-audit --no-fund
+    startCommand: node server/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: BULKSMSBD_API_KEY
+        sync: false
+      - key: BULKSMSBD_API_URL
+        value: https://bulksmsbd.net/api/smsapi
+      - key: BULKSMSBD_SENDERID
+        sync: false
+
+  - type: web
+    name: cylinder-express-web
+    runtime: static
+    buildCommand: npm ci --no-audit --no-fund && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

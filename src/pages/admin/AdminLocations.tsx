@@ -58,6 +58,7 @@ export default function AdminLocations() {
   const [loading, setLoading] = useState(true);
   const [mapsReady, setMapsReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const fetchLocations = useCallback(async () => {
     const { data: locs } = await supabase
@@ -90,9 +91,13 @@ export default function AdminLocations() {
   // Initialize map
   useEffect(() => {
     loadGoogleMaps()
-      .then(() => setMapsReady(true))
+      .then(() => {
+        setMapError(null);
+        setMapsReady(true);
+      })
       .catch((error) => {
         console.error(error);
+        setMapError(error instanceof Error ? error.message : 'Failed to load Google Maps');
         setLoading(false);
       });
   }, []);
@@ -219,11 +224,20 @@ export default function AdminLocations() {
         <div className="flex-1 bg-gray-100 rounded-2xl overflow-hidden relative min-h-[400px]">
           <div ref={mapRef} className="w-full h-full" />
           {!mapsReady && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-              <div className="animate-pulse flex flex-col items-center gap-3">
-                <div className="w-12 h-12 bg-blue-200 rounded-xl" />
-                <p className="text-sm text-gray-400">Loading map...</p>
-              </div>
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 p-6">
+              {mapError ? (
+                <div className="max-w-md rounded-2xl bg-white p-6 text-center shadow-sm border border-red-100">
+                  <MapPin className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                  <p className="font-semibold text-gray-900">Google Map could not load</p>
+                  <p className="text-sm text-gray-500 mt-2">{mapError}</p>
+                  <p className="text-xs text-gray-400 mt-3">Check VITE_GOOGLE_MAPS_API_KEY on the Render frontend service, enable Maps JavaScript API, allow your Render domain, then redeploy the frontend.</p>
+                </div>
+              ) : (
+                <div className="animate-pulse flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-200 rounded-xl" />
+                  <p className="text-sm text-gray-400">Loading map...</p>
+                </div>
+              )}
             </div>
           )}
           {mapsReady && activeCount === 0 && !loading && (
