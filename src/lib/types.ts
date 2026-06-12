@@ -73,6 +73,12 @@ export interface Order {
   promo_code: string | null;
   discount_amount: number;
   notes: string | null;
+  assigned_delivery_user_id?: string | null;
+  dispatch_status?: 'unassigned' | 'assigned' | 'accepted' | 'rejected' | 'no_driver';
+  dispatch_attempts?: number;
+  rejected_delivery_user_ids?: string[];
+  assigned_at?: string | null;
+  accepted_at?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];
