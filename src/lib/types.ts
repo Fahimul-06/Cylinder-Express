@@ -65,6 +65,7 @@ export interface Order {
   id: string;
   user_id: string;
   address_id: string | null;
+  delivery_man_id?: string | null;
   status: 'pending' | 'confirmed' | 'processing' | 'delivered' | 'cancelled';
   total_amount: number;
   delivery_fee: number;
@@ -73,12 +74,6 @@ export interface Order {
   promo_code: string | null;
   discount_amount: number;
   notes: string | null;
-  assigned_delivery_user_id?: string | null;
-  dispatch_status?: 'unassigned' | 'assigned' | 'accepted' | 'rejected' | 'no_driver';
-  dispatch_attempts?: number;
-  rejected_delivery_user_ids?: string[];
-  assigned_at?: string | null;
-  accepted_at?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];

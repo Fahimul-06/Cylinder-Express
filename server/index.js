@@ -98,7 +98,7 @@ const ProfileSchema = new mongoose.Schema({
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
 const AddressSchema = new mongoose.Schema({ user_id: String, label: String, address_line1: String, address_line2: String, city: String, district: String, area: String, postal_code: String, latitude: Number, longitude: Number, is_default: Boolean, ...common }, { toJSON });
-const OrderSchema = new mongoose.Schema({ user_id: String, address_id: String, status: { type: String, default: 'pending' }, total_amount: Number, delivery_fee: Number, floor_number: Number, floor_charge: Number, promo_code: String, discount_amount: Number, notes: String, assigned_delivery_user_id: { type: String, default: null, index: true }, dispatch_status: { type: String, enum: ['unassigned', 'assigned', 'accepted', 'rejected', 'no_driver'], default: 'unassigned', index: true }, dispatch_attempts: { type: Number, default: 0 }, rejected_delivery_user_ids: { type: [String], default: [] }, assigned_at: { type: Date, default: null }, accepted_at: { type: Date, default: null }, ...common }, { toJSON });
+const OrderSchema = new mongoose.Schema({ user_id: String, address_id: String, delivery_man_id: { type: String, default: null, index: true }, status: { type: String, default: 'pending' }, total_amount: Number, delivery_fee: Number, floor_number: Number, floor_charge: Number, promo_code: String, discount_amount: Number, notes: String, ...common }, { toJSON });
 const OrderItemSchema = new mongoose.Schema({ order_id: String, product_id: String, quantity: Number, unit_price: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const ServiceBookingSchema = new mongoose.Schema({ user_id: String, product_id: String, address_id: String, status: { type: String, default: 'pending' }, scheduled_date: String, scheduled_time: String, notes: String, ...common }, { toJSON });
 const OfferSchema = new mongoose.Schema({ title: String, description: String, badge_text: String, discount_type: String, discount_value: Number, code: String, product_id: String, category_slug: String, bg_from: String, bg_to: String, image_url: String, valid_from: { type: Date, default: Date.now }, valid_until: Date, is_active: Boolean, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
@@ -168,105 +168,6 @@ async function sendBulkSmsBdMessage(phone, message) {
     throw new Error(`BulkSMSBD request failed with status ${response.status}: ${text}`);
   }
   return { sent: true, provider_response: text };
-}
-
-
-const ACTIVE_ORDER_STATUSES_FOR_DISPATCH = ['pending', 'confirmed', 'processing'];
-const ACTIVE_DISPATCH_STATUSES = ['assigned', 'accepted'];
-const DISPATCH_RADIUS_METERS = Number(process.env.DELIVERY_DISPATCH_RADIUS_METERS || 500);
-
-function distanceMeters(lat1, lon1, lat2, lon2) {
-  const toRad = (value) => (Number(value) * Math.PI) / 180;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-async function getOrderDispatchTarget(order) {
-  const address = order?.address_id ? await models.addresses.findById(order.address_id).catch(() => null) : null;
-  if (address && typeof address.latitude === 'number' && typeof address.longitude === 'number') {
-    return { source: 'address', address, latitude: address.latitude, longitude: address.longitude };
-  }
-  const liveLocation = order?.user_id ? await models.customer_locations.findOne({ user_id: order.user_id, is_sharing: true }).catch(() => null) : null;
-  if (liveLocation && typeof liveLocation.latitude === 'number' && typeof liveLocation.longitude === 'number') {
-    return { source: 'customer_live_location', address, latitude: liveLocation.latitude, longitude: liveLocation.longitude };
-  }
-  return null;
-}
-
-async function assignNearestDeliveryMan(orderId, options = {}) {
-  const order = await models.orders.findById(orderId).catch(() => null);
-  if (!order || !ACTIVE_ORDER_STATUSES_FOR_DISPATCH.includes(order.status)) return { assigned: false, reason: 'inactive_order' };
-
-  const target = await getOrderDispatchTarget(order);
-  if (!target) {
-    await models.orders.findByIdAndUpdate(order.id, { dispatch_status: 'no_driver', assigned_delivery_user_id: null, updated_at: new Date() });
-    return { assigned: false, reason: 'missing_customer_address_coordinates' };
-  }
-
-  const rejected = new Set([...(order.rejected_delivery_user_ids || []), ...(options.excludeUserIds || [])]);
-  const activeSince = new Date(Date.now() - Number(process.env.DELIVERY_LOCATION_MAX_AGE_MS || 30 * 60 * 1000));
-  const locations = await models.delivery_locations.find({
-    is_sharing: true,
-    last_seen: { $gte: activeSince },
-    latitude: { $type: 'number' },
-    longitude: { $type: 'number' },
-  });
-
-  const candidates = [];
-  for (const location of locations) {
-    if (!location.user_id || rejected.has(location.user_id)) continue;
-    const profile = await models.profiles.findOne({ user_id: location.user_id, role: 'delivery', is_active: { $ne: false } });
-    if (!profile) continue;
-    const busyOrder = await models.orders.findOne({
-      _id: { $ne: order._id },
-      assigned_delivery_user_id: location.user_id,
-      status: { $in: ACTIVE_ORDER_STATUSES_FOR_DISPATCH },
-      dispatch_status: { $in: ACTIVE_DISPATCH_STATUSES },
-    });
-    if (busyOrder) continue;
-    const distance = distanceMeters(target.latitude, target.longitude, location.latitude, location.longitude);
-    if (distance <= DISPATCH_RADIUS_METERS) candidates.push({ location, profile, distance });
-  }
-
-  candidates.sort((a, b) => a.distance - b.distance);
-  const selected = candidates[0];
-  if (!selected) {
-    await models.orders.findByIdAndUpdate(order.id, {
-      assigned_delivery_user_id: null,
-      dispatch_status: 'no_driver',
-      updated_at: new Date(),
-    });
-    return { assigned: false, reason: 'no_available_driver_within_radius' };
-  }
-
-  const update = {
-    assigned_delivery_user_id: selected.profile.user_id,
-    dispatch_status: 'assigned',
-    dispatch_attempts: (order.dispatch_attempts || 0) + 1,
-    assigned_at: new Date(),
-    updated_at: new Date(),
-  };
-  const updatedOrder = await models.orders.findByIdAndUpdate(order.id, update, { new: true });
-
-  const orderCode = updatedOrder.id.slice(-6).toUpperCase();
-  const smsMessage = `Cylinder Express new delivery assigned. Order #${orderCode}. Customer is within ${Math.round(selected.distance)}m. Login to accept or reject.`;
-  let sms = { sent: false, skipped: true };
-  try {
-    sms = await sendBulkSmsBdMessage(selected.profile.phone, smsMessage);
-  } catch (smsError) {
-    console.error('Delivery assignment SMS failed:', smsError.message);
-  }
-
-  return {
-    assigned: true,
-    order: updatedOrder.toJSON(),
-    driver: selected.profile.toJSON(),
-    distance_meters: Math.round(selected.distance),
-    sms,
-  };
 }
 
 function requireAuth(req, res, next) {
@@ -493,71 +394,6 @@ app.patch('/api/admin/subadmins/:profileId', requireAuth, requireAdminUserManage
   }
 });
 
-
-app.post('/api/orders/:orderId/dispatch', requireAuth, async (req, res) => {
-  try {
-    const order = await models.orders.findById(req.params.orderId);
-    if (!order) return res.status(404).json({ error: 'Order not found.' });
-    const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    const canDispatch = order.user_id === req.auth.id || hasAdminPermission(profile, 'orders');
-    if (!canDispatch) return res.status(403).json({ error: 'You cannot dispatch this order.' });
-    const result = await assignNearestDeliveryMan(order.id);
-    res.json({ data: result, error: null });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/delivery/orders', requireAuth, async (req, res) => {
-  try {
-    const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    if (profile?.role !== 'delivery' || profile.is_active === false) return res.status(403).json({ error: 'Delivery access required.' });
-    const orders = await models.orders
-      .find({ assigned_delivery_user_id: req.auth.id, status: { $in: ACTIVE_ORDER_STATUSES_FOR_DISPATCH }, dispatch_status: { $in: ACTIVE_DISPATCH_STATUSES } })
-      .sort({ assigned_at: -1, created_at: -1 });
-    res.json({ data: orders.map((order) => order.toJSON()), error: null });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/delivery/orders/:orderId/accept', requireAuth, async (req, res) => {
-  try {
-    const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    if (profile?.role !== 'delivery' || profile.is_active === false) return res.status(403).json({ error: 'Delivery access required.' });
-    const order = await models.orders.findOneAndUpdate(
-      { _id: req.params.orderId, assigned_delivery_user_id: req.auth.id, status: { $in: ACTIVE_ORDER_STATUSES_FOR_DISPATCH }, dispatch_status: 'assigned' },
-      { dispatch_status: 'accepted', accepted_at: new Date(), updated_at: new Date() },
-      { new: true }
-    );
-    if (!order) return res.status(404).json({ error: 'Assigned order not found or already accepted/reassigned.' });
-    res.json({ data: order.toJSON(), error: null });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/delivery/orders/:orderId/reject', requireAuth, async (req, res) => {
-  try {
-    const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    if (profile?.role !== 'delivery' || profile.is_active === false) return res.status(403).json({ error: 'Delivery access required.' });
-    const order = await models.orders.findOne({ _id: req.params.orderId, assigned_delivery_user_id: req.auth.id, status: { $in: ACTIVE_ORDER_STATUSES_FOR_DISPATCH }, dispatch_status: { $in: ACTIVE_DISPATCH_STATUSES } });
-    if (!order) return res.status(404).json({ error: 'Assigned order not found.' });
-
-    const rejected = Array.from(new Set([...(order.rejected_delivery_user_ids || []), req.auth.id]));
-    await models.orders.findByIdAndUpdate(order.id, {
-      assigned_delivery_user_id: null,
-      dispatch_status: 'rejected',
-      rejected_delivery_user_ids: rejected,
-      updated_at: new Date(),
-    });
-    const reassignment = await assignNearestDeliveryMan(order.id, { excludeUserIds: rejected });
-    res.json({ data: { rejected: true, reassignment }, error: null });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.post('/api/tables/:table', async (req, res) => {
   try {
     const Model = models[req.params.table];
@@ -585,11 +421,6 @@ app.post('/api/tables/:table', async (req, res) => {
         updated_at: new Date(),
       })));
       data = docs.map((d) => d.toJSON());
-      if (req.params.table === 'orders') {
-        for (const doc of docs) {
-          assignNearestDeliveryMan(doc.id).catch((error) => console.error('Auto delivery dispatch failed:', error.message));
-        }
-      }
     }
 
     if (action === 'upsert') {
@@ -604,16 +435,6 @@ app.post('/api/tables/:table', async (req, res) => {
         output.push(doc.toJSON());
       }
       data = output;
-      if (req.params.table === 'delivery_locations' && output.some((doc) => doc?.is_sharing === true)) {
-        const waitingOrders = await models.orders.find({
-          status: { $in: ACTIVE_ORDER_STATUSES_FOR_DISPATCH },
-          assigned_delivery_user_id: { $in: [null, ''] },
-          dispatch_status: { $in: ['unassigned', 'rejected', 'no_driver'] },
-        }).sort({ created_at: 1 }).limit(25);
-        for (const order of waitingOrders) {
-          assignNearestDeliveryMan(order.id).catch((error) => console.error('Waiting order dispatch failed:', error.message));
-        }
-      }
     }
 
     if (action === 'update') {

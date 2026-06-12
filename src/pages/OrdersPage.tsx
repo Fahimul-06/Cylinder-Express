@@ -20,81 +20,110 @@ const statusConfig: Record<string, { color: string; icon: typeof Clock; label: s
   cancelled: { color: 'bg-red-50 text-red-700', icon: X, label: 'Cancelled' },
 };
 
-function LocationShareBanner({ userId, activeOrderId }: { userId: string; activeOrderId: string | null }) {
+function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOrder: Order | null }) {
+  const activeOrderId = activeOrder?.id || null;
+  const isLockedByAdmin = Boolean(activeOrder && ['confirmed', 'processing'].includes(activeOrder.status));
   const [isSharing, setIsSharing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const watchRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    supabase
-      .from('customer_locations')
-      .select('is_sharing')
-      .eq('user_id', userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.is_sharing) {
-          setIsSharing(true);
-          startWatching(userId);
-        }
-        setLoading(false);
-      });
-    return () => {
-      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
-    };
-  }, [userId]);
-
-  async function saveLivePoint(uid: string, latitude: number, longitude: number, accuracy?: number | null) {
+  async function saveLivePoint(uid: string, orderId: string, latitude: number, longitude: number, accuracy?: number | null) {
     const now = new Date().toISOString();
     await supabase.from('customer_locations').upsert(
       {
         user_id: uid,
-        active_order_id: activeOrderId,
+        active_order_id: orderId,
         latitude,
         longitude,
         accuracy: accuracy || null,
-        is_sharing: Boolean(activeOrderId),
+        is_sharing: true,
         last_seen: now,
         updated_at: now,
       },
       { onConflict: 'user_id' }
     );
 
-    if (activeOrderId) {
-      await supabase.from('customer_location_points').insert({
-        user_id: uid,
-        order_id: activeOrderId,
-        latitude,
-        longitude,
-        accuracy: accuracy || null,
-        recorded_at: now,
-      });
-    }
+    await supabase.from('customer_location_points').insert({
+      user_id: uid,
+      order_id: orderId,
+      latitude,
+      longitude,
+      accuracy: accuracy || null,
+      recorded_at: now,
+    });
   }
 
-  function startWatching(uid: string) {
-    if (!navigator.geolocation || !activeOrderId) return;
+  function startWatching(uid: string, orderId: string) {
+    if (!navigator.geolocation || !orderId) return;
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        saveLivePoint(uid, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        saveLivePoint(uid, orderId, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
-      () => setError('Location access denied'),
+      () => setError('Location access denied. Please allow location permission for delivery tracking.'),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   }
 
+  function requestAndStartSharing(uid: string, orderId: string) {
+    if (!navigator.geolocation) {
+      setError('Geolocation not supported by your browser');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        await saveLivePoint(uid, orderId, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        setIsSharing(true);
+        startWatching(uid, orderId);
+      },
+      () => setError('Please allow location access. Live location is required for confirmed deliveries.'),
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 }
+    );
+  }
+
   useEffect(() => {
-    if (!activeOrderId && isSharing) {
+    let mounted = true;
+    supabase
+      .from('customer_locations')
+      .select('is_sharing, active_order_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!mounted) return;
+        if (data?.is_sharing && activeOrderId) {
+          setIsSharing(true);
+          startWatching(userId, activeOrderId);
+        }
+        setLoading(false);
+      });
+    return () => {
+      mounted = false;
+      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!activeOrderId) {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
-      supabase.from('customer_locations').upsert(
-        { user_id: userId, active_order_id: null, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      );
-      setIsSharing(false);
+      if (isSharing) {
+        supabase.from('customer_locations').upsert(
+          { user_id: userId, active_order_id: null, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        );
+        setIsSharing(false);
+      }
+      return;
     }
-  }, [activeOrderId, isSharing, userId]);
+
+    // Automatically start live location sharing for every active order after checkout.
+    if (!isSharing) {
+      requestAndStartSharing(userId, activeOrderId);
+    } else {
+      startWatching(userId, activeOrderId);
+    }
+  }, [activeOrderId]);
 
   async function toggleSharing() {
     setError('');
@@ -103,6 +132,10 @@ function LocationShareBanner({ userId, activeOrderId }: { userId: string; active
       return;
     }
     if (isSharing) {
+      if (isLockedByAdmin) {
+        setError('Admin confirmed this order. Live location cannot be stopped until delivery is completed or cancelled.');
+        return;
+      }
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
       await supabase.from('customer_locations').upsert(
@@ -111,19 +144,11 @@ function LocationShareBanner({ userId, activeOrderId }: { userId: string; active
       );
       setIsSharing(false);
     } else {
-      if (!navigator.geolocation) { setError('Geolocation not supported by your browser'); return; }
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          await saveLivePoint(userId, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-          setIsSharing(true);
-          startWatching(userId);
-        },
-        () => setError('Please allow location access to share your location')
-      );
+      requestAndStartSharing(userId, activeOrderId);
     }
   }
 
-  if (loading) return null;
+  if (loading || !activeOrder) return null;
 
   return (
     <div className={`rounded-2xl border p-4 mb-4 transition-all ${isSharing ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
@@ -134,16 +159,19 @@ function LocationShareBanner({ userId, activeOrderId }: { userId: string; active
           </div>
           <div>
             <p className="font-semibold text-sm text-gray-900">
-              {isSharing ? 'Sharing live location' : 'Share your location'}
+              {isSharing ? 'Sharing live location' : 'Starting live location'}
             </p>
             <p className="text-xs text-gray-500">
-              {isSharing ? 'Admin can see your live delivery route until this order is delivered' : 'Share your live route for your active order delivery'}
+              {isLockedByAdmin
+                ? 'Admin confirmed this order. Tracking stays on until delivery is completed.'
+                : 'Live location starts automatically after placing an order.'}
             </p>
           </div>
         </div>
         <button
           onClick={toggleSharing}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${isSharing ? 'bg-blue-600' : 'bg-gray-200'}`}
+          title={isLockedByAdmin ? 'Locked after admin confirmation' : undefined}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${isSharing ? 'bg-blue-600' : 'bg-gray-200'} ${isLockedByAdmin ? 'cursor-not-allowed opacity-80' : ''}`}
         >
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isSharing ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
@@ -152,6 +180,11 @@ function LocationShareBanner({ userId, activeOrderId }: { userId: string; active
         <div className="mt-2 flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-xs text-green-700 font-medium">Live — updating every few seconds</span>
+        </div>
+      )}
+      {isLockedByAdmin && (
+        <div className="mt-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+          Location sharing is locked because admin confirmed this order.
         </div>
       )}
       {error && (
@@ -219,14 +252,14 @@ export default function OrdersPage() {
   const calcTotal = (order: Order) =>
     order.total_amount + order.delivery_fee + (order.floor_charge || 0) - (order.discount_amount || 0);
 
-  const activeOrder = orders.find(order => !['delivered', 'cancelled'].includes(order.status));
+  const activeOrder = orders.find(order => !['delivered', 'cancelled'].includes(order.status)) || null;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Orders & Bookings</h1>
 
-        {user && <LocationShareBanner userId={user.id} activeOrderId={activeOrder?.id || null} />}
+        {user && <LocationShareBanner userId={user.id} activeOrder={activeOrder} />}
 
         {/* Tabs */}
         <div className="flex bg-gray-100 rounded-xl p-1 mb-6">

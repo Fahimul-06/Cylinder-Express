@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Order, OrderItem, ServiceBooking } from '../../lib/types';
+import { Order, OrderItem, Profile, ServiceBooking } from '../../lib/types';
 import {
   ShoppingBag, Clock, Check, X, Truck, ChevronDown,
   ChevronUp, Filter, Building2, Tag, MapPin, Wrench, Calendar,
-  PackageCheck
+  PackageCheck, UserCheck
 } from 'lucide-react';
 
 const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
@@ -31,6 +31,7 @@ export default function AdminOrders() {
   const [itemsMap, setItemsMap] = useState<Record<string, OrderItem[]>>({});
   const [addressMap, setAddressMap] = useState<Record<string, any>>({});
   const [profileMap, setProfileMap] = useState<Record<string, any>>({});
+  const [deliveryMen, setDeliveryMen] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -75,6 +76,13 @@ export default function AdminOrders() {
         ? supabase.from('profiles').select('user_id, full_name, phone, email').in('user_id', userIds)
         : Promise.resolve({ data: [] }),
     ]);
+
+    const deliveryRes = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'delivery')
+      .order('full_name', { ascending: true });
+    setDeliveryMen((deliveryRes.data || []) as Profile[]);
 
     const iMap: Record<string, OrderItem[]> = {};
     if (itemsRes.data) {
@@ -123,6 +131,13 @@ export default function AdminOrders() {
     }
 
     setUpdating(null);
+  }
+
+
+  async function assignDeliveryMan(orderId: string, deliveryManId: string) {
+    const normalizedDeliveryManId = deliveryManId || null;
+    await supabase.from('orders').update({ delivery_man_id: normalizedDeliveryManId }).eq('id', orderId);
+    setOrders(prev => prev.map(order => order.id === orderId ? { ...order, delivery_man_id: normalizedDeliveryManId } : order));
   }
 
   const entries = useMemo<UnifiedEntry[]>(() => {
@@ -353,6 +368,30 @@ export default function AdminOrders() {
                           <p className="text-sm font-medium text-gray-900">{addr.address_line1}</p>
                           <p className="text-xs text-gray-500">{addr.area && `${addr.area}, `}{addr.city}</p>
                         </div>
+                      )}
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <UserCheck className="w-4 h-4 text-blue-600" />
+                        <p className="text-sm font-semibold text-gray-900">Assign Delivery Man</p>
+                      </div>
+                      <select
+                        value={order.delivery_man_id || ''}
+                        onChange={(event) => assignDeliveryMan(order.id, event.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-blue-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      >
+                        <option value="">Not assigned</option>
+                        {deliveryMen.map((man) => (
+                          <option key={man.user_id} value={man.user_id}>
+                            {man.full_name} — {man.phone}
+                          </option>
+                        ))}
+                      </select>
+                      {order.delivery_man_id ? (
+                        <p className="text-xs text-blue-700 mt-2">Assigned driver can see this order and customer route in the delivery dashboard.</p>
+                      ) : (
+                        <p className="text-xs text-blue-700 mt-2">Select a delivery man after confirming the order.</p>
                       )}
                     </div>
 

@@ -56,6 +56,39 @@ export default function CheckoutPage() {
     fetchAddresses();
   }, [user]);
 
+
+  async function startInitialLocationShare(orderId: string) {
+    if (!user || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const now = new Date().toISOString();
+        const payload = {
+          user_id: user.id,
+          active_order_id: orderId,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy || null,
+          is_sharing: true,
+          last_seen: now,
+          updated_at: now,
+        };
+        await supabase.from('customer_locations').upsert(payload, { onConflict: 'user_id' });
+        await supabase.from('customer_location_points').insert({
+          user_id: user.id,
+          order_id: orderId,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy || null,
+          recorded_at: now,
+        });
+      },
+      () => {
+        // Browser location permission is controlled by the customer device. The Orders page will ask again if needed.
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 }
+    );
+  }
+
   const handlePlaceOrder = async () => {
     if (!user || !selectedAddress || items.length === 0) return;
     setPlacing(true);
@@ -88,6 +121,7 @@ export default function CheckoutPage() {
         unit_price: item.product.price,
       }));
       await supabase.from('order_items').insert(orderItems);
+      await startInitialLocationShare(order.id);
       clearCart();
       setOrderPlaced(true);
     }

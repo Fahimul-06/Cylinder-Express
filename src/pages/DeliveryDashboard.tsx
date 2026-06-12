@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiClient, supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Order, Address, Profile, LocationPoint } from '../lib/types';
 import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+const ACTIVE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
 
 type GoogleMapsApi = {
   maps: {
@@ -60,7 +61,6 @@ export default function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const selectedOrder = useMemo(() => orders.find((o) => o.id === selectedOrderId) || orders[0] || null, [orders, selectedOrderId]);
 
@@ -112,8 +112,13 @@ export default function DeliveryDashboard() {
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
-    const response = await apiClient<{ data: Order[]; error: null }>('/api/delivery/orders');
-    const list = (response.data || []) as Order[];
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('*')
+      .in('status', ACTIVE_ORDER_STATUSES)
+      .eq('delivery_man_id', user?.id || '')
+      .order('created_at', { ascending: false });
+    const list = (orderData || []) as Order[];
     const userIds = [...new Set(list.map((o) => o.user_id).filter(Boolean))];
     const addressIds = [...new Set(list.map((o) => o.address_id).filter(Boolean))] as string[];
     const orderIds = list.map((o) => o.id);
@@ -145,37 +150,7 @@ export default function DeliveryDashboard() {
     setOrders(enriched);
     if (!selectedOrderId && enriched[0]) setSelectedOrderId(enriched[0].id);
     setLoading(false);
-  }, [selectedOrderId]);
-
-
-  const acceptOrder = async (orderId: string) => {
-    setActionLoadingId(orderId);
-    setMessage('');
-    try {
-      await apiClient(`/api/delivery/orders/${orderId}/accept`, { method: 'POST' });
-      setMessage('Order accepted. Start moving to the customer location.');
-      await loadOrders();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Could not accept order.');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
-
-  const rejectOrder = async (orderId: string) => {
-    setActionLoadingId(orderId);
-    setMessage('');
-    try {
-      await apiClient(`/api/delivery/orders/${orderId}/reject`, { method: 'POST' });
-      setMessage('Order rejected. It will be assigned to another nearby delivery man automatically.');
-      if (selectedOrderId === orderId) setSelectedOrderId(null);
-      await loadOrders();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Could not reject order.');
-    } finally {
-      setActionLoadingId(null);
-    }
-  };
+  }, [selectedOrderId, user?.id]);
 
   useEffect(() => {
     loadGoogleMaps().then(() => setMapsReady(true)).catch((err) => setMapError(err instanceof Error ? err.message : 'Map failed to load'));
@@ -280,7 +255,7 @@ export default function DeliveryDashboard() {
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <h2 className="font-bold text-gray-900">Live Location</h2>
-                <p className="text-xs text-gray-500">Share your location before starting delivery.</p>
+                <p className="text-xs text-gray-500">Share your location after admin assigns orders to you.</p>
               </div>
               <Navigation className="w-5 h-5 text-green-600" />
             </div>
@@ -296,13 +271,13 @@ export default function DeliveryDashboard() {
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h2 className="font-bold text-gray-900">Assigned Orders</h2>
-                <p className="text-xs text-gray-500">Accept/reject assigned orders and see the customer route line.</p>
+                <h2 className="font-bold text-gray-900">Assigned Active Orders</h2>
+                <p className="text-xs text-gray-500">Only admin-assigned orders appear here.</p>
               </div>
               <button onClick={loadOrders} className="p-2 bg-gray-50 rounded-xl text-gray-500"><RefreshCw className="w-4 h-4" /></button>
             </div>
             {loading ? <div className="p-6 text-center text-gray-400">Loading orders...</div> : orders.length === 0 ? (
-              <div className="p-6 text-center text-gray-400">No assigned orders found. Keep live location sharing on to receive nearby orders.</div>
+              <div className="p-6 text-center text-gray-400">No assigned active orders found.</div>
             ) : (
               <div className="divide-y divide-gray-50 max-h-[560px] overflow-y-auto">
                 {orders.map((order) => (
@@ -316,13 +291,7 @@ export default function DeliveryDashboard() {
                       <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">{order.status}</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-2 flex items-start gap-1"><MapPin className="w-3.5 h-3.5 mt-0.5" /> {order.address ? `${order.address.address_line1}, ${order.address.area || order.address.city}` : 'Address not found'}</p>
-                    <p className="text-xs text-gray-400 mt-2">Customer route points: {order.customerRoute?.length || 0} • Live location: {order.customerLocation ? 'available' : 'not sharing'} • Dispatch: {order.dispatch_status || 'assigned'}</p>
-                    {order.dispatch_status === 'assigned' && (
-                      <div className="mt-3 flex gap-2" onClick={(event) => event.stopPropagation()}>
-                        <button disabled={actionLoadingId === order.id} onClick={() => acceptOrder(order.id)} className="flex-1 py-2 bg-green-600 text-white rounded-lg text-xs font-bold disabled:opacity-60">Accept</button>
-                        <button disabled={actionLoadingId === order.id} onClick={() => rejectOrder(order.id)} className="flex-1 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold disabled:opacity-60">Reject</button>
-                      </div>
-                    )}
+                    <p className="text-xs text-gray-400 mt-2">Customer route points: {order.customerRoute?.length || 0} • Live location: {order.customerLocation ? 'available' : 'not sharing'}</p>
                   </button>
                 ))}
               </div>
