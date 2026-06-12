@@ -13,11 +13,34 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separatorIndex = line.indexOf('=');
+    if (separatorIndex === -1) continue;
+    const key = line.slice(0, separatorIndex).trim();
+    let value = line.slice(separatorIndex + 1).trim();
+    if ((value.startsWith('\"') && value.endsWith('\"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (key && process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadEnvFile(path.join(__dirname, '.env'));
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-before-production';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/cylinder_express';
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const BULKSMSBD_API_URL = process.env.BULKSMSBD_API_URL || 'https://bulksmsbd.net/api/smsapi';
+const BULKSMSBD_API_KEY = process.env.BULKSMSBD_API_KEY || '';
+const BULKSMSBD_SENDER_ID = process.env.BULKSMSBD_SENDER_ID || process.env.BULKSMSBD_SENDERID || '';
+const SMS_ENABLED = Boolean(BULKSMSBD_API_KEY && BULKSMSBD_SENDER_ID);
 
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
@@ -221,14 +244,58 @@ app.post('/api/tables/:table', async (req, res) => {
   }
 });
 
+function normalizePhoneForSms(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.startsWith('880')) return digits;
+  if (digits.startsWith('0')) return `88${digits}`;
+  if (digits.length === 10 && digits.startsWith('1')) return `880${digits}`;
+  return digits;
+}
+
+async function sendBulkSmsBdOtp(phone, otp) {
+  if (!SMS_ENABLED) return { sent: false, skipped: true };
+
+  const params = new URLSearchParams({
+    api_key: BULKSMSBD_API_KEY,
+    senderid: BULKSMSBD_SENDER_ID,
+    number: normalizePhoneForSms(phone),
+    message: `Your Cylinder Express OTP is ${otp}. It will expire in 5 minutes.`,
+  });
+
+  const response = await fetch(BULKSMSBD_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`BulkSMSBD request failed with status ${response.status}: ${text}`);
+  }
+
+  return { sent: true, provider_response: text };
+}
+
 app.post('/functions/v1/send-otp', async (req, res) => {
   const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Phone number is required' });
+  if (!phone) return res.status(400).json({ error: 'Phone number is required.' });
+
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await models.otp_verifications.deleteMany({ phone, used: false });
   await models.otp_verifications.create({ phone, otp, expires_at: new Date(Date.now() + 5 * 60 * 1000) });
-  if (process.env.NODE_ENV !== 'production') console.log(`Cylinder Express OTP for ${phone}: ${otp}`);
-  res.json({ success: true, message: process.env.NODE_ENV === 'production' ? 'OTP sent successfully' : `Development OTP: ${otp}` });
+
+  try {
+    const smsResult = await sendBulkSmsBdOtp(phone, otp);
+    if (process.env.NODE_ENV !== 'production') console.log(`Cylinder Express OTP for ${phone}: ${otp}`);
+    res.json({
+      success: true,
+      message: smsResult.sent ? 'OTP sent successfully' : 'Development OTP generated',
+      ...(process.env.NODE_ENV !== 'production' ? { otp } : {}),
+    });
+  } catch (error) {
+    console.error('OTP SMS sending failed:', error.message);
+    return res.status(502).json({ error: 'OTP could not be sent. Please try again.' });
+  }
 });
 
 app.post('/functions/v1/verify-otp', async (req, res) => {
