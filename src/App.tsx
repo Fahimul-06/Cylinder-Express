@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import Navbar from './components/Navbar';
@@ -67,7 +67,8 @@ function AppRoutes() {
     );
   }
 
-  const isAdminRoute = window.location.pathname.startsWith('/admin');
+  const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
+  const isAdminRoute = currentPath.startsWith('/admin');
 
   return (
     <>
@@ -100,12 +101,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <CartProvider>
           <AppRoutes />
         </CartProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

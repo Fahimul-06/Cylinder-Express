@@ -149,7 +149,7 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">LPG Cylinders</h2>
             <button
-              onClick={() => navigate('/products?category=cylinders')}
+              onClick={() => navigate('/products?category=lpg-cylinders')}
               className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700"
             >
               View All <ChevronRight className="w-4 h-4" />
