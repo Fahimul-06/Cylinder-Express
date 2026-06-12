@@ -27,6 +27,7 @@ export interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
+  company_name: string | null;
   type: 'new' | 'refill' | 'service';
   size: string | null;
   unit: string;

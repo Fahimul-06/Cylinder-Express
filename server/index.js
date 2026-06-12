@@ -93,7 +93,7 @@ const ProfileSchema = new mongoose.Schema({
 }, { toJSON });
 
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
-const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, image_url: String, type: String, size: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
+const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, image_url: String, company_name: String, type: String, size: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
 const AddressSchema = new mongoose.Schema({ user_id: String, label: String, address_line1: String, address_line2: String, city: String, district: String, area: String, postal_code: String, latitude: Number, longitude: Number, is_default: Boolean, ...common }, { toJSON });
 const OrderSchema = new mongoose.Schema({ user_id: String, address_id: String, status: { type: String, default: 'pending' }, total_amount: Number, delivery_fee: Number, floor_number: Number, floor_charge: Number, promo_code: String, discount_amount: Number, notes: String, ...common }, { toJSON });
 const OrderItemSchema = new mongoose.Schema({ order_id: String, product_id: String, quantity: Number, unit_price: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
@@ -408,14 +408,14 @@ async function ensureDefaultCatalog() {
 
   const products = [
     // LPG cylinders
-    { category: 'lpg-cylinders', name: 'Bashundhara LPG 12kg Refill', description: 'Standard Bashundhara 12kg LPG refill cylinder for household cooking.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 1 },
-    { category: 'lpg-cylinders', name: 'Omera LPG 12kg Refill', description: 'Omera 12kg LPG refill cylinder for home and small business use.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 2 },
-    { category: 'lpg-cylinders', name: 'Jamuna LPG 12kg Refill', description: 'Jamuna 12kg LPG refill cylinder with home delivery support.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 3 },
-    { category: 'lpg-cylinders', name: 'Beximco LPG 12kg Refill', description: 'Beximco 12kg LPG refill cylinder for regular household usage.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 4 },
-    { category: 'lpg-cylinders', name: 'Petromax LPG 12kg Refill', description: 'Petromax 12kg LPG refill cylinder.', price: 1330, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 5 },
-    { category: 'lpg-cylinders', name: 'Fresh LPG 12kg Refill', description: 'Fresh 12kg LPG refill cylinder.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 6 },
-    { category: 'lpg-cylinders', name: 'New LPG Cylinder 12kg Package', description: 'New 12kg LPG cylinder package for first-time users.', price: 3200, type: 'new', size: '12kg', unit: 'package', is_bestseller: true, sort_order: 7 },
-    { category: 'lpg-cylinders', name: 'LPG Cylinder 35kg Refill', description: 'Large 35kg LPG refill cylinder for restaurants and commercial kitchens.', price: 3900, type: 'refill', size: '35kg', unit: 'cylinder', is_bestseller: false, sort_order: 8 },
+    { category: 'lpg-cylinders', company_name: 'Bashundhara LPG', name: 'Bashundhara LPG 12kg Refill', description: 'Standard Bashundhara 12kg LPG refill cylinder for household cooking.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 1 },
+    { category: 'lpg-cylinders', company_name: 'Omera LPG', name: 'Omera LPG 12kg Refill', description: 'Omera 12kg LPG refill cylinder for home and small business use.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 2 },
+    { category: 'lpg-cylinders', company_name: 'Jamuna LPG', name: 'Jamuna LPG 12kg Refill', description: 'Jamuna 12kg LPG refill cylinder with home delivery support.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 3 },
+    { category: 'lpg-cylinders', company_name: 'Beximco LPG', name: 'Beximco LPG 12kg Refill', description: 'Beximco 12kg LPG refill cylinder for regular household usage.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 4 },
+    { category: 'lpg-cylinders', company_name: 'Petromax LPG', name: 'Petromax LPG 12kg Refill', description: 'Petromax 12kg LPG refill cylinder.', price: 1330, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 5 },
+    { category: 'lpg-cylinders', company_name: 'Fresh LPG', name: 'Fresh LPG 12kg Refill', description: 'Fresh 12kg LPG refill cylinder.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 6 },
+    { category: 'lpg-cylinders', company_name: null, name: 'New LPG Cylinder 12kg Package', description: 'New 12kg LPG cylinder package for first-time users.', price: 3200, type: 'new', size: '12kg', unit: 'package', is_bestseller: true, sort_order: 7 },
+    { category: 'lpg-cylinders', company_name: null, name: 'LPG Cylinder 35kg Refill', description: 'Large 35kg LPG refill cylinder for restaurants and commercial kitchens.', price: 3900, type: 'refill', size: '35kg', unit: 'cylinder', is_bestseller: false, sort_order: 8 },
 
     // Stoves and burners
     { category: 'stoves-burners', name: 'Single Burner Gas Stove', description: 'Compact single burner LPG stove for small kitchens and bachelor homes.', price: 950, type: 'new', size: 'single burner', unit: 'piece', is_bestseller: true, sort_order: 20 },
