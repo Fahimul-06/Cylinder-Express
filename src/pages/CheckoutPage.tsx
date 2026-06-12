@@ -57,11 +57,12 @@ export default function CheckoutPage() {
   }, [user]);
 
   const handlePlaceOrder = async () => {
-    if (!selectedAddress || items.length === 0) return;
+    if (!user || !selectedAddress || items.length === 0) return;
     setPlacing(true);
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
+        user_id: user.id,
         address_id: selectedAddress.id,
         total_amount: subtotal,
         delivery_fee: DELIVERY_FEE,

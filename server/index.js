@@ -36,15 +36,28 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-before-production';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/cylinder_express';
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || process.env.CLIENT_ORIGINS || 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const BULKSMSBD_API_URL = process.env.BULKSMSBD_API_URL || 'https://bulksmsbd.net/api/smsapi';
 const BULKSMSBD_API_KEY = process.env.BULKSMSBD_API_KEY || '';
 const BULKSMSBD_SENDER_ID = process.env.BULKSMSBD_SENDER_ID || process.env.BULKSMSBD_SENDERID || '';
 const SMS_ENABLED = Boolean(BULKSMSBD_API_KEY && BULKSMSBD_SENDER_ID);
 
-app.use(cors({ origin: CLIENT_ORIGIN, credentials: true }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || CLIENT_ORIGINS.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '2mb' }));
 app.use('/uploads', express.static(path.join(rootDir, 'public', 'uploads')));
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, service: 'Cylinder Express API', database: mongoose.connection.readyState === 1 ? 'connected' : 'connecting' });
+});
 
 const common = {
   created_at: { type: Date, default: Date.now },
@@ -88,7 +101,7 @@ const ServiceBookingSchema = new mongoose.Schema({ user_id: String, product_id: 
 const OfferSchema = new mongoose.Schema({ title: String, description: String, badge_text: String, discount_type: String, discount_value: Number, code: String, product_id: String, category_slug: String, bg_from: String, bg_to: String, image_url: String, valid_from: { type: Date, default: Date.now }, valid_until: Date, is_active: Boolean, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const OtpSchema = new mongoose.Schema({ phone: String, otp: String, used: { type: Boolean, default: false }, expires_at: Date, created_at: { type: Date, default: Date.now } }, { toJSON });
 const PasswordResetSchema = new mongoose.Schema({ phone: String, token: String, used: { type: Boolean, default: false }, expires_at: Date, created_at: { type: Date, default: Date.now } }, { toJSON });
-const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true }, latitude: Number, longitude: Number, accuracy: Number, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
+const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
 
 const models = {
   users: mongoose.model('User', UserSchema),
@@ -117,14 +130,35 @@ function requireAuth(req, res, next) {
   catch { return res.status(401).json({ error: 'Invalid or expired token' }); }
 }
 
+function normalizeMongoField(field) {
+  return field === 'id' ? '_id' : field;
+}
+
 function buildMongoQuery(filters = []) {
   const query = {};
   for (const filter of filters) {
-    if (filter.op === 'eq') query[filter.field] = filter.value;
-    if (filter.op === 'in') query[filter.field] = { $in: filter.value };
-    if (filter.op === 'gte') query[filter.field] = { $gte: new Date(filter.value) };
+    const field = normalizeMongoField(filter.field);
+    if (filter.op === 'eq') query[field] = filter.value;
+    if (filter.op === 'in') query[field] = { $in: filter.value };
+    if (filter.op === 'gte') query[field] = { $gte: new Date(filter.value) };
   }
   return query;
+}
+
+function getOptionalAuthUserId(req) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET).id || null;
+  } catch {
+    return null;
+  }
+}
+
+function ensureUserOwnedPayload(table, item, userId) {
+  const userOwnedTables = new Set(['addresses', 'orders', 'service_bookings', 'customer_locations']);
+  if (!userOwnedTables.has(table) || !userId || item.user_id) return item;
+  return { ...item, user_id: userId };
 }
 
 async function decorate(table, rows, select = '') {
@@ -210,17 +244,24 @@ app.post('/api/tables/:table', async (req, res) => {
     }
 
     if (action === 'insert') {
+      const userId = getOptionalAuthUserId(req);
       const payload = Array.isArray(body) ? body : [body];
-      const docs = await Model.insertMany(payload.map((item) => ({ ...item, updated_at: new Date() })));
+      const docs = await Model.insertMany(payload.map((item) => ({
+        ...ensureUserOwnedPayload(req.params.table, item, userId),
+        updated_at: new Date(),
+      })));
       data = docs.map((d) => d.toJSON());
     }
 
     if (action === 'upsert') {
+      const userId = getOptionalAuthUserId(req);
       const payload = Array.isArray(body) ? body : [body];
       const output = [];
-      for (const item of payload) {
-        const upsertQuery = item.id ? { _id: item.id } : item.user_id ? { user_id: item.user_id } : buildMongoQuery(filters);
-        const doc = await Model.findOneAndUpdate(upsertQuery, { ...item, updated_at: new Date() }, { new: true, upsert: true, setDefaultsOnInsert: true });
+      for (const rawItem of payload) {
+        const item = ensureUserOwnedPayload(req.params.table, rawItem, userId);
+        const { id, ...itemWithoutId } = item;
+        const upsertQuery = id ? { _id: id } : item.user_id ? { user_id: item.user_id } : buildMongoQuery(filters);
+        const doc = await Model.findOneAndUpdate(upsertQuery, { ...itemWithoutId, updated_at: new Date() }, { new: true, upsert: true, setDefaultsOnInsert: true });
         output.push(doc.toJSON());
       }
       data = output;
@@ -335,6 +376,18 @@ const upload = multer({ storage: multer.diskStorage({
 })});
 app.post('/api/uploads', upload.single('file'), (req, res) => res.json({ path: req.file.filename }));
 
+async function backfillOrderUserIds() {
+  const orders = await models.orders.find({ $or: [{ user_id: { $exists: false } }, { user_id: null }, { user_id: '' }] });
+  for (const order of orders) {
+    if (!order.address_id) continue;
+    const address = await models.addresses.findById(order.address_id).catch(() => null);
+    if (!address?.user_id) continue;
+    order.user_id = address.user_id;
+    order.updated_at = new Date();
+    await order.save();
+  }
+}
+
 async function seed() {
   if (await models.categories.countDocuments()) return;
   const categories = await models.categories.insertMany([
@@ -357,6 +410,7 @@ async function seed() {
 
 mongoose.connect(MONGODB_URI).then(async () => {
   await seed();
+  await backfillOrderUserIds();
   app.listen(PORT, () => console.log(`Cylinder Express MongoDB API running on http://localhost:${PORT}`));
 }).catch((error) => {
   console.error('MongoDB connection failed:', error.message);
