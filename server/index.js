@@ -456,7 +456,6 @@ async function ensureDefaultCatalog() {
       {
         $setOnInsert: {
           ...productData,
-          category_id: category.id,
           image_url: null,
           is_available: true,
           created_at: new Date(),
