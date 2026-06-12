@@ -62,7 +62,7 @@ export default function AdminLayout() {
           <div className="px-4 py-2"><LanguageToggle /></div>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-400 font-medium">{profile?.full_name}</p>
-            <p className="text-[10px] text-blue-600 font-semibold uppercase">{profile?.role === 'sub_admin' ? 'Sub Admin' : t('admin.role')}</p>
+            <p className="text-[10px] text-blue-600 font-semibold uppercase">{profile?.role === 'sub_admin' ? 'Sub Admin' : 'Admin'}</p>
           </div>
           <button
             onClick={() => navigate('/home')}

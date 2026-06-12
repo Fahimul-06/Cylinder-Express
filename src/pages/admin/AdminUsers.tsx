@@ -232,7 +232,7 @@ export default function AdminUsers() {
                         <p className="text-xs text-gray-500">{profile.phone} {profile.email ? `• ${profile.email}` : ''}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold uppercase">
-                            {profile.role === 'sub_admin' ? 'Sub-admin' : 'Super admin'}
+                            {profile.role === 'sub_admin' ? 'Sub-admin' : 'Admin'}
                           </span>
                           {profile.is_active === false ? (
                             <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[11px] font-bold">Inactive</span>

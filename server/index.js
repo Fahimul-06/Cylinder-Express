@@ -89,7 +89,7 @@ const ProfileSchema = new mongoose.Schema({
   email: { type: String, default: null },
   avatar_url: { type: String, default: null },
   is_admin: { type: Boolean, default: false },
-  role: { type: String, enum: ['customer', 'super_admin', 'sub_admin'], default: 'customer', index: true },
+  role: { type: String, enum: ['customer', 'admin', 'sub_admin'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   is_active: { type: Boolean, default: true },
   ...common,
@@ -139,7 +139,7 @@ function sanitizePermissions(input = {}) {
 
 function hasAdminPermission(profile, permission) {
   if (!profile?.is_admin || profile.is_active === false) return false;
-  if (profile.role === 'super_admin' || !profile.role) return true;
+  if (profile.role !== 'sub_admin') return true;
   return Boolean(profile.permissions?.[permission]);
 }
 
@@ -188,7 +188,7 @@ function requireAdminPermission(permission) {
   };
 }
 
-function requireSuperAdmin(req, res, next) {
+function requireAdminUserManagement(req, res, next) {
   return requireAdminPermission('users')(req, res, next);
 }
 
@@ -254,7 +254,7 @@ app.post('/api/auth/signup', async (req, res) => {
       phone,
       email,
       is_admin: existingProfiles === 0,
-      role: existingProfiles === 0 ? 'super_admin' : 'customer',
+      role: existingProfiles === 0 ? 'admin' : 'customer',
       permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
       is_active: true,
     });
@@ -298,7 +298,7 @@ app.post('/api/rpc/get_email_by_phone', async (req, res) => {
 });
 
 
-app.post('/api/admin/subadmins', requireAuth, requireSuperAdmin, async (req, res) => {
+app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
     const { full_name, phone, password, permissions = {} } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
@@ -335,7 +335,7 @@ app.post('/api/admin/subadmins', requireAuth, requireSuperAdmin, async (req, res
   }
 });
 
-app.patch('/api/admin/subadmins/:profileId', requireAuth, requireSuperAdmin, async (req, res) => {
+app.patch('/api/admin/subadmins/:profileId', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
     const update = {};
     if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
@@ -488,15 +488,15 @@ async function backfillProfileRolesAndPermissions() {
   const profiles = await models.profiles.find({});
   for (const profile of profiles) {
     let changed = false;
-    if (!profile.role) {
-      profile.role = profile.is_admin ? 'super_admin' : 'customer';
+    if (!profile.role || profile.role === 'super_admin') {
+      profile.role = profile.is_admin ? 'admin' : 'customer';
       changed = true;
     }
     if (profile.is_active === undefined || profile.is_active === null) {
       profile.is_active = true;
       changed = true;
     }
-    if (profile.is_admin && profile.role === 'super_admin') {
+    if (profile.is_admin && profile.role !== 'sub_admin') {
       const fullPermissions = sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true])));
       if (!profile.permissions || Object.keys(profile.permissions || {}).length === 0) {
         profile.permissions = fullPermissions;

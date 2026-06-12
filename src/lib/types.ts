@@ -6,7 +6,7 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   is_admin: boolean;
-  role?: 'customer' | 'super_admin' | 'sub_admin';
+  role?: 'customer' | 'admin' | 'sub_admin';
   permissions?: Record<string, boolean>;
   is_active?: boolean;
   created_at: string;
@@ -146,6 +146,6 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
 
 export function profileHasPermission(profile: Profile | null | undefined, permission: AdminPermissionKey) {
   if (!profile?.is_admin || profile.is_active === false) return false;
-  if (profile.role === 'super_admin' || !profile.role) return true;
+  if (profile.role !== 'sub_admin') return true;
   return Boolean(profile.permissions?.[permission]);
 }
