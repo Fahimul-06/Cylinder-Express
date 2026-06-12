@@ -451,20 +451,29 @@ async function ensureDefaultCatalog() {
     const category = categoriesBySlug[product.category];
     if (!category) continue;
     const { category: _category, ...productData } = product;
+    const {
+      company_name = null,
+      size = null,
+      valve_size = null,
+      valve_connection = null,
+      ...insertOnlyProductData
+    } = productData;
+
     await models.products.findOneAndUpdate(
       { name: productData.name },
       {
         $setOnInsert: {
-          ...productData,
+          ...insertOnlyProductData,
           image_url: null,
           is_available: true,
           created_at: new Date(),
         },
         $set: {
           category_id: category.id,
-          company_name: productData.company_name || null,
-          valve_size: productData.valve_size || null,
-          valve_connection: productData.valve_connection || null,
+          company_name,
+          size,
+          valve_size,
+          valve_connection,
           updated_at: new Date(),
         },
       },
