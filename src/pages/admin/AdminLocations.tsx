@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { MapPin, Users, RefreshCw, Navigation } from 'lucide-react';
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyB6r1J92vQSRI5o-SdQ9D16MBBwPyzCz9o';
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 interface LocationRecord {
   id: string;
@@ -14,15 +14,28 @@ interface LocationRecord {
   profile?: { full_name: string; phone: string };
 }
 
+type GoogleMapsApi = {
+  maps: {
+    Map: new (element: HTMLElement, options: Record<string, unknown>) => any;
+    Marker: new (options: Record<string, unknown>) => any;
+    InfoWindow: new (options: Record<string, unknown>) => any;
+    LatLngBounds: new () => any;
+    SymbolPath: { CIRCLE: unknown };
+  };
+};
+
 declare global {
   interface Window {
-    google: typeof google;
-    initMap: () => void;
+    google?: GoogleMapsApi;
   }
 }
 
 function loadGoogleMaps(): Promise<void> {
   return new Promise((resolve, reject) => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      reject(new Error('Missing VITE_GOOGLE_MAPS_API_KEY environment variable'));
+      return;
+    }
     if (window.google?.maps) { resolve(); return; }
     const existing = document.getElementById('google-maps-script');
     if (existing) { existing.addEventListener('load', () => resolve()); return; }
@@ -39,8 +52,8 @@ function loadGoogleMaps(): Promise<void> {
 
 export default function AdminLocations() {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<Map<string, google.maps.Marker>>(new Map());
+  const mapInstanceRef = useRef<any | null>(null);
+  const markersRef = useRef<Map<string, any>>(new Map());
   const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapsReady, setMapsReady] = useState(false);
@@ -76,12 +89,17 @@ export default function AdminLocations() {
 
   // Initialize map
   useEffect(() => {
-    loadGoogleMaps().then(() => setMapsReady(true));
+    loadGoogleMaps()
+      .then(() => setMapsReady(true))
+      .catch((error) => {
+        console.error(error);
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
     if (!mapsReady || !mapRef.current || mapInstanceRef.current) return;
-    mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+    mapInstanceRef.current = new window.google!.maps.Map(mapRef.current, {
       center: { lat: 23.8103, lng: 90.4125 }, // Dhaka
       zoom: 12,
       mapTypeControl: false,
@@ -115,12 +133,12 @@ export default function AdminLocations() {
       if (existing) {
         existing.setPosition(pos);
       } else {
-        const marker = new window.google.maps.Marker({
+        const marker = new window.google!.maps.Marker({
           position: pos,
           map: mapInstanceRef.current!,
           title,
           icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
+            path: window.google!.maps.SymbolPath.CIRCLE,
             scale: 10,
             fillColor: '#2563eb',
             fillOpacity: 1,
@@ -129,7 +147,7 @@ export default function AdminLocations() {
           },
         });
 
-        const infoWindow = new window.google.maps.InfoWindow({
+        const infoWindow = new window.google!.maps.InfoWindow({
           content: `
             <div style="font-family:sans-serif;padding:4px 2px;min-width:140px">
               <p style="font-weight:600;margin:0 0 2px;font-size:13px">${title}</p>
@@ -146,7 +164,7 @@ export default function AdminLocations() {
 
     // If locations exist, fit bounds
     if (locations.length > 0 && mapInstanceRef.current) {
-      const bounds = new window.google.maps.LatLngBounds();
+      const bounds = new window.google!.maps.LatLngBounds();
       locations.forEach(l => bounds.extend({ lat: l.latitude, lng: l.longitude }));
       mapInstanceRef.current.fitBounds(bounds);
       if (locations.length === 1) mapInstanceRef.current.setZoom(15);

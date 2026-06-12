@@ -7,8 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-const BULKSMSBD_API_KEY = "ww5dMIYUSOK88G1tCY39";
-const BULKSMSBD_SENDERID = "8809648908087";
 
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -76,13 +74,24 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const bulkSmsApiKey = Deno.env.get("BULKSMSBD_API_KEY");
+    const bulkSmsSenderId = Deno.env.get("BULKSMSBD_SENDER_ID");
+
+    if (!bulkSmsApiKey || !bulkSmsSenderId) {
+      console.error("Missing BulkSMSBD environment variables");
+      return new Response(
+        JSON.stringify({ error: "SMS service is not configured. Please contact support." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Send SMS via BulkSMSBD
     const message = `Your CylinderExpress OTP is: ${otp}. Valid for 5 minutes. Do not share this code.`;
     const smsUrl = new URL("https://bulksmsbd.net/api/smsapi");
-    smsUrl.searchParams.set("api_key", BULKSMSBD_API_KEY);
+    smsUrl.searchParams.set("api_key", bulkSmsApiKey);
     smsUrl.searchParams.set("type", "text");
     smsUrl.searchParams.set("number", internationalPhone);
-    smsUrl.searchParams.set("senderid", BULKSMSBD_SENDERID);
+    smsUrl.searchParams.set("senderid", bulkSmsSenderId);
     smsUrl.searchParams.set("message", message);
 
     const smsRes = await fetch(smsUrl.toString(), { method: "GET" });
