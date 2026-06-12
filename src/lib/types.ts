@@ -6,7 +6,7 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   is_admin: boolean;
-  role?: 'customer' | 'admin' | 'sub_admin';
+  role?: 'customer' | 'admin' | 'sub_admin' | 'delivery';
   permissions?: Record<string, boolean>;
   is_active?: boolean;
   created_at: string;
@@ -134,6 +134,28 @@ export type TypeFilter = 'all' | 'new' | 'refill' | 'service';
 
 
 export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'locations' | 'users';
+
+export interface DeliveryLocation {
+  id: string;
+  user_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  is_sharing: boolean;
+  last_seen: string;
+  updated_at: string;
+}
+
+export interface LocationPoint {
+  id: string;
+  user_id: string;
+  order_id: string | null;
+  latitude: number;
+  longitude: number;
+  accuracy?: number | null;
+  recorded_at: string;
+  created_at: string;
+}
 
 export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
   dashboard: 'Dashboard',

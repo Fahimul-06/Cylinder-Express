@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck } from 'lucide-react';
 import { apiClient, supabase } from '../../lib/supabase';
 import { ADMIN_PERMISSION_LABELS, AdminPermissionKey, Profile } from '../../lib/types';
 
@@ -29,6 +29,7 @@ export default function AdminUsers() {
     password: '',
     permissions: { ...emptyPermissions },
   });
+  const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '' });
 
   const loadProfiles = async () => {
     setLoading(true);
@@ -54,7 +55,8 @@ export default function AdminUsers() {
     ].join(' ').toLowerCase().includes(q));
   }, [profiles, search]);
 
-  const registeredUsers = filtered.filter((profile) => !profile.is_admin);
+  const registeredUsers = filtered.filter((profile) => !profile.is_admin && profile.role !== 'delivery');
+  const deliveryMen = filtered.filter((profile) => profile.role === 'delivery');
   const admins = filtered.filter((profile) => profile.is_admin);
 
   const createSubAdmin = async () => {
@@ -81,6 +83,33 @@ export default function AdminUsers() {
       await loadProfiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create sub-admin.');
+    }
+  };
+
+  const createDeliveryMan = async () => {
+    setError('');
+    setMessage('');
+    if (!deliveryForm.full_name.trim() || !deliveryForm.phone.trim() || !deliveryForm.password.trim()) {
+      setError('Delivery man name, phone and password are required.');
+      return;
+    }
+    if (deliveryForm.password.length < 6) {
+      setError('Delivery man password must be at least 6 characters.');
+      return;
+    }
+    try {
+      const result = await apiClient<CreateResponse>('/api/admin/delivery-men', {
+        method: 'POST',
+        body: JSON.stringify(deliveryForm),
+      });
+      setMessage(result.sms?.sent
+        ? 'Delivery man account created and login credentials were sent by SMS.'
+        : 'Delivery man account created. SMS was skipped/failed, so share the credentials manually once.'
+      );
+      setDeliveryForm({ full_name: '', phone: '', password: '' });
+      await loadProfiles();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create delivery man.');
     }
   };
 
@@ -111,9 +140,10 @@ export default function AdminUsers() {
   };
 
   const statCards = [
-    { label: 'Registered Users', value: profiles.filter((p) => !p.is_admin).length, icon: Users },
+    { label: 'Registered Users', value: profiles.filter((p) => !p.is_admin && p.role !== 'delivery').length, icon: Users },
     { label: 'Admin Accounts', value: profiles.filter((p) => p.is_admin).length, icon: ShieldCheck },
     { label: 'Sub-admins', value: profiles.filter((p) => p.role === 'sub_admin').length, icon: UserPlus },
+    { label: 'Delivery Men', value: profiles.filter((p) => p.role === 'delivery').length, icon: Truck },
   ];
 
   return (
@@ -140,7 +170,7 @@ export default function AdminUsers() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-white border border-gray-100 rounded-2xl p-5">
             <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
@@ -204,6 +234,47 @@ export default function AdminUsers() {
           className="mt-4 px-5 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 flex items-center gap-2"
         >
           <UserPlus className="w-4 h-4" /> Create & Send SMS
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="flex items-center gap-2 mb-5">
+          <Truck className="w-5 h-5 text-green-600" />
+          <h2 className="font-bold text-gray-900">Create Delivery Man</h2>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <input
+            value={deliveryForm.full_name}
+            onChange={(e) => setDeliveryForm((prev) => ({ ...prev, full_name: e.target.value }))}
+            placeholder="Full name"
+            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
+          />
+          <div className="relative">
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={deliveryForm.phone}
+              onChange={(e) => setDeliveryForm((prev) => ({ ...prev, phone: e.target.value }))}
+              placeholder="01XXXXXXXXX"
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
+            />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={deliveryForm.password}
+              onChange={(e) => setDeliveryForm((prev) => ({ ...prev, password: e.target.value }))}
+              placeholder="Temporary password"
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">The delivery man can log in with phone/password, upload profile photo, change password with OTP, and share live delivery location.</p>
+        <button
+          onClick={createDeliveryMan}
+          className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
+        >
+          <Truck className="w-4 h-4" /> Create Delivery Account & Send SMS
         </button>
       </div>
 
@@ -274,6 +345,41 @@ export default function AdminUsers() {
                 </div>
               ))}
               {admins.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No admin accounts found.</div>}
+            </div>
+          </section>
+
+          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">Delivery Men</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="px-5 py-3 text-left">Name</th>
+                    <th className="px-5 py-3 text-left">Phone</th>
+                    <th className="px-5 py-3 text-left">Status</th>
+                    <th className="px-5 py-3 text-left">Joined</th>
+                    <th className="px-5 py-3 text-left">Photo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {deliveryMen.map((profile) => (
+                    <tr key={profile.id}>
+                      <td className="px-5 py-3 font-semibold text-gray-900">{profile.full_name}</td>
+                      <td className="px-5 py-3 text-gray-600">{profile.phone}</td>
+                      <td className="px-5 py-3"><span className="px-2 py-1 rounded-full bg-green-50 text-green-700 text-[11px] font-bold">{profile.is_active === false ? 'Inactive' : 'Active'}</span></td>
+                      <td className="px-5 py-3 text-gray-500">{new Date(profile.created_at).toLocaleDateString('en-BD')}</td>
+                      <td className="px-5 py-3">
+                        {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-8 h-8 rounded-lg object-cover" /> : <ImageIcon className="w-4 h-4 text-gray-300" />}
+                      </td>
+                    </tr>
+                  ))}
+                  {deliveryMen.length === 0 && (
+                    <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">No delivery men found.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
 

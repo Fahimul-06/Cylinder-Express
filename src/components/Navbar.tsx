@@ -17,7 +17,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useLanguage();
 
-  if (!user) return null;
+  if (!user || profile?.role === 'delivery') return null;
 
   const navItems = [
     { path: '/home', label: t('nav.home'), icon: Package, badge: 0 },

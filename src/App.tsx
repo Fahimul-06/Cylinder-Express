@@ -21,6 +21,7 @@ import AdminProducts from './pages/admin/AdminProducts';
 import AdminOffers from './pages/admin/AdminOffers';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
+import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,23 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function DeliveryRoute({ children }: { children: React.ReactNode }) {
+  const { user, profile, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-12 h-12 bg-blue-200 rounded-xl" />
+          <div className="h-4 w-40 bg-gray-200 rounded" />
+        </div>
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (profile?.role !== 'delivery' || profile.is_active === false) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
 
@@ -63,7 +81,7 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
 
   if (loading) {
     return (
@@ -85,7 +103,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
-        <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path="/home" element={<ProtectedRoute>{profile?.role === 'delivery' ? <Navigate to="/delivery" replace /> : <HomePage />}</ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
         <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
         <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
@@ -94,6 +112,7 @@ function AppRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
+        <Route path="/delivery" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route index element={<AdminRoute permission="dashboard"><AdminDashboard /></AdminRoute>} />
@@ -103,7 +122,7 @@ function AppRoutes() {
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to={user ? '/home' : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? '/delivery' : '/home') : '/login'} replace />} />
       </Routes>
     </>
   );

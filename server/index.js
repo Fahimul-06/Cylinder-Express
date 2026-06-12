@@ -89,7 +89,7 @@ const ProfileSchema = new mongoose.Schema({
   email: { type: String, default: null },
   avatar_url: { type: String, default: null },
   is_admin: { type: Boolean, default: false },
-  role: { type: String, enum: ['customer', 'admin', 'sub_admin'], default: 'customer', index: true },
+  role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   is_active: { type: Boolean, default: true },
   ...common,
@@ -106,6 +106,8 @@ const OtpSchema = new mongoose.Schema({ phone: String, otp: String, used: { type
 const PasswordResetSchema = new mongoose.Schema({ phone: String, token: String, used: { type: Boolean, default: false }, expires_at: Date, created_at: { type: Date, default: Date.now } }, { toJSON });
 const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true }, active_order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
 const CustomerLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
+const DeliveryLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
+const DeliveryLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
 
 const models = {
   users: mongoose.model('User', UserSchema),
@@ -121,6 +123,8 @@ const models = {
   password_reset_sessions: mongoose.model('PasswordResetSession', PasswordResetSchema),
   customer_locations: mongoose.model('CustomerLocation', CustomerLocationSchema),
   customer_location_points: mongoose.model('CustomerLocationPoint', CustomerLocationPointSchema),
+  delivery_locations: mongoose.model('DeliveryLocation', DeliveryLocationSchema),
+  delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
 };
 
 function signUser(user) {
@@ -218,7 +222,7 @@ function getOptionalAuthUserId(req) {
 }
 
 function ensureUserOwnedPayload(table, item, userId) {
-  const userOwnedTables = new Set(['addresses', 'orders', 'service_bookings', 'customer_locations', 'customer_location_points']);
+  const userOwnedTables = new Set(['addresses', 'orders', 'service_bookings', 'customer_locations', 'customer_location_points', 'delivery_locations', 'delivery_location_points']);
   if (!userOwnedTables.has(table) || !userId || item.user_id) return item;
   return { ...item, user_id: userId };
 }
@@ -327,6 +331,44 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
       sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
     } catch (smsError) {
       console.error('Sub-admin credential SMS failed:', smsError.message);
+    }
+
+    res.json({ data: profile.toJSON(), sms, error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, async (req, res) => {
+  try {
+    const { full_name, phone, password } = req.body;
+    if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
+    if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    const normalizedPhone = String(phone).trim();
+    const email = `${normalizedPhone.replace(/\D/g, '') || normalizedPhone}@delivery.cylinderexpress.bd`;
+    if (await models.users.findOne({ $or: [{ phone: normalizedPhone }, { email }] })) {
+      return res.status(409).json({ error: 'A user with this phone already exists.' });
+    }
+
+    const user = await models.users.create({ email, phone: normalizedPhone, password_hash: await bcrypt.hash(password, 12) });
+    const profile = await models.profiles.create({
+      user_id: user.id,
+      full_name,
+      phone: normalizedPhone,
+      email,
+      is_admin: false,
+      role: 'delivery',
+      permissions: {},
+      is_active: true,
+    });
+
+    const smsMessage = `Cylinder Express delivery account created. Username: ${normalizedPhone}. Password: ${password}. Login and share your live location before delivery.`;
+    let sms = { sent: false, skipped: true };
+    try {
+      sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
+    } catch (smsError) {
+      console.error('Delivery credential SMS failed:', smsError.message);
     }
 
     res.json({ data: profile.toJSON(), sms, error: null });
