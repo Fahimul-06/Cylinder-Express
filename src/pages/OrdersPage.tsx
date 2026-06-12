@@ -20,7 +20,7 @@ const statusConfig: Record<string, { color: string; icon: typeof Clock; label: s
   cancelled: { color: 'bg-red-50 text-red-700', icon: X, label: 'Cancelled' },
 };
 
-function LocationShareBanner({ userId }: { userId: string }) {
+function LocationShareBanner({ userId, activeOrderId }: { userId: string; activeOrderId: string | null }) {
   const [isSharing, setIsSharing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,27 +44,69 @@ function LocationShareBanner({ userId }: { userId: string }) {
     };
   }, [userId]);
 
+  async function saveLivePoint(uid: string, latitude: number, longitude: number, accuracy?: number | null) {
+    const now = new Date().toISOString();
+    await supabase.from('customer_locations').upsert(
+      {
+        user_id: uid,
+        active_order_id: activeOrderId,
+        latitude,
+        longitude,
+        accuracy: accuracy || null,
+        is_sharing: Boolean(activeOrderId),
+        last_seen: now,
+        updated_at: now,
+      },
+      { onConflict: 'user_id' }
+    );
+
+    if (activeOrderId) {
+      await supabase.from('customer_location_points').insert({
+        user_id: uid,
+        order_id: activeOrderId,
+        latitude,
+        longitude,
+        accuracy: accuracy || null,
+        recorded_at: now,
+      });
+    }
+  }
+
   function startWatching(uid: string) {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || !activeOrderId) return;
+    if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        supabase.from('customer_locations').upsert(
-          { user_id: uid, latitude: pos.coords.latitude, longitude: pos.coords.longitude, is_sharing: true, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id' }
-        );
+        saveLivePoint(uid, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       },
       () => setError('Location access denied'),
-      { enableHighAccuracy: true, maximumAge: 10000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
   }
 
+  useEffect(() => {
+    if (!activeOrderId && isSharing) {
+      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
+      watchRef.current = null;
+      supabase.from('customer_locations').upsert(
+        { user_id: userId, active_order_id: null, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+      setIsSharing(false);
+    }
+  }, [activeOrderId, isSharing, userId]);
+
   async function toggleSharing() {
     setError('');
+    if (!activeOrderId) {
+      setError('Live location can be shared only while you have an active order.');
+      return;
+    }
     if (isSharing) {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
       await supabase.from('customer_locations').upsert(
-        { user_id: userId, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
+        { user_id: userId, active_order_id: null, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
       setIsSharing(false);
@@ -72,10 +114,7 @@ function LocationShareBanner({ userId }: { userId: string }) {
       if (!navigator.geolocation) { setError('Geolocation not supported by your browser'); return; }
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
-          await supabase.from('customer_locations').upsert(
-            { user_id: userId, latitude: pos.coords.latitude, longitude: pos.coords.longitude, is_sharing: true, updated_at: new Date().toISOString() },
-            { onConflict: 'user_id' }
-          );
+          await saveLivePoint(userId, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
           setIsSharing(true);
           startWatching(userId);
         },
@@ -98,7 +137,7 @@ function LocationShareBanner({ userId }: { userId: string }) {
               {isSharing ? 'Sharing live location' : 'Share your location'}
             </p>
             <p className="text-xs text-gray-500">
-              {isSharing ? 'Delivery team can see you in real-time' : 'Help us find you faster for delivery'}
+              {isSharing ? 'Admin can see your live delivery route until this order is delivered' : 'Share your live route for your active order delivery'}
             </p>
           </div>
         </div>
@@ -180,12 +219,14 @@ export default function OrdersPage() {
   const calcTotal = (order: Order) =>
     order.total_amount + order.delivery_fee + (order.floor_charge || 0) - (order.discount_amount || 0);
 
+  const activeOrder = orders.find(order => !['delivered', 'cancelled'].includes(order.status));
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Orders & Bookings</h1>
 
-        {user && <LocationShareBanner userId={user.id} />}
+        {user && <LocationShareBanner userId={user.id} activeOrderId={activeOrder?.id || null} />}
 
         {/* Tabs */}
         <div className="flex bg-gray-100 rounded-xl p-1 mb-6">

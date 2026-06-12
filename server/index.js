@@ -101,7 +101,8 @@ const ServiceBookingSchema = new mongoose.Schema({ user_id: String, product_id: 
 const OfferSchema = new mongoose.Schema({ title: String, description: String, badge_text: String, discount_type: String, discount_value: Number, code: String, product_id: String, category_slug: String, bg_from: String, bg_to: String, image_url: String, valid_from: { type: Date, default: Date.now }, valid_until: Date, is_active: Boolean, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const OtpSchema = new mongoose.Schema({ phone: String, otp: String, used: { type: Boolean, default: false }, expires_at: Date, created_at: { type: Date, default: Date.now } }, { toJSON });
 const PasswordResetSchema = new mongoose.Schema({ phone: String, token: String, used: { type: Boolean, default: false }, expires_at: Date, created_at: { type: Date, default: Date.now } }, { toJSON });
-const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
+const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true }, active_order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
+const CustomerLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
 
 const models = {
   users: mongoose.model('User', UserSchema),
@@ -116,6 +117,7 @@ const models = {
   otp_verifications: mongoose.model('OtpVerification', OtpSchema),
   password_reset_sessions: mongoose.model('PasswordResetSession', PasswordResetSchema),
   customer_locations: mongoose.model('CustomerLocation', CustomerLocationSchema),
+  customer_location_points: mongoose.model('CustomerLocationPoint', CustomerLocationPointSchema),
 };
 
 function signUser(user) {
@@ -156,7 +158,7 @@ function getOptionalAuthUserId(req) {
 }
 
 function ensureUserOwnedPayload(table, item, userId) {
-  const userOwnedTables = new Set(['addresses', 'orders', 'service_bookings', 'customer_locations']);
+  const userOwnedTables = new Set(['addresses', 'orders', 'service_bookings', 'customer_locations', 'customer_location_points']);
   if (!userOwnedTables.has(table) || !userId || item.user_id) return item;
   return { ...item, user_id: userId };
 }

@@ -74,6 +74,21 @@ export default function AdminOrders() {
   async function updateStatus(orderId: string, status: string) {
     setUpdating(orderId);
     await supabase.from('orders').update({ status }).eq('id', orderId);
+
+    if (['delivered', 'completed', 'cancelled'].includes(status)) {
+      const order = orders.find(o => o.id === orderId);
+      if (order?.user_id) {
+        await supabase
+          .from('customer_locations')
+          .update({
+            is_sharing: false,
+            active_order_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', order.user_id);
+      }
+    }
+
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: status as Order['status'] } : o));
     setUpdating(null);
   }
