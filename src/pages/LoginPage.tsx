@@ -17,8 +17,7 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
   async function sendOtp() {
     setError('');
@@ -28,9 +27,9 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`${supabaseUrl}/functions/v1/send-otp`, {
+    const res = await fetch(`${apiBaseUrl}/functions/v1/send-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': anonKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: cleaned }),
     });
     const data = await res.json();
@@ -49,9 +48,9 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`${supabaseUrl}/functions/v1/verify-reset-otp`, {
+    const res = await fetch(`${apiBaseUrl}/functions/v1/verify-reset-otp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': anonKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: phone.replace(/\D/g, ''), otp: otp.trim() }),
     });
     const data = await res.json();
@@ -75,9 +74,9 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`${supabaseUrl}/functions/v1/reset-password`, {
+    const res = await fetch(`${apiBaseUrl}/functions/v1/reset-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': anonKey },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: phone.replace(/\D/g, ''), reset_token: resetToken, new_password: newPassword }),
     });
     const data = await res.json();

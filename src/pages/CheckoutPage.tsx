@@ -48,7 +48,7 @@ export default function CheckoutPage() {
         .order('is_default', { ascending: false });
       if (data && data.length > 0) {
         setAddresses(data);
-        const def = data.find(a => a.is_default) || data[0];
+        const def = data.find((a: any) => a.is_default) || data[0];
         setSelectedAddress(def);
       }
       setLoading(false);

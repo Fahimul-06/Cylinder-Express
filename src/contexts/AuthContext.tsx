@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, Session, User } from '../lib/supabase';
 import { Profile } from '../lib/types';
 
 interface AuthContextType {
@@ -87,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Look up the actual auth email registered for this phone number
       const { data } = await supabase.rpc('get_email_by_phone', { p_phone: emailOrPhone });
       if (data) {
-        email = data;
+        email = String(data);
       } else {
         // Fallback: no profile found, try the phone-as-email convention
         email = `${emailOrPhone}@cylinderexpress.bd`;

@@ -39,9 +39,9 @@ export default function AdminOrders() {
     setOrders(orderList);
 
     if (orderList.length > 0) {
-      const orderIds = orderList.map(o => o.id);
-      const addressIds = orderList.map(o => o.address_id).filter(Boolean) as string[];
-      const userIds = [...new Set(orderList.map(o => o.user_id))];
+      const orderIds = orderList.map((o: any) => o.id);
+      const addressIds = orderList.map((o: any) => o.address_id).filter(Boolean) as string[];
+      const userIds = [...new Set(orderList.map((o: any) => o.user_id))];
 
       const [itemsRes, addrRes, profileRes] = await Promise.all([
         supabase.from('order_items').select('*, product:products(name, price, image_url)').in('order_id', orderIds),

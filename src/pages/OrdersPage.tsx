@@ -147,7 +147,7 @@ export default function OrdersPage() {
 
       // Fetch order items for all orders
       if (orderList.length > 0) {
-        const orderIds = orderList.map(o => o.id);
+        const orderIds = orderList.map((o: any) => o.id);
         const { data: itemsData } = await supabase
           .from('order_items')
           .select('*, product:products(name, price, image_url)')

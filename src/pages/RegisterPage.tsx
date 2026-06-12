@@ -37,10 +37,10 @@ export default function RegisterPage() {
     setError('');
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`,
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/functions/v1/send-otp`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: form.phone }),
         }
       );
@@ -66,10 +66,10 @@ export default function RegisterPage() {
     setError('');
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp`,
+        `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/functions/v1/verify-otp`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: form.phone, otp }),
         }
       );

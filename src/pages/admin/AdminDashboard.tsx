@@ -41,9 +41,9 @@ export default function AdminDashboard() {
 
       const orders = ordersRes.data || [];
       const totalOrders = orders.length;
-      const pendingOrders = orders.filter(o => o.status === 'pending').length;
-      const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
-      const totalRevenue = orders.reduce((s, o) =>
+      const pendingOrders = orders.filter((o: any) => o.status === 'pending').length;
+      const deliveredOrders = orders.filter((o: any) => o.status === 'delivered').length;
+      const totalRevenue = orders.reduce((s: number, o: any) =>
         s + o.total_amount + (o.delivery_fee || 0) + (o.floor_charge || 0) - (o.discount_amount || 0), 0);
 
       setStats({
