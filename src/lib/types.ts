@@ -27,9 +27,11 @@ export interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
-  company_name: string | null;
   type: 'new' | 'refill' | 'service';
+  company_name: string | null;
   size: string | null;
+  valve_size: string | null;
+  valve_connection: string | null;
   unit: string;
   is_bestseller: boolean;
   is_available: boolean;

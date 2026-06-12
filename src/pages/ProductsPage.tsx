@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, Category, SortOption, TypeFilter } from '../lib/types';
 import { useSearchParams } from 'react-router-dom';
@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sectionSearch, setSectionSearch] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<SortOption>('name-asc');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || 'all');
@@ -32,44 +33,52 @@ export default function ProductsPage() {
     fetchData();
   }, []);
 
+  const sortProducts = (items: Product[]) => [...items].sort((a, b) => {
+    switch (sort) {
+      case 'name-asc': return a.name.localeCompare(b.name);
+      case 'name-desc': return b.name.localeCompare(a.name);
+      case 'price-asc': return a.price - b.price;
+      case 'price-desc': return b.price - a.price;
+      case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      default: return 0;
+    }
+  });
+
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     let result = [...products];
 
-    if (search) {
-      const q = search.toLowerCase();
+    if (q) {
       result = result.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.size && p.size.toLowerCase().includes(q)) ||
-        p.type.toLowerCase().includes(q)
+        [p.name, p.description, p.size, p.type, p.category?.name, p.company_name, p.valve_size, p.valve_connection]
+          .filter(Boolean)
+          .some(value => String(value).toLowerCase().includes(q))
       );
     }
 
-    if (typeFilter !== 'all') {
-      result = result.filter(p => p.type === typeFilter);
-    }
+    if (typeFilter !== 'all') result = result.filter(p => p.type === typeFilter);
+    if (categoryFilter !== 'all') result = result.filter(p => p.category?.slug === categoryFilter);
+    if (searchParams.get('bestseller') === 'true') result = result.filter(p => p.is_bestseller);
 
-    if (categoryFilter !== 'all') {
-      result = result.filter(p => p.category?.slug === categoryFilter);
-    }
-
-    if (searchParams.get('bestseller') === 'true') {
-      result = result.filter(p => p.is_bestseller);
-    }
-
-    result.sort((a, b) => {
-      switch (sort) {
-        case 'name-asc': return a.name.localeCompare(b.name);
-        case 'name-desc': return b.name.localeCompare(a.name);
-        case 'price-asc': return a.price - b.price;
-        case 'price-desc': return b.price - a.price;
-        case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        default: return 0;
-      }
-    });
-
-    return result;
+    return sortProducts(result);
   }, [products, search, sort, typeFilter, categoryFilter, searchParams]);
+
+  const sectionedProducts = useMemo(() => {
+    return categories
+      .filter(category => categoryFilter === 'all' || category.slug === categoryFilter)
+      .map(category => {
+        const q = (sectionSearch[category.slug] || '').trim().toLowerCase();
+        const items = filtered.filter(p => {
+          if (p.category?.slug !== category.slug) return false;
+          if (!q) return true;
+          return [p.name, p.description, p.size, p.company_name, p.valve_size, p.valve_connection]
+            .filter(Boolean)
+            .some(value => String(value).toLowerCase().includes(q));
+        });
+        return { category, items };
+      })
+      .filter(group => group.items.length > 0 || !search && !sectionSearch[group.category.slug]);
+  }, [categories, categoryFilter, filtered, search, sectionSearch]);
 
   const typeFilters: { key: TypeFilter; label: string; icon: typeof Flame }[] = [
     { key: 'all', label: 'All', icon: Package },
@@ -80,12 +89,13 @@ export default function ProductsPage() {
 
   const clearFilters = () => {
     setSearch('');
+    setSectionSearch({});
     setSort('name-asc');
     setTypeFilter('all');
     setCategoryFilter('all');
   };
 
-  const hasActiveFilters = search || typeFilter !== 'all' || categoryFilter !== 'all';
+  const hasActiveFilters = search || typeFilter !== 'all' || categoryFilter !== 'all' || Object.values(sectionSearch).some(Boolean);
 
   if (loading) {
     return (
@@ -102,7 +112,7 @@ export default function ProductsPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">All Products</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Products & Services</h1>
           <span className="text-sm text-gray-500">{filtered.length} items</span>
         </div>
 
@@ -112,7 +122,7 @@ export default function ProductsPage() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name, size, new/refill..."
+            placeholder="Search company, cylinder size, valve, stove, burner, service..."
             className="w-full pl-10 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all"
           />
           {search && (
@@ -160,7 +170,7 @@ export default function ProductsPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Product / Service Box</label>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setCategoryFilter('all')}
@@ -168,7 +178,7 @@ export default function ProductsPage() {
                     categoryFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
                   }`}
                 >
-                  All Categories
+                  All Boxes
                 </button>
                 {categories.map(cat => (
                   <button
@@ -204,11 +214,40 @@ export default function ProductsPage() {
           </div>
         )}
 
-        {filtered.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-            {filtered.map(p => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+        {sectionedProducts.length > 0 ? (
+          <div className="space-y-6">
+            {sectionedProducts.map(({ category, items }) => {
+              const Icon = category.slug === 'lpg-cylinders' ? Flame : category.slug === 'services' ? Wrench : Package;
+              return (
+                <section key={category.id} className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-5 h-5 text-blue-600" />
+                      <div>
+                        <h2 className="font-bold text-gray-900">{category.name}</h2>
+                        <p className="text-xs text-gray-500">{items.length} available items</p>
+                      </div>
+                    </div>
+                    <div className="relative sm:w-80">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                      <input
+                        value={sectionSearch[category.slug] || ''}
+                        onChange={e => setSectionSearch(prev => ({ ...prev, [category.slug]: e.target.value }))}
+                        placeholder={`Search ${category.name.toLowerCase()}...`}
+                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+                  {items.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {items.map(p => <ProductCard key={p.id} product={p} />)}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-sm text-gray-500">No items found in this box.</div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16">

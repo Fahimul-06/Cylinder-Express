@@ -93,6 +93,12 @@ export default function ProductDetailPage() {
   const tc = typeConfig[product.type];
   const TypeIcon = tc.icon;
   const isService = product.type === 'service';
+  const productDetails = [
+    product.company_name ? { label: 'Company', value: product.company_name } : null,
+    product.size ? { label: 'Size', value: product.size } : null,
+    product.valve_size ? { label: 'Valve Size', value: product.valve_size } : null,
+    product.valve_connection ? { label: 'Valve Type', value: product.valve_connection } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -136,10 +142,15 @@ export default function ProductDetailPage() {
           <div className="space-y-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{product.name}</h1>
-              {product.size && (
-                <span className="inline-block mt-2 px-3 py-1 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg">
-                  Size: {product.size}
-                </span>
+              {productDetails.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {productDetails.map(detail => (
+                    <div key={detail.label} className="px-3 py-2 bg-gray-100 rounded-xl">
+                      <p className="text-[11px] text-gray-500">{detail.label}</p>
+                      <p className="text-sm font-semibold text-gray-800">{detail.value}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

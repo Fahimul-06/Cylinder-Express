@@ -26,6 +26,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
   const navigate = useNavigate();
   const qty = getItemQuantity(product.id);
   const TypeIcon = typeIcons[product.type];
+  const details = [product.company_name, product.size, product.valve_size, product.valve_connection].filter(Boolean).join(' · ');
 
   if (compact) {
     return (
@@ -47,6 +48,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         </div>
         <div className="p-3">
           <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight">{product.name}</h3>
+          {details && <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{details}</p>}
           <p className="text-blue-600 font-bold text-sm mt-1">৳{product.price.toLocaleString()}</p>
         </div>
       </div>
@@ -83,6 +85,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
       </div>
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
+        {details && <p className="text-xs text-blue-600 font-medium mt-1 line-clamp-1">{details}</p>}
         {product.description && (
           <p className="text-sm text-gray-500 mt-1 line-clamp-2">{product.description}</p>
         )}
