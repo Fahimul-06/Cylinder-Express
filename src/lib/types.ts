@@ -6,6 +6,9 @@ export interface Profile {
   email: string | null;
   avatar_url: string | null;
   is_admin: boolean;
+  role?: 'customer' | 'super_admin' | 'sub_admin';
+  permissions?: Record<string, boolean>;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -128,3 +131,21 @@ export interface Offer {
 
 export type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'newest';
 export type TypeFilter = 'all' | 'new' | 'refill' | 'service';
+
+
+export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'locations' | 'users';
+
+export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
+  dashboard: 'Dashboard',
+  orders: 'Orders',
+  products: 'Products',
+  offers: 'Offers',
+  locations: 'Live Locations',
+  users: 'Users & Sub-admins',
+};
+
+export function profileHasPermission(profile: Profile | null | undefined, permission: AdminPermissionKey) {
+  if (!profile?.is_admin || profile.is_active === false) return false;
+  if (profile.role === 'super_admin' || !profile.role) return true;
+  return Boolean(profile.permissions?.[permission]);
+}

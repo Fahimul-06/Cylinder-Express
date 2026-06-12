@@ -10,7 +10,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: { full_name?: string; email?: string; phone?: string }) => Promise<{ error: string | null }>;
+  updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
 
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   };
 
-  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string }) => {
+  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => {
     if (!user) return { error: 'Not authenticated' };
     const { error: profileError } = await supabase
       .from('profiles')
@@ -112,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         full_name: updates.full_name,
         phone: updates.phone,
         email: updates.email,
+        avatar_url: updates.avatar_url,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id);

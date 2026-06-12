@@ -2,10 +2,11 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, ShoppingBag, Package, Tag, ArrowLeft,
-  ChevronRight, MapPin
+  ChevronRight, MapPin, Users
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
+import { AdminPermissionKey, profileHasPermission } from '../lib/types';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -14,12 +15,13 @@ export default function AdminLayout() {
   const { t } = useLanguage();
 
   const links = [
-    { path: '/admin', label: t('admin.dashboard'), icon: LayoutDashboard, end: true },
-    { path: '/admin/orders', label: t('admin.orders'), icon: ShoppingBag },
-    { path: '/admin/products', label: t('admin.products'), icon: Package },
-    { path: '/admin/offers', label: t('admin.offers'), icon: Tag },
-    { path: '/admin/locations', label: t('admin.locations'), icon: MapPin },
-  ];
+    { path: '/admin', label: t('admin.dashboard'), icon: LayoutDashboard, end: true, permission: 'dashboard' as AdminPermissionKey },
+    { path: '/admin/orders', label: t('admin.orders'), icon: ShoppingBag, permission: 'orders' as AdminPermissionKey },
+    { path: '/admin/products', label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
+    { path: '/admin/offers', label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
+    { path: '/admin/locations', label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
+    { path: '/admin/users', label: 'Users & Sub-admins', icon: Users, permission: 'users' as AdminPermissionKey },
+  ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>
     end ? location.pathname === path : location.pathname.startsWith(path);
@@ -60,7 +62,7 @@ export default function AdminLayout() {
           <div className="px-4 py-2"><LanguageToggle /></div>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-400 font-medium">{profile?.full_name}</p>
-            <p className="text-[10px] text-blue-600 font-semibold">{t('admin.role')}</p>
+            <p className="text-[10px] text-blue-600 font-semibold uppercase">{profile?.role === 'sub_admin' ? 'Sub Admin' : t('admin.role')}</p>
           </div>
           <button
             onClick={() => navigate('/home')}

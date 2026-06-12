@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const TOKEN_KEY = 'cylinder_express_auth_token';
 
 type Filter = { field: string; op: 'eq' | 'in' | 'gte'; value: unknown };
@@ -28,6 +28,11 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || payload.message || 'Request failed');
   return payload as T;
+}
+
+
+export async function apiClient<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  return api<T>(path, options);
 }
 
 function emitAuth(event: string, session: Session | null) {

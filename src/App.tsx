@@ -20,6 +20,8 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOffers from './pages/admin/AdminOffers';
 import AdminLocations from './pages/admin/AdminLocations';
+import AdminUsers from './pages/admin/AdminUsers';
+import { AdminPermissionKey, profileHasPermission } from './lib/types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,7 +39,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function AdminRoute({ children, permission }: { children: React.ReactNode; permission?: AdminPermissionKey }) {
   const { user, profile, loading } = useAuth();
   if (loading) {
     return (
@@ -50,7 +52,13 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
-  if (!profile?.is_admin) return <Navigate to="/home" replace />;
+  if (!profile?.is_admin || profile.is_active === false) return <Navigate to="/home" replace />;
+  if (permission && !profileHasPermission(profile, permission)) {
+    const fallback = (['dashboard', 'orders', 'products', 'offers', 'locations', 'users'] as AdminPermissionKey[])
+      .find((key) => profileHasPermission(profile, key));
+    const fallbackPath = fallback === 'dashboard' ? '/admin' : fallback ? `/admin/${fallback}` : '/home';
+    return <Navigate to={fallbackPath} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -88,11 +96,12 @@ function AppRoutes() {
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-          <Route index element={<AdminDashboard />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="products" element={<AdminProducts />} />
-          <Route path="offers" element={<AdminOffers />} />
-          <Route path="locations" element={<AdminLocations />} />
+          <Route index element={<AdminRoute permission="dashboard"><AdminDashboard /></AdminRoute>} />
+          <Route path="orders" element={<AdminRoute permission="orders"><AdminOrders /></AdminRoute>} />
+          <Route path="products" element={<AdminRoute permission="products"><AdminProducts /></AdminRoute>} />
+          <Route path="offers" element={<AdminRoute permission="offers"><AdminOffers /></AdminRoute>} />
+          <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
+          <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
         </Route>
         <Route path="*" element={<Navigate to={user ? '/home' : '/login'} replace />} />
       </Routes>

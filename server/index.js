@@ -89,6 +89,9 @@ const ProfileSchema = new mongoose.Schema({
   email: { type: String, default: null },
   avatar_url: { type: String, default: null },
   is_admin: { type: Boolean, default: false },
+  role: { type: String, enum: ['customer', 'super_admin', 'sub_admin'], default: 'customer', index: true },
+  permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
+  is_active: { type: Boolean, default: true },
   ...common,
 }, { toJSON });
 
@@ -125,11 +128,68 @@ function signUser(user) {
   return { access_token: jwt.sign(safe, JWT_SECRET, { expiresIn: '7d' }), user: safe };
 }
 
+const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'locations', 'users'];
+
+function sanitizePermissions(input = {}) {
+  return ADMIN_PERMISSIONS.reduce((acc, key) => {
+    acc[key] = Boolean(input?.[key]);
+    return acc;
+  }, {});
+}
+
+function hasAdminPermission(profile, permission) {
+  if (!profile?.is_admin || profile.is_active === false) return false;
+  if (profile.role === 'super_admin' || !profile.role) return true;
+  return Boolean(profile.permissions?.[permission]);
+}
+
+async function sendBulkSmsBdMessage(phone, message) {
+  if (!SMS_ENABLED) return { sent: false, skipped: true };
+
+  const params = new URLSearchParams({
+    api_key: BULKSMSBD_API_KEY,
+    senderid: BULKSMSBD_SENDER_ID,
+    number: normalizePhoneForSms(phone),
+    message,
+  });
+
+  const response = await fetch(BULKSMSBD_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`BulkSMSBD request failed with status ${response.status}: ${text}`);
+  }
+  return { sent: true, provider_response: text };
+}
+
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try { req.auth = jwt.verify(token, JWT_SECRET); next(); }
   catch { return res.status(401).json({ error: 'Invalid or expired token' }); }
+}
+
+function requireAdminPermission(permission) {
+  return async (req, res, next) => {
+    try {
+      const profile = await models.profiles.findOne({ user_id: req.auth.id });
+      if (!hasAdminPermission(profile, permission)) {
+        return res.status(403).json({ error: 'You do not have permission to access this feature.' });
+      }
+      req.adminProfile = profile;
+      next();
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  };
+}
+
+function requireSuperAdmin(req, res, next) {
+  return requireAdminPermission('users')(req, res, next);
 }
 
 function normalizeMongoField(field) {
@@ -188,7 +248,16 @@ app.post('/api/auth/signup', async (req, res) => {
     if (await models.users.findOne({ $or: [{ email }, { phone }] })) return res.status(409).json({ error: 'Account already exists' });
     const user = await models.users.create({ email, phone, password_hash: await bcrypt.hash(password, 12) });
     const existingProfiles = await models.profiles.countDocuments();
-    await models.profiles.create({ user_id: user.id, full_name, phone, email, is_admin: existingProfiles === 0 });
+    await models.profiles.create({
+      user_id: user.id,
+      full_name,
+      phone,
+      email,
+      is_admin: existingProfiles === 0,
+      role: existingProfiles === 0 ? 'super_admin' : 'customer',
+      permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+      is_active: true,
+    });
     const session = signUser(user);
     res.json({ session, user: session.user });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -200,6 +269,8 @@ app.post('/api/auth/signin', async (req, res) => {
     const value = String(emailOrPhone || '').toLowerCase();
     const user = await models.users.findOne({ $or: [{ email: value }, { phone: emailOrPhone }] });
     if (!user || !(await bcrypt.compare(password || '', user.password_hash))) return res.status(401).json({ error: 'Invalid login credentials' });
+    const profile = await models.profiles.findOne({ user_id: user.id });
+    if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the administrator.' });
     const session = signUser(user);
     res.json({ session, user: session.user });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -224,6 +295,61 @@ app.patch('/api/auth/user', requireAuth, async (req, res) => {
 app.post('/api/rpc/get_email_by_phone', async (req, res) => {
   const profile = await models.profiles.findOne({ phone: req.body.p_phone });
   res.json({ data: profile?.email || null, error: null });
+});
+
+
+app.post('/api/admin/subadmins', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { full_name, phone, password, permissions = {} } = req.body;
+    if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
+    if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    const normalizedPhone = String(phone).trim();
+    const email = `${normalizedPhone.replace(/\D/g, '') || normalizedPhone}@subadmin.cylinderexpress.bd`;
+    if (await models.users.findOne({ $or: [{ phone: normalizedPhone }, { email }] })) {
+      return res.status(409).json({ error: 'A user with this phone already exists.' });
+    }
+
+    const user = await models.users.create({ email, phone: normalizedPhone, password_hash: await bcrypt.hash(password, 12) });
+    const profile = await models.profiles.create({
+      user_id: user.id,
+      full_name,
+      phone: normalizedPhone,
+      email,
+      is_admin: true,
+      role: 'sub_admin',
+      permissions: sanitizePermissions(permissions),
+      is_active: true,
+    });
+
+    const smsMessage = `Cylinder Express admin account created. Username: ${normalizedPhone}. Password: ${password}. Login and change your password with OTP.`;
+    let sms = { sent: false, skipped: true };
+    try {
+      sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
+    } catch (smsError) {
+      console.error('Sub-admin credential SMS failed:', smsError.message);
+    }
+
+    res.json({ data: profile.toJSON(), sms, error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/admin/subadmins/:profileId', requireAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
+    if (req.body.phone !== undefined) update.phone = req.body.phone;
+    if (req.body.permissions !== undefined) update.permissions = sanitizePermissions(req.body.permissions);
+    if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
+    update.updated_at = new Date();
+    const profile = await models.profiles.findByIdAndUpdate(req.params.profileId, update, { new: true });
+    if (!profile) return res.status(404).json({ error: 'Sub-admin profile not found.' });
+    if (req.body.phone !== undefined) await models.users.findByIdAndUpdate(profile.user_id, { phone: req.body.phone });
+    res.json({ data: profile.toJSON(), error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.post('/api/tables/:table', async (req, res) => {
@@ -296,27 +422,7 @@ function normalizePhoneForSms(phone) {
 }
 
 async function sendBulkSmsBdOtp(phone, otp) {
-  if (!SMS_ENABLED) return { sent: false, skipped: true };
-
-  const params = new URLSearchParams({
-    api_key: BULKSMSBD_API_KEY,
-    senderid: BULKSMSBD_SENDER_ID,
-    number: normalizePhoneForSms(phone),
-    message: `Your Cylinder Express OTP is ${otp}. It will expire in 5 minutes.`,
-  });
-
-  const response = await fetch(BULKSMSBD_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(`BulkSMSBD request failed with status ${response.status}: ${text}`);
-  }
-
-  return { sent: true, provider_response: text };
+  return sendBulkSmsBdMessage(phone, `Your Cylinder Express OTP is ${otp}. It will expire in 5 minutes.`);
 }
 
 app.post('/functions/v1/send-otp', async (req, res) => {
@@ -377,6 +483,32 @@ const upload = multer({ storage: multer.diskStorage({
   filename(req, file, cb) { const safePath = String(req.body.path || file.originalname).replace(/[^a-zA-Z0-9._/-]/g, '-'); cb(null, safePath.replaceAll('/', '-')); },
 })});
 app.post('/api/uploads', upload.single('file'), (req, res) => res.json({ path: req.file.filename }));
+
+async function backfillProfileRolesAndPermissions() {
+  const profiles = await models.profiles.find({});
+  for (const profile of profiles) {
+    let changed = false;
+    if (!profile.role) {
+      profile.role = profile.is_admin ? 'super_admin' : 'customer';
+      changed = true;
+    }
+    if (profile.is_active === undefined || profile.is_active === null) {
+      profile.is_active = true;
+      changed = true;
+    }
+    if (profile.is_admin && profile.role === 'super_admin') {
+      const fullPermissions = sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true])));
+      if (!profile.permissions || Object.keys(profile.permissions || {}).length === 0) {
+        profile.permissions = fullPermissions;
+        changed = true;
+      }
+    }
+    if (changed) {
+      profile.updated_at = new Date();
+      await profile.save();
+    }
+  }
+}
 
 async function backfillOrderUserIds() {
   const orders = await models.orders.find({ $or: [{ user_id: { $exists: false } }, { user_id: null }, { user_id: '' }] });
@@ -507,6 +639,7 @@ async function ensureDefaultCatalog() {
 
 mongoose.connect(MONGODB_URI).then(async () => {
   await ensureDefaultCatalog();
+  await backfillProfileRolesAndPermissions();
   await backfillOrderUserIds();
   app.listen(PORT, () => console.log(`Cylinder Express MongoDB API running on http://localhost:${PORT}`));
 }).catch((error) => {
