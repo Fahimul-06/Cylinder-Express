@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Order, OrderItem, ServiceBooking } from '../lib/types';
+import { Order, OrderItem, ServiceBooking, Profile, DeliveryLocation } from '../lib/types';
 import {
   ShoppingBag, Wrench, Clock, Check, X, Truck,
   ChevronDown, ChevronUp, Package, Calendar, Tag, Building2,
-  MapPin, Navigation, WifiOff
+  MapPin, Navigation, WifiOff, Phone
 } from 'lucide-react';
 
 type Tab = 'orders' | 'services';
@@ -202,6 +202,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItem[]>>({});
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
+  const [deliveryProfiles, setDeliveryProfiles] = useState<Record<string, Profile>>({});
+  const [deliveryLocations, setDeliveryLocations] = useState<Record<string, DeliveryLocation>>({});
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -216,6 +218,19 @@ export default function OrdersPage() {
       const orderList = ordRes.data || [];
       setOrders(orderList);
       setBookings(bookRes.data || []);
+
+      const deliveryIds = [...new Set(orderList.map((order: Order) => order.delivery_man_id).filter(Boolean))] as string[];
+      if (deliveryIds.length > 0) {
+        const [{ data: deliveryProfilesData }, { data: deliveryLocationsData }] = await Promise.all([
+          supabase.from('profiles').select('*').in('user_id', deliveryIds),
+          supabase.from('delivery_locations').select('*').eq('is_sharing', true).in('user_id', deliveryIds),
+        ]);
+        setDeliveryProfiles(Object.fromEntries((deliveryProfilesData || []).map((item: Profile) => [item.user_id, item])));
+        setDeliveryLocations(Object.fromEntries((deliveryLocationsData || []).map((item: DeliveryLocation) => [item.user_id, item])));
+      } else {
+        setDeliveryProfiles({});
+        setDeliveryLocations({});
+      }
 
       // Fetch order items for all orders
       if (orderList.length > 0) {
@@ -232,6 +247,8 @@ export default function OrdersPage() {
           }
           setOrderItemsMap(map);
         }
+      } else {
+        setOrderItemsMap({});
       }
       setLoading(false);
     }
@@ -369,6 +386,53 @@ export default function OrdersPage() {
                             <span className="font-bold text-blue-600">৳{calcTotal(order).toLocaleString()}</span>
                           </div>
                         </div>
+
+                        {order.delivery_man_id && (() => {
+                          const deliveryMan = deliveryProfiles[order.delivery_man_id!];
+                          const deliveryLive = deliveryLocations[order.delivery_man_id!];
+                          return (
+                            <div className="rounded-xl border border-green-100 bg-green-50 p-3 text-sm">
+                              <div className="flex items-center justify-between gap-3 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Truck className="w-4 h-4 text-green-700" />
+                                  <span className="font-bold text-green-900">Assigned Delivery Man</span>
+                                </div>
+                                {deliveryLive && <span className="text-[11px] font-bold text-green-700 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live</span>}
+                              </div>
+                              <div className="grid sm:grid-cols-2 gap-2">
+                                <div>
+                                  <p className="text-xs text-green-700">Name</p>
+                                  <p className="font-semibold text-gray-900">{deliveryMan?.full_name || 'Delivery man assigned'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-green-700">Phone</p>
+                                  {deliveryMan?.phone ? (
+                                    <a href={`tel:${deliveryMan.phone}`} className="font-semibold text-blue-700 flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> {deliveryMan.phone}</a>
+                                  ) : <p className="font-semibold text-gray-500">Not available</p>}
+                                </div>
+                              </div>
+                              {deliveryLive ? (
+                                <div className="mt-3 rounded-lg bg-white/80 p-2">
+                                  <p className="text-xs text-green-700 mb-1">Current delivery location</p>
+                                  <p className="text-xs text-gray-600">Lat {deliveryLive.latitude.toFixed(5)}, Lng {deliveryLive.longitude.toFixed(5)}</p>
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    <a
+                                      href={`https://www.google.com/maps?q=${deliveryLive.latitude},${deliveryLive.longitude}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold"
+                                    >
+                                      <MapPin className="w-3.5 h-3.5" /> View on Map
+                                    </a>
+                                    <span className="text-xs text-gray-400 self-center">Last updated {new Date(deliveryLive.updated_at || deliveryLive.last_seen).toLocaleTimeString('en-BD')}</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">Delivery man has not started live location sharing yet.</p>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {order.notes && (
                           <div className="text-sm bg-gray-50 rounded-xl p-3 mt-2">

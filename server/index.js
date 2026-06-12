@@ -439,7 +439,17 @@ app.post('/api/tables/:table', async (req, res) => {
 
     if (action === 'update') {
       await Model.updateMany(query, { ...body, updated_at: new Date() });
-      data = (await Model.find(query)).map((d) => d.toJSON());
+      const updatedDocs = await Model.find(query);
+      data = updatedDocs.map((d) => d.toJSON());
+
+      if (req.params.table === 'orders' && ['delivered', 'cancelled'].includes(String(body?.status || ''))) {
+        const orderIds = updatedDocs.map((doc) => doc.id);
+        const userIds = updatedDocs.map((doc) => doc.user_id).filter(Boolean);
+        await models.customer_locations.updateMany(
+          { $or: [{ active_order_id: { $in: orderIds } }, { user_id: { $in: userIds } }] },
+          { $set: { active_order_id: null, is_sharing: false, updated_at: new Date() } }
+        );
+      }
     }
 
     if (action === 'delete') {

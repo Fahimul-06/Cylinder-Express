@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Order, Address, Profile, LocationPoint } from '../lib/types';
-import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck } from 'lucide-react';
+import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2 } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const ACTIVE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
+const CALL_CENTER_NUMBERS = ['+8801967517077', '+8801409472939'];
 
 type GoogleMapsApi = {
   maps: {
@@ -61,6 +62,7 @@ export default function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
+  const [markingDelivered, setMarkingDelivered] = useState(false);
 
   const selectedOrder = useMemo(() => orders.find((o) => o.id === selectedOrderId) || orders[0] || null, [orders, selectedOrderId]);
 
@@ -108,6 +110,39 @@ export default function DeliveryDashboard() {
     if (user) {
       await supabase.from('delivery_locations').upsert({ user_id: user.id, is_sharing: false, updated_at: new Date().toISOString() });
     }
+  };
+
+
+  const markSelectedOrderDelivered = async () => {
+    if (!selectedOrder) return;
+    const ok = window.confirm(`Mark order #${selectedOrder.id.slice(-6).toUpperCase()} as delivered?`);
+    if (!ok) return;
+    setMessage('');
+    setMarkingDelivered(true);
+
+    const { error: orderError } = await supabase
+      .from('orders')
+      .update({ status: 'delivered' })
+      .eq('id', selectedOrder.id);
+
+    if (orderError) {
+      setMessage(orderError.message || 'Could not mark the order as delivered.');
+      setMarkingDelivered(false);
+      return;
+    }
+
+    await supabase.from('customer_locations').upsert({
+      user_id: selectedOrder.user_id,
+      active_order_id: null,
+      is_sharing: false,
+      updated_at: new Date().toISOString(),
+    });
+
+    setOrders((current) => current.filter((order) => order.id !== selectedOrder.id));
+    setSelectedOrderId(null);
+    setMessage('Order marked as delivered. Customer live tracking has been stopped.');
+    setMarkingDelivered(false);
+    loadOrders();
   };
 
   const loadOrders = useCallback(async () => {
@@ -268,6 +303,25 @@ export default function DeliveryDashboard() {
             {deliveryLocation && <p className="text-xs text-gray-400 mt-3">Last: {deliveryLocation.latitude.toFixed(5)}, {deliveryLocation.longitude.toFixed(5)}</p>}
           </div>
 
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                <Headphones className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-900">Delivery Support</h2>
+                <p className="text-xs text-gray-500">Call center numbers for any delivery problem.</p>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {CALL_CENTER_NUMBERS.map((number) => (
+                <a key={number} href={`tel:${number}`} className="w-full py-2.5 px-3 rounded-xl bg-orange-600 text-white text-sm font-semibold flex items-center justify-center gap-2">
+                  <Phone className="w-4 h-4" /> Call {number}
+                </a>
+              ))}
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <div>
@@ -319,10 +373,19 @@ export default function DeliveryDashboard() {
             <div ref={mapRef} className="h-[590px] w-full" />
           )}
           {selectedOrder && (
-            <div className="p-5 border-t border-gray-100 grid sm:grid-cols-3 gap-3 text-sm">
-              <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Customer</p><p className="font-semibold text-gray-900">{selectedOrder.customer?.full_name || '-'}</p></div>
-              <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Amount</p><p className="font-semibold text-gray-900">৳{selectedOrder.total_amount}</p></div>
-              <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Status</p><p className="font-semibold text-gray-900 flex items-center gap-1"><PackageCheck className="w-4 h-4" /> {selectedOrder.status}</p></div>
+            <div className="p-5 border-t border-gray-100 space-y-3">
+              <div className="grid sm:grid-cols-3 gap-3 text-sm">
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Customer</p><p className="font-semibold text-gray-900">{selectedOrder.customer?.full_name || '-'}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Amount</p><p className="font-semibold text-gray-900">৳{selectedOrder.total_amount}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Status</p><p className="font-semibold text-gray-900 flex items-center gap-1"><PackageCheck className="w-4 h-4" /> {selectedOrder.status}</p></div>
+              </div>
+              <button
+                onClick={markSelectedOrderDelivered}
+                disabled={markingDelivered}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <CheckCircle2 className="w-5 h-5" /> {markingDelivered ? 'Updating...' : 'Mark Delivered'}
+              </button>
             </div>
           )}
         </section>
