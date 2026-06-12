@@ -4,19 +4,22 @@ import {
   LayoutDashboard, ShoppingBag, Package, Tag, ArrowLeft,
   ChevronRight, MapPin
 } from 'lucide-react';
-
-const links = [
-  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { path: '/admin/orders', label: 'Orders', icon: ShoppingBag },
-  { path: '/admin/products', label: 'Products', icon: Package },
-  { path: '/admin/offers', label: 'Offers', icon: Tag },
-  { path: '/admin/locations', label: 'Live Locations', icon: MapPin },
-];
+import { useLanguage } from '../contexts/LanguageContext';
+import LanguageToggle from './LanguageToggle';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile } = useAuth();
+  const { t } = useLanguage();
+
+  const links = [
+    { path: '/admin', label: t('admin.dashboard'), icon: LayoutDashboard, end: true },
+    { path: '/admin/orders', label: t('admin.orders'), icon: ShoppingBag },
+    { path: '/admin/products', label: t('admin.products'), icon: Package },
+    { path: '/admin/offers', label: t('admin.offers'), icon: Tag },
+    { path: '/admin/locations', label: t('admin.locations'), icon: MapPin },
+  ];
 
   const isActive = (path: string, end?: boolean) =>
     end ? location.pathname === path : location.pathname.startsWith(path);
@@ -30,7 +33,7 @@ export default function AdminLayout() {
             <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="w-9 h-9 object-contain" />
             <div>
               <span className="font-bold text-gray-900 text-sm">Cylinder<span className="text-blue-600">Express</span></span>
-              <p className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">Admin Panel</p>
+              <p className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">{t('admin.panel')}</p>
             </div>
           </div>
         </div>
@@ -54,16 +57,17 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-gray-100">
+          <div className="px-4 py-2"><LanguageToggle /></div>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-400 font-medium">{profile?.full_name}</p>
-            <p className="text-[10px] text-blue-600 font-semibold">ADMIN</p>
+            <p className="text-[10px] text-blue-600 font-semibold">{t('admin.role')}</p>
           </div>
           <button
             onClick={() => navigate('/home')}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Store
+            {t('admin.backToStore')}
           </button>
         </div>
       </aside>
@@ -73,14 +77,17 @@ export default function AdminLayout() {
         <div className="flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
             <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="w-8 h-8 object-contain" />
-            <span className="font-bold text-sm text-gray-900">Admin</span>
+            <span className="font-bold text-sm text-gray-900">{t('nav.admin')}</span>
           </div>
-          <button
-            onClick={() => navigate('/home')}
-            className="text-sm text-gray-500 flex items-center gap-1"
-          >
-            <ArrowLeft className="w-4 h-4" /> Store
-          </button>
+          <div className="flex items-center gap-2">
+            <LanguageToggle compact />
+            <button
+              onClick={() => navigate('/home')}
+              className="text-sm text-gray-500 flex items-center gap-1"
+            >
+            <ArrowLeft className="w-4 h-4" /> {t('admin.store')}
+            </button>
+          </div>
         </div>
         <div className="flex px-2 pb-2 gap-1 overflow-x-auto">
           {links.map(({ path, label, icon: Icon, end }) => (

@@ -6,6 +6,8 @@ import {
   ShoppingCart, User, LogOut, MapPin, Package,
   Menu, X, ClipboardList, Sparkles, Shield
 } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
+import LanguageToggle from './LanguageToggle';
 
 export default function Navbar() {
   const { user, profile, signOut } = useAuth();
@@ -13,17 +15,18 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { t } = useLanguage();
 
   if (!user) return null;
 
   const navItems = [
-    { path: '/home', label: 'Home', icon: Package, badge: 0 },
-    { path: '/offers', label: 'Offers', icon: Sparkles, badge: 0 },
-    { path: '/products', label: 'Products', icon: Package, badge: 0 },
-    { path: '/cart', label: 'Cart', icon: ShoppingCart, badge: totalItems },
-    { path: '/orders', label: 'Orders', icon: ClipboardList, badge: 0 },
-    { path: '/addresses', label: 'Addresses', icon: MapPin, badge: 0 },
-    ...(profile?.is_admin ? [{ path: '/admin', label: 'Admin', icon: Shield, badge: 0 }] : []),
+    { path: '/home', label: t('nav.home'), icon: Package, badge: 0 },
+    { path: '/offers', label: t('nav.offers'), icon: Sparkles, badge: 0 },
+    { path: '/products', label: t('nav.products'), icon: Package, badge: 0 },
+    { path: '/cart', label: t('nav.cart'), icon: ShoppingCart, badge: totalItems },
+    { path: '/orders', label: t('nav.orders'), icon: ClipboardList, badge: 0 },
+    { path: '/addresses', label: t('nav.addresses'), icon: MapPin, badge: 0 },
+    ...(profile?.is_admin ? [{ path: '/admin', label: t('nav.admin'), icon: Shield, badge: 0 }] : []),
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -64,6 +67,7 @@ export default function Navbar() {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              <LanguageToggle />
               <button
                 onClick={() => navigate('/profile')}
                 className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors"
@@ -110,7 +114,8 @@ export default function Navbar() {
                   )}
                 </button>
               ))}
-              <div className="pt-2 border-t border-gray-100">
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <div className="px-4"><LanguageToggle compact /></div>
                 <button
                   onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                   className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
@@ -123,7 +128,7 @@ export default function Navbar() {
                   className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg text-sm"
                 >
                   <LogOut className="w-5 h-5" />
-                  Sign Out
+                  {t('nav.signOut')}
                 </button>
               </div>
             </div>
