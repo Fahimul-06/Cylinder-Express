@@ -1,7 +1,8 @@
 import { Product } from '../lib/types';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Star, Flame, RotateCcw, Wrench } from 'lucide-react';
+import { ShoppingCart, Star, Flame, RotateCcw, Wrench, Truck } from 'lucide-react';
+import { getDeliveryFeeLabel } from '../lib/deliveryCharges';
 
 const typeIcons = {
   new: Flame,
@@ -34,7 +35,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         className="bg-white rounded-xl border border-gray-100 overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200 group"
         onClick={() => navigate(`/product/${product.id}`)}
       >
-        <div className="relative h-32 overflow-hidden bg-gray-100">
+        <div className="relative h-28 sm:h-32 overflow-hidden bg-gray-100">
           <img
             src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=400'}
             alt={product.name}
@@ -47,9 +48,12 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           )}
         </div>
         <div className="p-3">
-          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight">{product.name}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight min-h-[2.25rem]">{product.name}</h3>
           {details && <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{details}</p>}
           <p className="text-blue-600 font-bold text-sm mt-1">৳{product.price.toLocaleString()}</p>
+          {product.type !== 'service' && (
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500"><Truck className="w-3 h-3" /> {getDeliveryFeeLabel(product)}</p>
+          )}
         </div>
       </div>
     );
@@ -60,7 +64,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
       className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300 group"
       onClick={() => navigate(`/product/${product.id}`)}
     >
-      <div className="relative h-48 overflow-hidden bg-gray-100">
+      <div className="relative h-36 sm:h-48 overflow-hidden bg-gray-100">
         <img
           src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=400'}
           alt={product.name}
@@ -83,15 +87,18 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           </span>
         )}
       </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-gray-900 line-clamp-1">{product.name}</h3>
+      <div className="p-3 sm:p-4">
+        <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.75rem] sm:min-h-0">{product.name}</h3>
         {details && <p className="text-xs text-blue-600 font-medium mt-1 line-clamp-1">{details}</p>}
         {product.description && (
           <p className="text-sm text-gray-500 mt-1 line-clamp-2">{product.description}</p>
         )}
-        <div className="flex items-center justify-between mt-3">
+        {product.type !== 'service' && (
+          <p className="mt-2 flex items-center gap-1 text-xs text-gray-500"><Truck className="w-3.5 h-3.5" /> {getDeliveryFeeLabel(product)}</p>
+        )}
+        <div className="flex items-center justify-between gap-2 mt-3">
           <div>
-            <span className="text-xl font-bold text-blue-600">৳{product.price.toLocaleString()}</span>
+            <span className="text-lg sm:text-xl font-bold text-blue-600">৳{product.price.toLocaleString()}</span>
             {product.unit !== 'piece' && (
               <span className="text-xs text-gray-400 ml-1">/{product.unit}</span>
             )}
@@ -115,7 +122,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           ) : (
             <button
               onClick={e => { e.stopPropagation(); addItem(product); }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md whitespace-nowrap"
             >
               <ShoppingCart className="w-4 h-4" />
               Add

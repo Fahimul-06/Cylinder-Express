@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { DELIVERY_FEE, FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
+import { FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
+import { calculateCartDeliveryFee, getDeliveryFeeLabel } from '../lib/deliveryCharges';
 import {
   ShoppingCart, Trash2, Plus, Minus,
   MapPin, ArrowRight, Tag, X, Check, Building2
@@ -23,7 +24,7 @@ export default function CartPage() {
   const subtotal = totalPrice;
   const discount = discountAmount;
   const afterDiscount = subtotal - discount;
-  const deliveryFee = DELIVERY_FEE;
+  const deliveryFee = calculateCartDeliveryFee(items);
   const estimatedTotal = afterDiscount + deliveryFee;
 
   if (items.length === 0) {
@@ -82,6 +83,9 @@ export default function CartPage() {
                   <p className="text-xs text-gray-400 mt-0.5">
                     ৳{product.price.toLocaleString()} x {quantity}
                   </p>
+                  {product.type !== 'service' && (
+                    <p className="text-xs text-gray-500 mt-1">{getDeliveryFeeLabel(product)} x {quantity}</p>
+                  )}
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-2">
                       <button
@@ -171,9 +175,15 @@ export default function CartPage() {
                 {/* Itemized product prices */}
                 <div className="space-y-1.5">
                   {items.map(({ product, quantity }) => (
-                    <div key={product.id} className="flex justify-between">
-                      <span className="text-gray-500 truncate mr-2">{product.name} x{quantity}</span>
-                      <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                    <div key={product.id} className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 truncate mr-2">{product.name} x{quantity}</span>
+                        <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">{getDeliveryFeeLabel(product)} x{quantity}</span>
+                        <span className="text-gray-500">৳{(calculateCartDeliveryFee([{ product, quantity }])).toLocaleString()}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

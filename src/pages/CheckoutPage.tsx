@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { Address } from '../lib/types';
-import { DELIVERY_FEE, FLOORS, FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
+import { FLOORS, FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
+import { calculateCartDeliveryFee, getProductDeliveryFee } from '../lib/deliveryCharges';
 import {
   MapPin, ChevronRight, Check, ShoppingBag,
   Truck, CreditCard, Building2, Info, Tag
@@ -35,7 +36,8 @@ export default function CheckoutPage() {
   const subtotal = totalPrice;
   const discount = discountAmount;
   const afterDiscount = subtotal - discount;
-  const grandTotal = afterDiscount + DELIVERY_FEE + floorCharge;
+  const deliveryFee = calculateCartDeliveryFee(items);
+  const grandTotal = afterDiscount + deliveryFee + floorCharge;
 
   useEffect(() => {
     if (!user) return;
@@ -98,7 +100,7 @@ export default function CheckoutPage() {
         user_id: user.id,
         address_id: selectedAddress.id,
         total_amount: subtotal,
-        delivery_fee: DELIVERY_FEE,
+        delivery_fee: deliveryFee,
         floor_number: hasCylinders ? selectedFloor : null,
         floor_charge: floorCharge,
         promo_code: promoCode || null,
@@ -359,9 +361,15 @@ export default function CheckoutPage() {
                 {/* Itemized prices */}
                 <div className="space-y-1.5">
                   {items.map(({ product, quantity }) => (
-                    <div key={product.id} className="flex justify-between">
-                      <span className="text-gray-500 truncate mr-2">{product.name} &times;{quantity}</span>
-                      <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                    <div key={product.id} className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 truncate mr-2">{product.name} &times;{quantity}</span>
+                        <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Delivery &times;{quantity}</span>
+                        <span className="text-gray-500">৳{(getProductDeliveryFee(product) * quantity).toLocaleString()}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -384,7 +392,7 @@ export default function CheckoutPage() {
                   <span className="text-gray-500 flex items-center gap-1">
                     <Truck className="w-3.5 h-3.5" /> Delivery
                   </span>
-                  <span className="font-medium">৳{DELIVERY_FEE}</span>
+                  <span className="font-medium">৳{deliveryFee}</span>
                 </div>
 
                 {hasCylinders && floorCharge > 0 && (

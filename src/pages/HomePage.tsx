@@ -125,14 +125,14 @@ export default function HomePage() {
               View All <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
             {categories.map(cat => {
               const Icon = categoryIcons[cat.slug] || Package;
               return (
                 <button
                   key={cat.id}
                   onClick={() => navigate(`/products?category=${cat.slug}`)}
-                  className="flex flex-col items-center gap-2 p-3 sm:p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group"
+                  className="flex min-h-[112px] flex-col items-center justify-center gap-2 p-3 sm:p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group"
                 >
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                     <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
@@ -155,7 +155,7 @@ export default function HomePage() {
               View All <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {cylinders.slice(0, 4).map(p => (
               <ProductCard key={p.id} product={p} />
             ))}
@@ -176,7 +176,7 @@ export default function HomePage() {
               View All <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {bestsellers.slice(0, 4).map(p => (
               <ProductCard key={p.id} product={p} compact />
             ))}
@@ -196,7 +196,7 @@ export default function HomePage() {
               <button
                 key={p.id}
                 onClick={() => navigate(`/product/${p.id}`)}
-                className="flex items-center gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group text-left"
+                className="flex items-start sm:items-center gap-3 sm:gap-4 p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group text-left"
               >
                 <div className="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors flex-shrink-0">
                   <Truck className="w-7 h-7 text-blue-600" />
@@ -205,7 +205,7 @@ export default function HomePage() {
                   <h3 className="font-semibold text-gray-900">{p.name}</h3>
                   <p className="text-sm text-gray-500 line-clamp-1">{p.description}</p>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right flex-shrink-0 min-w-[76px]">
                   <p className="font-bold text-blue-600">৳{p.price.toLocaleString()}</p>
                   <span className="text-xs text-gray-400">Book Now</span>
                 </div>
