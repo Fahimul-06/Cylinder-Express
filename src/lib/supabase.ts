@@ -134,19 +134,6 @@ export const supabase = {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
       }
     },
-    async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/social', {
-          method: 'POST',
-          body: JSON.stringify({ provider, accessToken }),
-        });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('SIGNED_IN', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Social login failed' } };
-      }
-    },
     async signOut() {
       localStorage.removeItem(TOKEN_KEY);
       emitAuth('SIGNED_OUT', null);
