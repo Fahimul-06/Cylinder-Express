@@ -3,11 +3,11 @@ services:
     name: cylinder-express-api
     runtime: node
     plan: free
-    buildCommand: rm -rf node_modules && npm ci --omit=dev --no-audit --no-fund --prefer-online
+    buildCommand: npm ci --omit=dev --no-audit --no-fund
     startCommand: node server/index.js
     envVars:
       - key: NODE_VERSION
-        value: 20.18.1
+        value: 20
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
@@ -26,11 +26,11 @@ services:
   - type: web
     name: cylinder-express-web
     runtime: static
-    buildCommand: rm -rf node_modules && npm ci --no-audit --no-fund --prefer-online && npm run build
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: ./dist
     envVars:
       - key: NODE_VERSION
-        value: 20.18.1
+        value: 20
       - key: VITE_API_BASE_URL
         sync: false
       - key: VITE_GOOGLE_MAPS_API_KEY
