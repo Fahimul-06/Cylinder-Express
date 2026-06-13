@@ -153,10 +153,16 @@ function hasAdminPermission(profile, permission) {
 async function sendBulkSmsBdMessage(phone, message) {
   if (!SMS_ENABLED) return { sent: false, skipped: true };
 
+  const smsNumber = normalizePhoneForSms(phone);
+  if (!/^8801\d{9}$/.test(smsNumber)) {
+    throw new Error(`Invalid Bangladesh phone number for SMS: ${phone}`);
+  }
+
   const params = new URLSearchParams({
     api_key: BULKSMSBD_API_KEY,
+    type: 'text',
     senderid: BULKSMSBD_SENDER_ID,
-    number: normalizePhoneForSms(phone),
+    number: smsNumber,
     message,
   });
 
@@ -170,7 +176,16 @@ async function sendBulkSmsBdMessage(phone, message) {
   if (!response.ok) {
     throw new Error(`BulkSMSBD request failed with status ${response.status}: ${text}`);
   }
-  return { sent: true, provider_response: text };
+
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch { parsed = null; }
+  const responseCode = parsed?.response_code ?? parsed?.responseCode ?? parsed?.status_code ?? parsed?.status;
+  const successCodes = new Set([202, '202', 200, '200', 'success', 'SUCCESS', true]);
+  if (responseCode !== undefined && !successCodes.has(responseCode)) {
+    throw new Error(`BulkSMSBD rejected SMS: ${text}`);
+  }
+
+  return { sent: true, skipped: false, number: smsNumber, provider_response: text };
 }
 
 function requireAuth(req, res, next) {
@@ -198,6 +213,19 @@ function requireAdminPermission(permission) {
 function requireAdminUserManagement(req, res, next) {
   return requireAdminPermission('users')(req, res, next);
 }
+
+app.get('/api/admin/sms-status', requireAuth, requireAdminUserManagement, (_req, res) => {
+  res.json({
+    data: {
+      enabled: SMS_ENABLED,
+      api_url: BULKSMSBD_API_URL,
+      has_api_key: Boolean(BULKSMSBD_API_KEY),
+      has_sender_id: Boolean(BULKSMSBD_SENDER_ID),
+      sender_id: BULKSMSBD_SENDER_ID || null,
+    },
+    error: null,
+  });
+});
 
 function normalizeMongoField(field) {
   return field === 'id' ? '_id' : field;
@@ -274,7 +302,8 @@ app.post('/api/auth/signin', async (req, res) => {
   try {
     const { emailOrPhone, password } = req.body;
     const value = String(emailOrPhone || '').toLowerCase();
-    const user = await models.users.findOne({ $or: [{ email: value }, { phone: emailOrPhone }] });
+    const phoneValues = phoneLookupValues(emailOrPhone);
+    const user = await models.users.findOne({ $or: [{ email: value }, { phone: { $in: phoneValues } }] });
     if (!user || !(await bcrypt.compare(password || '', user.password_hash))) return res.status(401).json({ error: 'Invalid login credentials' });
     const profile = await models.profiles.findOne({ user_id: user.id });
     if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the administrator.' });
@@ -310,9 +339,9 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
     const { full_name, phone, password, permissions = {} } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-    const normalizedPhone = String(phone).trim();
-    const email = `${normalizedPhone.replace(/\D/g, '') || normalizedPhone}@subadmin.cylinderexpress.bd`;
-    if (await models.users.findOne({ $or: [{ phone: normalizedPhone }, { email }] })) {
+    const normalizedPhone = normalizePhoneForSms(phone);
+    const email = `${normalizedPhone}@subadmin.cylinderexpress.bd`;
+    if (await models.users.findOne({ $or: [{ phone: { $in: phoneLookupValues(phone) } }, { email }] })) {
       return res.status(409).json({ error: 'A user with this phone already exists.' });
     }
 
@@ -329,10 +358,11 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
     });
 
     const smsMessage = `Cylinder Express admin account created. Username: ${normalizedPhone}. Password: ${password}. Login and change your password with OTP.`;
-    let sms = { sent: false, skipped: true };
+    let sms = { sent: false, skipped: true, reason: SMS_ENABLED ? 'SMS provider failed' : 'SMS environment variables missing' };
     try {
       sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
     } catch (smsError) {
+      sms = { sent: false, skipped: false, error: smsError.message };
       console.error('Sub-admin credential SMS failed:', smsError.message);
     }
 
@@ -348,9 +378,9 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
     const { full_name, phone, password, permanent_address, permanent_latitude, permanent_longitude } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-    const normalizedPhone = String(phone).trim();
-    const email = `${normalizedPhone.replace(/\D/g, '') || normalizedPhone}@delivery.cylinderexpress.bd`;
-    if (await models.users.findOne({ $or: [{ phone: normalizedPhone }, { email }] })) {
+    const normalizedPhone = normalizePhoneForSms(phone);
+    const email = `${normalizedPhone}@delivery.cylinderexpress.bd`;
+    if (await models.users.findOne({ $or: [{ phone: { $in: phoneLookupValues(phone) } }, { email }] })) {
       return res.status(409).json({ error: 'A user with this phone already exists.' });
     }
 
@@ -370,10 +400,11 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
     });
 
     const smsMessage = `Cylinder Express delivery account created. Username: ${normalizedPhone}. Password: ${password}. Login and share your live location before delivery.`;
-    let sms = { sent: false, skipped: true };
+    let sms = { sent: false, skipped: true, reason: SMS_ENABLED ? 'SMS provider failed' : 'SMS environment variables missing' };
     try {
       sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
     } catch (smsError) {
+      sms = { sent: false, skipped: false, error: smsError.message };
       console.error('Delivery credential SMS failed:', smsError.message);
     }
 
@@ -497,6 +528,14 @@ function normalizePhoneForSms(phone) {
   if (digits.startsWith('0')) return `88${digits}`;
   if (digits.length === 10 && digits.startsWith('1')) return `880${digits}`;
   return digits;
+}
+
+function phoneLookupValues(phone) {
+  const raw = String(phone || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  const normalized = normalizePhoneForSms(raw);
+  const local = normalized.startsWith('880') ? `0${normalized.slice(3)}` : digits;
+  return Array.from(new Set([raw, digits, normalized, local].filter(Boolean)));
 }
 
 async function sendBulkSmsBdOtp(phone, otp) {

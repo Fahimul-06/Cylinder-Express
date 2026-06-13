@@ -12,7 +12,7 @@ const emptyPermissions = PERMISSIONS.reduce((acc, key) => {
 
 interface CreateResponse {
   data: Profile;
-  sms?: { sent?: boolean; skipped?: boolean };
+  sms?: { sent?: boolean; skipped?: boolean; error?: string; reason?: string; number?: string; provider_response?: string };
   error?: string | null;
 }
 
@@ -98,8 +98,8 @@ export default function AdminUsers() {
         body: JSON.stringify(form),
       });
       setMessage(result.sms?.sent
-        ? 'Sub-admin created and login credentials were sent by SMS.'
-        : 'Sub-admin created. SMS was skipped/failed, so share the credentials manually once.'
+        ? `Sub-admin created and login credentials were sent by SMS to ${result.sms.number || form.phone}.`
+        : `Sub-admin created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
       setForm({ full_name: '', phone: '', password: '', permissions: { ...emptyPermissions } });
       await loadProfiles();
@@ -115,11 +115,7 @@ export default function AdminUsers() {
       setError('Delivery man name, phone and password are required.');
       return;
     }
-    if (!deliveryForm.permanent_address.trim() || !deliveryForm.permanent_latitude || !deliveryForm.permanent_longitude) {
-      setError('Permanent address, latitude and longitude are required for delivery man map point.');
-      return;
-    }
-    if (Number.isNaN(Number(deliveryForm.permanent_latitude)) || Number.isNaN(Number(deliveryForm.permanent_longitude))) {
+    if ((deliveryForm.permanent_latitude || deliveryForm.permanent_longitude) && (Number.isNaN(Number(deliveryForm.permanent_latitude)) || Number.isNaN(Number(deliveryForm.permanent_longitude)))) {
       setError('Permanent latitude and longitude must be valid numbers.');
       return;
     }
@@ -133,8 +129,8 @@ export default function AdminUsers() {
         body: JSON.stringify(deliveryForm),
       });
       setMessage(result.sms?.sent
-        ? 'Delivery man account created and login credentials were sent by SMS.'
-        : 'Delivery man account created. SMS was skipped/failed, so share the credentials manually once.'
+        ? `Delivery man account created and login credentials were sent by SMS to ${result.sms.number || deliveryForm.phone}.`
+        : `Delivery man account created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
       setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_latitude: '', permanent_longitude: '' });
       await loadProfiles();
@@ -363,7 +359,7 @@ export default function AdminUsers() {
             className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
           />
         </div>
-        <p className="text-xs text-gray-500 mt-3">Permanent latitude/longitude creates the fixed delivery-man point on the admin live map and is used to find drivers within 600 meters of an order.</p>
+        <p className="text-xs text-gray-500 mt-3">Permanent latitude/longitude is optional during account creation. Add it now or later to show this delivery man as a fixed point on the admin live map and to include him in the 600m nearest-driver assignment list.</p>
         <button
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
