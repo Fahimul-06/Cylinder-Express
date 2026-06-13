@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Order, OrderItem, ServiceBooking, Profile, DeliveryLocation } from '../lib/types';
+import { Order, OrderItem, ServiceBooking, Profile, DeliveryLocation, LocationPoint } from '../lib/types';
 import {
   ShoppingBag, Wrench, Clock, Check, X, Truck,
   ChevronDown, ChevronUp, Package, Calendar, Tag, Building2,
@@ -9,6 +9,144 @@ import {
 } from 'lucide-react';
 
 type Tab = 'orders' | 'services';
+
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+function loadGoogleMaps(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!GOOGLE_MAPS_API_KEY) return reject(new Error('Missing VITE_GOOGLE_MAPS_API_KEY'));
+    if ((window as any).google?.maps) return resolve();
+    const existing = document.getElementById('google-maps-script');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Failed to load Google Maps')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'google-maps-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Google Maps'));
+    document.head.appendChild(script);
+  });
+}
+
+function DeliveryTrackingMap({
+  deliveryManName,
+  location,
+  points,
+}: {
+  deliveryManName: string;
+  location: DeliveryLocation;
+  points: LocationPoint[];
+}) {
+  const mapBoxRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any | null>(null);
+  const markerRef = useRef<any | null>(null);
+  const polylineRef = useRef<any | null>(null);
+  const [mapError, setMapError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function renderMap() {
+      try {
+        await loadGoogleMaps();
+        if (cancelled || !mapBoxRef.current) return;
+
+        const google = (window as any).google;
+        const current = { lat: Number(location.latitude), lng: Number(location.longitude) };
+        const path = [
+          ...points.map((point) => ({ lat: Number(point.latitude), lng: Number(point.longitude) })),
+          current,
+        ].filter((point, index, arr) => {
+          if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
+          const previous = arr[index - 1];
+          return !previous || previous.lat !== point.lat || previous.lng !== point.lng;
+        }).slice(-80);
+
+        if (!mapRef.current) {
+          mapRef.current = new google.maps.Map(mapBoxRef.current, {
+            center: current,
+            zoom: 16,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+          });
+        }
+
+        if (!markerRef.current) {
+          markerRef.current = new google.maps.Marker({
+            map: mapRef.current,
+            position: current,
+            title: deliveryManName,
+          });
+        } else {
+          markerRef.current.setPosition(current);
+        }
+
+        if (!polylineRef.current) {
+          polylineRef.current = new google.maps.Polyline({
+            map: mapRef.current,
+            path,
+            strokeWeight: 4,
+            strokeOpacity: 0.9,
+          });
+        } else {
+          polylineRef.current.setPath(path);
+        }
+
+        if (path.length > 1) {
+          const bounds = new google.maps.LatLngBounds();
+          path.forEach((point) => bounds.extend(point));
+          mapRef.current.fitBounds(bounds, 60);
+        } else {
+          mapRef.current.setCenter(current);
+          mapRef.current.setZoom(16);
+        }
+        setMapError('');
+      } catch (error) {
+        setMapError(error instanceof Error ? error.message : 'Could not load map preview');
+      }
+    }
+
+    renderMap();
+    return () => { cancelled = true; };
+  }, [deliveryManName, location.latitude, location.longitude, location.updated_at, location.last_seen, points]);
+
+  const iframeSrc = `https://maps.google.com/maps?q=${location.latitude},${location.longitude}&z=16&output=embed`;
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-green-200 bg-white">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-green-100 bg-green-50">
+        <div>
+          <p className="text-xs font-bold text-green-900">Live delivery movement</p>
+          <p className="text-[11px] text-green-700">Tracking inside this order page</p>
+        </div>
+        <span className="text-[11px] font-semibold text-gray-500">
+          {new Date(location.updated_at || location.last_seen).toLocaleTimeString('en-BD')}
+        </span>
+      </div>
+      {mapError ? (
+        <iframe
+          title="Delivery live location preview"
+          src={iframeSrc}
+          className="h-56 w-full border-0"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+        />
+      ) : (
+        <div ref={mapBoxRef} className="h-56 w-full bg-gray-100" />
+      )}
+      <div className="px-3 py-2 text-[11px] text-gray-500 bg-white">
+        Movement path points: {Math.max(points.length, location ? 1 : 0)} · Lat {Number(location.latitude).toFixed(5)}, Lng {Number(location.longitude).toFixed(5)}
+      </div>
+    </div>
+  );
+}
 
 const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
   pending: { color: 'bg-amber-50 text-amber-700', icon: Clock, label: 'Pending' },
@@ -204,41 +342,62 @@ export default function OrdersPage() {
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
   const [deliveryProfiles, setDeliveryProfiles] = useState<Record<string, Profile>>({});
   const [deliveryLocations, setDeliveryLocations] = useState<Record<string, DeliveryLocation>>({});
+  const [deliveryPointsMap, setDeliveryPointsMap] = useState<Record<string, LocationPoint[]>>({});
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
+    let mounted = true;
     const userId = user.id;
-    async function fetchData() {
+
+    async function fetchData(showLoader = false) {
+      if (showLoader) setLoading(true);
       const [ordRes, bookRes] = await Promise.all([
         supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         supabase.from('service_bookings').select('*, product:products(name, price)').eq('user_id', userId).order('created_at', { ascending: false }),
       ]);
+      if (!mounted) return;
+
       const orderList = ordRes.data || [];
+      const orderIds = orderList.map((o: any) => o.id);
       setOrders(orderList);
       setBookings(bookRes.data || []);
 
       const deliveryIds = [...new Set(orderList.map((order: Order) => order.delivery_man_id).filter(Boolean))] as string[];
       if (deliveryIds.length > 0) {
-        const [{ data: deliveryProfilesData }, { data: deliveryLocationsData }] = await Promise.all([
+        const [{ data: deliveryProfilesData }, { data: deliveryLocationsData }, { data: deliveryPointsData }] = await Promise.all([
           supabase.from('profiles').select('*').in('user_id', deliveryIds),
           supabase.from('delivery_locations').select('*').eq('is_sharing', true).in('user_id', deliveryIds),
+          orderIds.length
+            ? supabase.from('delivery_location_points').select('*').in('order_id', orderIds).order('recorded_at', { ascending: true })
+            : Promise.resolve({ data: [] }),
         ]);
+        if (!mounted) return;
         setDeliveryProfiles(Object.fromEntries((deliveryProfilesData || []).map((item: Profile) => [item.user_id, item])));
         setDeliveryLocations(Object.fromEntries((deliveryLocationsData || []).map((item: DeliveryLocation) => [item.user_id, item])));
+
+        const pointMap: Record<string, LocationPoint[]> = {};
+        for (const point of deliveryPointsData || []) {
+          if (!point.order_id) continue;
+          if (!pointMap[point.order_id]) pointMap[point.order_id] = [];
+          pointMap[point.order_id].push(point as LocationPoint);
+          pointMap[point.order_id] = pointMap[point.order_id].slice(-80);
+        }
+        setDeliveryPointsMap(pointMap);
       } else {
         setDeliveryProfiles({});
         setDeliveryLocations({});
+        setDeliveryPointsMap({});
       }
 
       // Fetch order items for all orders
       if (orderList.length > 0) {
-        const orderIds = orderList.map((o: any) => o.id);
         const { data: itemsData } = await supabase
           .from('order_items')
           .select('*, product:products(name, price, image_url)')
           .in('order_id', orderIds);
+        if (!mounted) return;
         if (itemsData) {
           const map: Record<string, OrderItem[]> = {};
           for (const item of itemsData) {
@@ -252,7 +411,13 @@ export default function OrdersPage() {
       }
       setLoading(false);
     }
-    fetchData();
+
+    fetchData(true);
+    const intervalId = window.setInterval(() => fetchData(false), 8000);
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
   }, [user]);
 
   if (loading) {
@@ -413,21 +578,11 @@ export default function OrdersPage() {
                                 </div>
                               </div>
                               {deliveryLive ? (
-                                <div className="mt-3 rounded-lg bg-white/80 p-2">
-                                  <p className="text-xs text-green-700 mb-1">Current delivery location</p>
-                                  <p className="text-xs text-gray-600">Lat {deliveryLive.latitude.toFixed(5)}, Lng {deliveryLive.longitude.toFixed(5)}</p>
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    <a
-                                      href={`https://www.google.com/maps?q=${deliveryLive.latitude},${deliveryLive.longitude}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold"
-                                    >
-                                      <MapPin className="w-3.5 h-3.5" /> View on Map
-                                    </a>
-                                    <span className="text-xs text-gray-400 self-center">Last updated {new Date(deliveryLive.updated_at || deliveryLive.last_seen).toLocaleTimeString('en-BD')}</span>
-                                  </div>
-                                </div>
+                                <DeliveryTrackingMap
+                                  deliveryManName={deliveryMan?.full_name || 'Delivery man'}
+                                  location={deliveryLive}
+                                  points={deliveryPointsMap[order.id] || []}
+                                />
                               ) : (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
                                   {isDeliveryActive ? 'Delivery man has not started live location sharing yet.' : 'Delivery completed. Live delivery location sharing has stopped.'}
