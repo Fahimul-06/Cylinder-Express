@@ -61,7 +61,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
 
   return (
     <div
-      className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300 group"
+      className="bg-white rounded-2xl border border-gray-100 overflow-hidden cursor-pointer hover:shadow-lg transition-all duration-300 group h-full flex flex-col"
       onClick={() => navigate(`/product/${product.id}`)}
     >
       <div className="relative h-36 sm:h-48 overflow-hidden bg-gray-100">
@@ -87,34 +87,34 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           </span>
         )}
       </div>
-      <div className="p-3 sm:p-4">
-        <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.75rem] sm:min-h-0">{product.name}</h3>
+      <div className="p-3 sm:p-4 flex flex-col flex-1">
+        <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem] sm:min-h-0 leading-snug">{product.name}</h3>
         {details && <p className="text-xs text-blue-600 font-medium mt-1 line-clamp-1">{details}</p>}
         {product.description && (
-          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{product.description}</p>
+          <p className="text-sm text-gray-500 mt-1 line-clamp-2 min-h-[2.5rem]">{product.description}</p>
         )}
         {product.type !== 'service' && (
           <p className="mt-2 flex items-center gap-1 text-xs text-gray-500"><Truck className="w-3.5 h-3.5" /> {getDeliveryFeeLabel(product)}</p>
         )}
-        <div className="flex items-center justify-between gap-2 mt-3">
-          <div>
+        <div className="mt-auto pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
             <span className="text-lg sm:text-xl font-bold text-blue-600">৳{product.price.toLocaleString()}</span>
             {product.unit !== 'piece' && (
               <span className="text-xs text-gray-400 ml-1">/{product.unit}</span>
             )}
           </div>
           {qty > 0 ? (
-            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2 bg-blue-50 sm:bg-transparent rounded-xl p-1 sm:p-0" onClick={e => e.stopPropagation()}>
               <button
                 onClick={() => updateQuantity(product.id, qty - 1)}
-                className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 font-bold hover:bg-blue-200 transition-colors flex items-center justify-center"
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg bg-blue-100 text-blue-600 font-bold hover:bg-blue-200 transition-colors flex items-center justify-center"
               >
                 -
               </button>
-              <span className="w-8 text-center font-semibold text-gray-900">{qty}</span>
+              <span className="flex-1 sm:flex-none sm:w-8 text-center font-semibold text-gray-900">{qty}</span>
               <button
                 onClick={() => updateQuantity(product.id, qty + 1)}
-                className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors flex items-center justify-center"
+                className="w-10 h-10 sm:w-8 sm:h-8 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 +
               </button>
@@ -122,7 +122,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           ) : (
             <button
               onClick={e => { e.stopPropagation(); addItem(product); }}
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md whitespace-nowrap"
+              className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md whitespace-nowrap"
             >
               <ShoppingCart className="w-4 h-4" />
               Add
