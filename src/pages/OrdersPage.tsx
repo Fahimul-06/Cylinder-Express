@@ -10,13 +10,27 @@ import {
 
 type Tab = 'orders' | 'services';
 
-
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+type GoogleMapsApi = {
+  maps: {
+    Map: new (element: HTMLElement, options: Record<string, unknown>) => any;
+    Marker: new (options: Record<string, unknown>) => any;
+    Polyline: new (options: Record<string, unknown>) => any;
+    InfoWindow: new (options: Record<string, unknown>) => any;
+    LatLngBounds: new () => any;
+    SymbolPath: { CIRCLE: unknown; FORWARD_CLOSED_ARROW: unknown };
+  };
+};
+
+declare global {
+  interface Window { google?: GoogleMapsApi; }
+}
 
 function loadGoogleMaps(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!GOOGLE_MAPS_API_KEY) return reject(new Error('Missing VITE_GOOGLE_MAPS_API_KEY'));
-    if ((window as any).google?.maps) return resolve();
+    if (window.google?.maps) return resolve();
     const existing = document.getElementById('google-maps-script');
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
@@ -34,119 +48,95 @@ function loadGoogleMaps(): Promise<void> {
   });
 }
 
-function DeliveryTrackingMap({
-  deliveryManName,
-  location,
-  points,
-}: {
-  deliveryManName: string;
-  location: DeliveryLocation;
-  points: LocationPoint[];
-}) {
-  const mapBoxRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any | null>(null);
-  const markerRef = useRef<any | null>(null);
-  const polylineRef = useRef<any | null>(null);
+function DeliveryMovementMap({ deliveryLive, routePoints }: { deliveryLive: DeliveryLocation; routePoints: LocationPoint[] }) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any | null>(null);
+  const overlaysRef = useRef<any[]>([]);
   const [mapError, setMapError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-
     async function renderMap() {
       try {
         await loadGoogleMaps();
-        if (cancelled || !mapBoxRef.current) return;
+        if (cancelled || !mapRef.current || !window.google?.maps) return;
 
-        const google = (window as any).google;
-        const current = { lat: Number(location.latitude), lng: Number(location.longitude) };
-        const path = [
-          ...points.map((point) => ({ lat: Number(point.latitude), lng: Number(point.longitude) })),
-          current,
-        ].filter((point, index, arr) => {
-          if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
-          const previous = arr[index - 1];
-          return !previous || previous.lat !== point.lat || previous.lng !== point.lng;
-        }).slice(-80);
+        const route = routePoints
+          .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
+          .slice(-100)
+          .map((point) => ({ lat: point.latitude, lng: point.longitude }));
+        const current = { lat: deliveryLive.latitude, lng: deliveryLive.longitude };
+        const path = route.length > 0 ? [...route, current] : [current];
 
-        if (!mapRef.current) {
-          mapRef.current = new google.maps.Map(mapBoxRef.current, {
+        if (!mapInstanceRef.current) {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
             center: current,
             zoom: 16,
             mapTypeControl: false,
             streetViewControl: false,
-            fullscreenControl: false,
+            fullscreenControl: true,
           });
         }
 
-        if (!markerRef.current) {
-          markerRef.current = new google.maps.Marker({
-            map: mapRef.current,
-            position: current,
-            title: deliveryManName,
-          });
-        } else {
-          markerRef.current.setPosition(current);
-        }
+        overlaysRef.current.forEach((overlay) => overlay.setMap?.(null));
+        overlaysRef.current = [];
 
-        if (!polylineRef.current) {
-          polylineRef.current = new google.maps.Polyline({
-            map: mapRef.current,
-            path,
-            strokeWeight: 4,
-            strokeOpacity: 0.9,
-          });
-        } else {
-          polylineRef.current.setPath(path);
-        }
+        const bounds = new window.google.maps.LatLngBounds();
+        path.forEach((point) => bounds.extend(point));
 
         if (path.length > 1) {
-          const bounds = new google.maps.LatLngBounds();
-          path.forEach((point) => bounds.extend(point));
-          mapRef.current.fitBounds(bounds, 60);
-        } else {
-          mapRef.current.setCenter(current);
-          mapRef.current.setZoom(16);
+          const polyline = new window.google.maps.Polyline({
+            path,
+            geodesic: true,
+            strokeColor: '#16a34a',
+            strokeOpacity: 0.95,
+            strokeWeight: 4,
+            map: mapInstanceRef.current,
+          });
+          overlaysRef.current.push(polyline);
         }
-        setMapError('');
-      } catch (error) {
-        setMapError(error instanceof Error ? error.message : 'Could not load map preview');
+
+        const marker = new window.google.maps.Marker({
+          position: current,
+          map: mapInstanceRef.current,
+          title: 'Delivery man live location',
+          label: 'D',
+        });
+        overlaysRef.current.push(marker);
+
+        if (path.length > 1) {
+          mapInstanceRef.current.fitBounds(bounds);
+        } else {
+          mapInstanceRef.current.setCenter(current);
+          mapInstanceRef.current.setZoom(16);
+        }
+      } catch (err) {
+        if (!cancelled) setMapError(err instanceof Error ? err.message : 'Could not load delivery map');
       }
     }
 
     renderMap();
     return () => { cancelled = true; };
-  }, [deliveryManName, location.latitude, location.longitude, location.updated_at, location.last_seen, points]);
-
-  const iframeSrc = `https://maps.google.com/maps?q=${location.latitude},${location.longitude}&z=16&output=embed`;
+  }, [deliveryLive.latitude, deliveryLive.longitude, routePoints]);
 
   return (
-    <div className="mt-3 overflow-hidden rounded-xl border border-green-200 bg-white">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-green-100 bg-green-50">
+    <div className="mt-3 rounded-xl overflow-hidden border border-green-100 bg-white">
+      <div className="px-3 py-2 flex items-center justify-between gap-2 bg-white">
         <div>
           <p className="text-xs font-bold text-green-900">Live delivery movement</p>
-          <p className="text-[11px] text-green-700">Tracking inside this order page</p>
+          <p className="text-[11px] text-gray-500">Tracking inside this order page</p>
         </div>
-        <span className="text-[11px] font-semibold text-gray-500">
-          {new Date(location.updated_at || location.last_seen).toLocaleTimeString('en-BD')}
-        </span>
+        <span className="text-[11px] text-gray-400">Last updated {new Date(deliveryLive.updated_at || deliveryLive.last_seen).toLocaleTimeString('en-BD')}</span>
       </div>
       {mapError ? (
-        <iframe
-          title="Delivery live location preview"
-          src={iframeSrc}
-          className="h-56 w-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-        />
+        <div className="p-3 text-xs text-red-600 bg-red-50">{mapError}</div>
       ) : (
-        <div ref={mapBoxRef} className="h-56 w-full bg-gray-100" />
+        <div ref={mapRef} className="h-64 w-full bg-green-50" />
       )}
-      <div className="px-3 py-2 text-[11px] text-gray-500 bg-white">
-        Movement path points: {Math.max(points.length, location ? 1 : 0)} · Lat {Number(location.latitude).toFixed(5)}, Lng {Number(location.longitude).toFixed(5)}
-      </div>
     </div>
   );
 }
+
 
 const statusConfig: Record<string, { color: string; icon: typeof Clock; label: string }> = {
   pending: { color: 'bg-amber-50 text-amber-700', icon: Clock, label: 'Pending' },
@@ -342,62 +332,59 @@ export default function OrdersPage() {
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
   const [deliveryProfiles, setDeliveryProfiles] = useState<Record<string, Profile>>({});
   const [deliveryLocations, setDeliveryLocations] = useState<Record<string, DeliveryLocation>>({});
-  const [deliveryPointsMap, setDeliveryPointsMap] = useState<Record<string, LocationPoint[]>>({});
+  const [deliveryRoutes, setDeliveryRoutes] = useState<Record<string, LocationPoint[]>>({});
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
-    let mounted = true;
     const userId = user.id;
-
-    async function fetchData(showLoader = false) {
-      if (showLoader) setLoading(true);
+    async function fetchData() {
       const [ordRes, bookRes] = await Promise.all([
         supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         supabase.from('service_bookings').select('*, product:products(name, price)').eq('user_id', userId).order('created_at', { ascending: false }),
       ]);
-      if (!mounted) return;
-
       const orderList = ordRes.data || [];
-      const orderIds = orderList.map((o: any) => o.id);
       setOrders(orderList);
       setBookings(bookRes.data || []);
 
       const deliveryIds = [...new Set(orderList.map((order: Order) => order.delivery_man_id).filter(Boolean))] as string[];
       if (deliveryIds.length > 0) {
-        const [{ data: deliveryProfilesData }, { data: deliveryLocationsData }, { data: deliveryPointsData }] = await Promise.all([
+        const activeAssignedOrderIds = orderList
+          .filter((order: Order) => order.delivery_man_id && !['delivered', 'cancelled'].includes(order.status))
+          .map((order: Order) => order.id);
+
+        const [{ data: deliveryProfilesData }, { data: deliveryLocationsData }, { data: deliveryRouteData }] = await Promise.all([
           supabase.from('profiles').select('*').in('user_id', deliveryIds),
           supabase.from('delivery_locations').select('*').eq('is_sharing', true).in('user_id', deliveryIds),
-          orderIds.length
-            ? supabase.from('delivery_location_points').select('*').in('order_id', orderIds).order('recorded_at', { ascending: true })
+          activeAssignedOrderIds.length > 0
+            ? supabase.from('delivery_location_points').select('*').in('order_id', activeAssignedOrderIds).order('recorded_at', { ascending: true })
             : Promise.resolve({ data: [] }),
         ]);
-        if (!mounted) return;
         setDeliveryProfiles(Object.fromEntries((deliveryProfilesData || []).map((item: Profile) => [item.user_id, item])));
         setDeliveryLocations(Object.fromEntries((deliveryLocationsData || []).map((item: DeliveryLocation) => [item.user_id, item])));
 
-        const pointMap: Record<string, LocationPoint[]> = {};
-        for (const point of deliveryPointsData || []) {
+        const routeMap: Record<string, LocationPoint[]> = {};
+        for (const point of deliveryRouteData || []) {
           if (!point.order_id) continue;
-          if (!pointMap[point.order_id]) pointMap[point.order_id] = [];
-          pointMap[point.order_id].push(point as LocationPoint);
-          pointMap[point.order_id] = pointMap[point.order_id].slice(-80);
+          if (!routeMap[point.order_id]) routeMap[point.order_id] = [];
+          routeMap[point.order_id].push(point as LocationPoint);
+          routeMap[point.order_id] = routeMap[point.order_id].slice(-100);
         }
-        setDeliveryPointsMap(pointMap);
+        setDeliveryRoutes(routeMap);
       } else {
         setDeliveryProfiles({});
         setDeliveryLocations({});
-        setDeliveryPointsMap({});
+        setDeliveryRoutes({});
       }
 
       // Fetch order items for all orders
       if (orderList.length > 0) {
+        const orderIds = orderList.map((o: any) => o.id);
         const { data: itemsData } = await supabase
           .from('order_items')
           .select('*, product:products(name, price, image_url)')
           .in('order_id', orderIds);
-        if (!mounted) return;
         if (itemsData) {
           const map: Record<string, OrderItem[]> = {};
           for (const item of itemsData) {
@@ -411,13 +398,7 @@ export default function OrdersPage() {
       }
       setLoading(false);
     }
-
-    fetchData(true);
-    const intervalId = window.setInterval(() => fetchData(false), 8000);
-    return () => {
-      mounted = false;
-      window.clearInterval(intervalId);
-    };
+    fetchData();
   }, [user]);
 
   if (loading) {
@@ -578,10 +559,9 @@ export default function OrdersPage() {
                                 </div>
                               </div>
                               {deliveryLive ? (
-                                <DeliveryTrackingMap
-                                  deliveryManName={deliveryMan?.full_name || 'Delivery man'}
-                                  location={deliveryLive}
-                                  points={deliveryPointsMap[order.id] || []}
+                                <DeliveryMovementMap
+                                  deliveryLive={deliveryLive}
+                                  routePoints={deliveryRoutes[order.id] || []}
                                 />
                               ) : (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
