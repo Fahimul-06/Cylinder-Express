@@ -92,6 +92,9 @@ const ProfileSchema = new mongoose.Schema({
   role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   is_active: { type: Boolean, default: true },
+  permanent_address: { type: String, default: null },
+  permanent_latitude: { type: Number, default: null },
+  permanent_longitude: { type: Number, default: null },
   ...common,
 }, { toJSON });
 
@@ -342,7 +345,7 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
 
 app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
-    const { full_name, phone, password } = req.body;
+    const { full_name, phone, password, permanent_address, permanent_latitude, permanent_longitude } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const normalizedPhone = String(phone).trim();
@@ -361,6 +364,9 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
       role: 'delivery',
       permissions: {},
       is_active: true,
+      permanent_address: permanent_address || null,
+      permanent_latitude: permanent_latitude === '' || permanent_latitude === undefined ? null : Number(permanent_latitude),
+      permanent_longitude: permanent_longitude === '' || permanent_longitude === undefined ? null : Number(permanent_longitude),
     });
 
     const smsMessage = `Cylinder Express delivery account created. Username: ${normalizedPhone}. Password: ${password}. Login and share your live location before delivery.`;
@@ -372,6 +378,26 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
     }
 
     res.json({ data: profile.toJSON(), sms, error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserManagement, async (req, res) => {
+  try {
+    const update = {};
+    if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
+    if (req.body.phone !== undefined) update.phone = req.body.phone;
+    if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
+    if (req.body.permanent_address !== undefined) update.permanent_address = req.body.permanent_address || null;
+    if (req.body.permanent_latitude !== undefined) update.permanent_latitude = req.body.permanent_latitude === '' || req.body.permanent_latitude === null ? null : Number(req.body.permanent_latitude);
+    if (req.body.permanent_longitude !== undefined) update.permanent_longitude = req.body.permanent_longitude === '' || req.body.permanent_longitude === null ? null : Number(req.body.permanent_longitude);
+    update.updated_at = new Date();
+    const profile = await models.profiles.findOneAndUpdate({ _id: req.params.profileId, role: 'delivery' }, update, { new: true });
+    if (!profile) return res.status(404).json({ error: 'Delivery man profile not found.' });
+    if (req.body.phone !== undefined) await models.users.findByIdAndUpdate(profile.user_id, { phone: req.body.phone });
+    res.json({ data: profile.toJSON(), error: null });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

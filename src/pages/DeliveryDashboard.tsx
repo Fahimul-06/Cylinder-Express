@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Order, Address, Profile, LocationPoint } from '../lib/types';
-import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2 } from 'lucide-react';
+import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2, History, Wallet } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const ACTIVE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
@@ -55,6 +55,7 @@ export default function DeliveryDashboard() {
   const polylinesRef = useRef<any[]>([]);
   const watchIdRef = useRef<number | null>(null);
   const [orders, setOrders] = useState<EnrichedOrder[]>([]);
+  const [deliveredOrders, setDeliveredOrders] = useState<EnrichedOrder[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [deliveryLocation, setDeliveryLocation] = useState<{ latitude: number; longitude: number; accuracy?: number | null } | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -65,6 +66,7 @@ export default function DeliveryDashboard() {
   const [markingDelivered, setMarkingDelivered] = useState(false);
 
   const selectedOrder = useMemo(() => orders.find((o) => o.id === selectedOrderId) || orders[0] || null, [orders, selectedOrderId]);
+  const deliveredTotal = useMemo(() => deliveredOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0), [deliveredOrders]);
 
   const saveDeliveryLocation = useCallback(async (position: GeolocationPosition) => {
     if (!user) return;
@@ -145,15 +147,7 @@ export default function DeliveryDashboard() {
     loadOrders();
   };
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
-    const { data: orderData } = await supabase
-      .from('orders')
-      .select('*')
-      .in('status', ACTIVE_ORDER_STATUSES)
-      .eq('delivery_man_id', user?.id || '')
-      .order('created_at', { ascending: false });
-    const list = (orderData || []) as Order[];
+  const enrichOrders = useCallback(async (list: Order[], includeLiveData = false): Promise<EnrichedOrder[]> => {
     const userIds = [...new Set(list.map((o) => o.user_id).filter(Boolean))];
     const addressIds = [...new Set(list.map((o) => o.address_id).filter(Boolean))] as string[];
     const orderIds = list.map((o) => o.id);
@@ -161,8 +155,8 @@ export default function DeliveryDashboard() {
     const [{ data: profiles }, { data: addresses }, { data: locations }, { data: points }] = await Promise.all([
       userIds.length ? supabase.from('profiles').select('*').in('user_id', userIds) : Promise.resolve({ data: [] }),
       addressIds.length ? supabase.from('addresses').select('*').in('id', addressIds) : Promise.resolve({ data: [] }),
-      userIds.length ? supabase.from('customer_locations').select('*').eq('is_sharing', true).in('user_id', userIds) : Promise.resolve({ data: [] }),
-      orderIds.length ? supabase.from('customer_location_points').select('*').in('order_id', orderIds).order('recorded_at', { ascending: true }) : Promise.resolve({ data: [] }),
+      includeLiveData && userIds.length ? supabase.from('customer_locations').select('*').eq('is_sharing', true).in('user_id', userIds) : Promise.resolve({ data: [] }),
+      includeLiveData && orderIds.length ? supabase.from('customer_location_points').select('*').in('order_id', orderIds).order('recorded_at', { ascending: true }) : Promise.resolve({ data: [] }),
     ]);
 
     const profileMap = new Map<string, Profile>((profiles || []).map((p: any) => [p.user_id, p as Profile]));
@@ -175,17 +169,44 @@ export default function DeliveryDashboard() {
       pointMap.set(point.order_id, arr.slice(-100));
     }
 
-    const enriched: EnrichedOrder[] = list.map((order) => ({
+    return list.map((order) => ({
       ...order,
       customer: profileMap.get(order.user_id),
       address: order.address_id ? addressMap.get(order.address_id) : undefined,
-      customerLocation: locMap.get(order.user_id) || null,
-      customerRoute: pointMap.get(order.id) || [],
+      customerLocation: includeLiveData ? locMap.get(order.user_id) || null : null,
+      customerRoute: includeLiveData ? pointMap.get(order.id) || [] : [],
     }));
-    setOrders(enriched);
-    if (!selectedOrderId && enriched[0]) setSelectedOrderId(enriched[0].id);
+  }, []);
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    const [{ data: activeOrderData }, { data: deliveredOrderData }] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('*')
+        .in('status', ACTIVE_ORDER_STATUSES)
+        .eq('delivery_man_id', user?.id || '')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('status', 'delivered')
+        .eq('delivery_man_id', user?.id || '')
+        .order('updated_at', { ascending: false }),
+    ]);
+
+    const activeList = (activeOrderData || []) as Order[];
+    const deliveredList = (deliveredOrderData || []) as Order[];
+    const [activeEnriched, deliveredEnriched] = await Promise.all([
+      enrichOrders(activeList, true),
+      enrichOrders(deliveredList, false),
+    ]);
+
+    setOrders(activeEnriched);
+    setDeliveredOrders(deliveredEnriched);
+    if (!selectedOrderId && activeEnriched[0]) setSelectedOrderId(activeEnriched[0].id);
     setLoading(false);
-  }, [selectedOrderId, user?.id]);
+  }, [enrichOrders, selectedOrderId, user?.id]);
 
   useEffect(() => {
     loadGoogleMaps().then(() => setMapsReady(true)).catch((err) => setMapError(err instanceof Error ? err.message : 'Map failed to load'));
@@ -320,6 +341,38 @@ export default function DeliveryDashboard() {
                 </a>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-bold text-gray-900 flex items-center gap-2"><History className="w-5 h-5 text-purple-600" /> Delivered Orders</h2>
+                <p className="text-xs text-gray-500">Your completed delivery history and total delivered amount.</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">{deliveredOrders.length}</p>
+                <p className="text-xs text-gray-500">Delivered</p>
+              </div>
+            </div>
+            <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-3">
+              <p className="text-xs text-green-700 flex items-center gap-1"><Wallet className="w-4 h-4" /> Total delivered amount</p>
+              <p className="text-2xl font-bold text-green-800 mt-1">৳{deliveredTotal.toLocaleString('en-BD')}</p>
+            </div>
+            {deliveredOrders.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-3">No delivered orders yet.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {deliveredOrders.slice(0, 20).map((order) => (
+                  <div key={order.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-bold text-gray-900 text-sm">#{order.id.slice(-6).toUpperCase()}</p>
+                      <p className="font-bold text-green-700 text-sm">৳{Number(order.total_amount || 0).toLocaleString('en-BD')}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{order.customer?.full_name || 'Customer'} • {new Date(order.updated_at || order.created_at).toLocaleString('en-BD')}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

@@ -9,6 +9,9 @@ export interface Profile {
   role?: 'customer' | 'admin' | 'sub_admin' | 'delivery';
   permissions?: Record<string, boolean>;
   is_active?: boolean;
+  permanent_address?: string | null;
+  permanent_latitude?: number | null;
+  permanent_longitude?: number | null;
   created_at: string;
   updated_at: string;
 }

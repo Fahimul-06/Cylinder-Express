@@ -22,6 +22,16 @@ interface ActiveOrder {
   total_amount?: number;
 }
 
+interface DeliveryBase {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  permanent_address?: string | null;
+  permanent_latitude: number;
+  permanent_longitude: number;
+}
+
 interface LocationRecord {
   id: string;
   user_id: string;
@@ -82,6 +92,7 @@ export default function AdminLocations() {
   const markersRef = useRef<Map<string, any>>(new Map());
   const polylinesRef = useRef<Map<string, any>>(new Map());
   const [locations, setLocations] = useState<LocationRecord[]>([]);
+  const [deliveryBases, setDeliveryBases] = useState<DeliveryBase[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapsReady, setMapsReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -89,6 +100,15 @@ export default function AdminLocations() {
 
   const fetchLocations = useCallback(async () => {
     setLoading(prev => locations.length === 0 ? true : prev);
+
+    const { data: deliveryProfilesData } = await supabase
+      .from('profiles')
+      .select('id, user_id, full_name, phone, permanent_address, permanent_latitude, permanent_longitude')
+      .eq('role', 'delivery');
+
+    const permanentBases = ((deliveryProfilesData || []) as DeliveryBase[])
+      .filter((profile) => typeof profile.permanent_latitude === 'number' && typeof profile.permanent_longitude === 'number');
+    setDeliveryBases(permanentBases);
 
     const { data: activeOrdersData } = await supabase
       .from('orders')
@@ -200,17 +220,21 @@ export default function AdminLocations() {
   useEffect(() => {
     if (!mapInstanceRef.current || !mapsReady) return;
 
-    const activeIds = new Set(locations.map(l => l.user_id));
+    const activeMarkerIds = new Set([
+      ...locations.map(l => `customer:${l.user_id}`),
+      ...deliveryBases.map(d => `delivery:${d.user_id}`),
+    ]);
+    const activeCustomerIds = new Set(locations.map(l => l.user_id));
 
     markersRef.current.forEach((marker, uid) => {
-      if (!activeIds.has(uid)) {
+      if (!activeMarkerIds.has(uid)) {
         marker.setMap(null);
         markersRef.current.delete(uid);
       }
     });
 
     polylinesRef.current.forEach((polyline, uid) => {
-      if (!activeIds.has(uid)) {
+      if (!activeCustomerIds.has(uid)) {
         polyline.setMap(null);
         polylinesRef.current.delete(uid);
       }
@@ -241,7 +265,8 @@ export default function AdminLocations() {
         polylinesRef.current.set(loc.user_id, polyline);
       }
 
-      const existing = markersRef.current.get(loc.user_id);
+      const markerKey = `customer:${loc.user_id}`;
+      const existing = markersRef.current.get(markerKey);
       if (existing) {
         existing.setPosition(pos);
       } else {
@@ -271,20 +296,59 @@ export default function AdminLocations() {
         });
 
         marker.addListener('click', () => infoWindow.open(mapInstanceRef.current!, marker));
-        markersRef.current.set(loc.user_id, marker);
+        markersRef.current.set(markerKey, marker);
       }
     });
 
-    if (locations.length > 0 && mapInstanceRef.current) {
+
+
+    deliveryBases.forEach((driver) => {
+      const markerKey = `delivery:${driver.user_id}`;
+      const pos = { lat: driver.permanent_latitude, lng: driver.permanent_longitude };
+      const title = `${driver.full_name} permanent location`;
+      const existing = markersRef.current.get(markerKey);
+      if (existing) {
+        existing.setPosition(pos);
+      } else {
+        const marker = new window.google!.maps.Marker({
+          position: pos,
+          map: mapInstanceRef.current!,
+          title,
+          icon: {
+            path: window.google!.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#16a34a',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+        });
+        const infoWindow = new window.google!.maps.InfoWindow({
+          content: `
+            <div style="font-family:sans-serif;padding:4px 2px;min-width:210px">
+              <p style="font-weight:700;margin:0 0 2px;font-size:13px">${driver.full_name}</p>
+              <p style="color:#6b7280;margin:0;font-size:11px">${driver.phone || ''}</p>
+              <p style="color:#16a34a;margin:6px 0 0;font-size:11px;font-weight:700">Permanent delivery base</p>
+              <p style="color:#374151;margin:3px 0 0;font-size:11px">${driver.permanent_address || 'No address text saved'}</p>
+            </div>
+          `,
+        });
+        marker.addListener('click', () => infoWindow.open(mapInstanceRef.current!, marker));
+        markersRef.current.set(markerKey, marker);
+      }
+    });
+
+    if ((locations.length > 0 || deliveryBases.length > 0) && mapInstanceRef.current) {
       const bounds = new window.google!.maps.LatLngBounds();
       locations.forEach(location => {
         bounds.extend({ lat: location.latitude, lng: location.longitude });
         (location.route || []).forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
       });
+      deliveryBases.forEach(driver => bounds.extend({ lat: driver.permanent_latitude, lng: driver.permanent_longitude }));
       mapInstanceRef.current.fitBounds(bounds);
-      if (locations.length === 1) mapInstanceRef.current.setZoom(15);
+      if (locations.length + deliveryBases.length === 1) mapInstanceRef.current.setZoom(15);
     }
-  }, [locations, mapsReady]);
+  }, [locations, deliveryBases, mapsReady]);
 
   useEffect(() => {
     fetchLocations();
@@ -293,6 +357,7 @@ export default function AdminLocations() {
   }, [fetchLocations]);
 
   const activeCount = locations.length;
+  const baseCount = deliveryBases.length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 h-screen flex flex-col">
@@ -300,7 +365,7 @@ export default function AdminLocations() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Live Order Route Tracking</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {activeCount} active ordered customer{activeCount !== 1 ? 's' : ''} sharing live route
+            {activeCount} active ordered customer{activeCount !== 1 ? 's' : ''} sharing live route · {baseCount} delivery base point{baseCount !== 1 ? 's' : ''}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -337,14 +402,14 @@ export default function AdminLocations() {
               )}
             </div>
           )}
-          {mapsReady && activeCount === 0 && !loading && (
+          {mapsReady && activeCount === 0 && baseCount === 0 && !loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
               <div className="text-center max-w-sm px-6">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <MapPin className="w-8 h-8 text-gray-300" />
                 </div>
-                <p className="text-gray-700 font-semibold">No active order live routes</p>
-                <p className="text-sm text-gray-400 mt-1">Only customers with pending, confirmed, or processing orders appear here. Delivered/cancelled orders are automatically removed.</p>
+                <p className="text-gray-700 font-semibold">No active order live routes or delivery base points</p>
+                <p className="text-sm text-gray-400 mt-1">Only customers with pending, confirmed, or processing orders appear here. Delivery men with permanent coordinates also appear as fixed green points.</p>
               </div>
             </div>
           )}

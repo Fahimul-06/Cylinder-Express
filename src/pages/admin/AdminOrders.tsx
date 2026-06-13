@@ -32,6 +32,7 @@ export default function AdminOrders() {
   const [addressMap, setAddressMap] = useState<Record<string, any>>({});
   const [profileMap, setProfileMap] = useState<Record<string, any>>({});
   const [deliveryMen, setDeliveryMen] = useState<Profile[]>([]);
+  const [customerLocationMap, setCustomerLocationMap] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -65,7 +66,7 @@ export default function AdminOrders() {
       ...bookingList.map((b: any) => b.user_id),
     ].filter(Boolean))];
 
-    const [itemsRes, addrRes, profileRes] = await Promise.all([
+    const [itemsRes, addrRes, profileRes, customerLocRes] = await Promise.all([
       orderIds.length > 0
         ? supabase.from('order_items').select('*, product:products(name, price, image_url)').in('order_id', orderIds)
         : Promise.resolve({ data: [] }),
@@ -74,6 +75,9 @@ export default function AdminOrders() {
         : Promise.resolve({ data: [] }),
       userIds.length > 0
         ? supabase.from('profiles').select('user_id, full_name, phone, email').in('user_id', userIds)
+        : Promise.resolve({ data: [] }),
+      userIds.length > 0
+        ? supabase.from('customer_locations').select('user_id, latitude, longitude').in('user_id', userIds)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -100,6 +104,14 @@ export default function AdminOrders() {
     const pMap: Record<string, { user_id: string; full_name: string; phone: string; email?: string }> = {};
     if (profileRes.data) for (const p of profileRes.data) pMap[p.user_id] = p;
     setProfileMap(pMap);
+
+    const cMap: Record<string, { latitude: number; longitude: number }> = {};
+    if (customerLocRes.data) {
+      for (const loc of customerLocRes.data) {
+        if (typeof loc.latitude === 'number' && typeof loc.longitude === 'number') cMap[loc.user_id] = loc;
+      }
+    }
+    setCustomerLocationMap(cMap);
     setLoading(false);
   }
 
@@ -155,6 +167,43 @@ export default function AdminOrders() {
 
   const calcOrderTotal = (o: Order) =>
     o.total_amount + o.delivery_fee + (o.floor_charge || 0) - (o.discount_amount || 0);
+
+
+  const distanceMeters = (a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) => {
+    const toRad = (value: number) => (value * Math.PI) / 180;
+    const earthRadius = 6371000;
+    const dLat = toRad(b.latitude - a.latitude);
+    const dLng = toRad(b.longitude - a.longitude);
+    const lat1 = toRad(a.latitude);
+    const lat2 = toRad(b.latitude);
+    const hav = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return earthRadius * 2 * Math.atan2(Math.sqrt(hav), Math.sqrt(1 - hav));
+  };
+
+  const getOrderTargetPoint = (order: Order, addr: any) => {
+    const live = customerLocationMap[order.user_id];
+    if (live) return { latitude: live.latitude, longitude: live.longitude, source: 'customer live location' };
+    if (typeof addr?.latitude === 'number' && typeof addr?.longitude === 'number') {
+      return { latitude: addr.latitude, longitude: addr.longitude, source: 'delivery address' };
+    }
+    return null;
+  };
+
+  const getNearestDeliveryMen = (order: Order, addr: any) => {
+    const target = getOrderTargetPoint(order, addr);
+    if (!target) return [];
+    return deliveryMen
+      .filter((man) => typeof man.permanent_latitude === 'number' && typeof man.permanent_longitude === 'number')
+      .map((man) => ({
+        ...man,
+        distance_m: distanceMeters(
+          { latitude: target.latitude, longitude: target.longitude },
+          { latitude: Number(man.permanent_latitude), longitude: Number(man.permanent_longitude) }
+        ),
+      }))
+      .filter((man) => man.distance_m <= 600 || man.user_id === order.delivery_man_id)
+      .sort((a, b) => a.distance_m - b.distance_m);
+  };
 
   if (loading) {
     return (
@@ -321,6 +370,8 @@ export default function AdminOrders() {
 
             const order = entry.data as Order;
             const items = itemsMap[order.id] || [];
+            const targetPoint = getOrderTargetPoint(order, addr);
+            const nearestDeliveryMen = getNearestDeliveryMen(order, addr);
             return (
               <div key={itemKey} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <button
@@ -382,16 +433,18 @@ export default function AdminOrders() {
                         className="w-full px-3 py-2 bg-white border border-blue-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                       >
                         <option value="">Not assigned</option>
-                        {deliveryMen.map((man) => (
+                        {nearestDeliveryMen.map((man) => (
                           <option key={man.user_id} value={man.user_id}>
-                            {man.full_name} — {man.phone}
+                            {man.full_name} — {man.phone} — {Math.round((man as any).distance_m)}m
                           </option>
                         ))}
                       </select>
                       {order.delivery_man_id ? (
                         <p className="text-xs text-blue-700 mt-2">Assigned driver can see this order and customer route in the delivery dashboard.</p>
+                      ) : targetPoint ? (
+                        <p className="text-xs text-blue-700 mt-2">Showing {nearestDeliveryMen.length} delivery man{nearestDeliveryMen.length === 1 ? '' : 's'} within 600m of the {targetPoint.source}. Select one after confirming/processing the order.</p>
                       ) : (
-                        <p className="text-xs text-blue-700 mt-2">Select a delivery man after confirming the order.</p>
+                        <p className="text-xs text-red-600 mt-2">No customer coordinate found yet. Save customer address latitude/longitude or wait for customer live location to assign nearest delivery man.</p>
                       )}
                     </div>
 
