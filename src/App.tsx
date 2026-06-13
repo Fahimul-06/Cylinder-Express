@@ -15,11 +15,6 @@ import AddressesPage from './pages/AddressesPage';
 import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import OffersPage from './pages/OffersPage';
-import AboutPage from './pages/AboutPage';
-import FAQPage from './pages/FAQPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import TermsOfUsePage from './pages/TermsOfUsePage';
-import ContactUsPage from './pages/ContactUsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
@@ -29,6 +24,9 @@ import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
+import Footer from './components/Footer';
+import NotificationsPage from './pages/NotificationsPage';
+import StaticPage from './pages/StaticPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -102,14 +100,20 @@ function AppRoutes() {
 
   const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
   const isAdminRoute = currentPath.startsWith('/admin');
+  const isDeliveryRoute = currentPath.startsWith('/delivery');
 
   return (
     <>
       {user && !isAdminRoute && <Navbar />}
-      {user && profile?.role === 'delivery' && <NotificationCenter />}
+      {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+        <Route path="/about" element={<StaticPage type="about" />} />
+        <Route path="/faq" element={<StaticPage type="faq" />} />
+        <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
+        <Route path="/terms-of-use" element={<StaticPage type="terms" />} />
+        <Route path="/contact-us" element={<StaticPage type="contact" />} />
         <Route path="/home" element={<ProtectedRoute>{profile?.role === 'delivery' ? <Navigate to="/delivery" replace /> : <HomePage />}</ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
         <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
@@ -119,11 +123,7 @@ function AppRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
-        <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
-        <Route path="/faq" element={<ProtectedRoute><FAQPage /></ProtectedRoute>} />
-        <Route path="/privacy" element={<ProtectedRoute><PrivacyPolicyPage /></ProtectedRoute>} />
-        <Route path="/terms" element={<ProtectedRoute><TermsOfUsePage /></ProtectedRoute>} />
-        <Route path="/contact" element={<ProtectedRoute><ContactUsPage /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="/delivery" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
@@ -136,6 +136,7 @@ function AppRoutes() {
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? '/delivery' : '/home') : '/login'} replace />} />
       </Routes>
+      {!isAdminRoute && !isDeliveryRoute && <Footer />}
     </>
   );
 }

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
-import NotificationCenter from './NotificationCenter';
+import NotificationBell from './NotificationBell';
 import { AdminPermissionKey, profileHasPermission } from '../lib/types';
 
 export default function AdminLayout() {
@@ -60,7 +60,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-gray-100">
-          <div className="px-4 py-2 flex items-center gap-3"><NotificationCenter variant="inline" /><LanguageToggle /></div>
+          <div className="px-4 py-2 flex items-center gap-2"><LanguageToggle /><NotificationBell compact /></div>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-400 font-medium">{profile?.full_name}</p>
             <p className="text-[10px] text-blue-600 font-semibold uppercase">{profile?.role === 'sub_admin' ? 'Sub Admin' : 'Admin'}</p>
@@ -83,8 +83,8 @@ export default function AdminLayout() {
             <span className="font-bold text-sm text-gray-900">{t('nav.admin')}</span>
           </div>
           <div className="flex items-center gap-2">
-            <NotificationCenter variant="inline" />
             <LanguageToggle compact />
+            <NotificationBell compact />
             <button
               onClick={() => navigate('/home')}
               className="text-sm text-gray-500 flex items-center gap-1"
