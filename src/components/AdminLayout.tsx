@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
+import NotificationCenter from './NotificationCenter';
 import { AdminPermissionKey, profileHasPermission } from '../lib/types';
 
 export default function AdminLayout() {
@@ -20,7 +21,7 @@ export default function AdminLayout() {
     { path: '/admin/products', label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
     { path: '/admin/offers', label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
     { path: '/admin/locations', label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
-    { path: '/admin/users', label: 'Users & Sub-admins', icon: Users, permission: 'users' as AdminPermissionKey },
+    { path: '/admin/users', label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>
@@ -59,7 +60,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-gray-100">
-          <div className="px-4 py-2"><LanguageToggle /></div>
+          <div className="px-4 py-2 flex items-center gap-3"><NotificationCenter variant="inline" /><LanguageToggle /></div>
           <div className="px-4 py-2 mb-2">
             <p className="text-xs text-gray-400 font-medium">{profile?.full_name}</p>
             <p className="text-[10px] text-blue-600 font-semibold uppercase">{profile?.role === 'sub_admin' ? 'Sub Admin' : 'Admin'}</p>
@@ -82,6 +83,7 @@ export default function AdminLayout() {
             <span className="font-bold text-sm text-gray-900">{t('nav.admin')}</span>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationCenter variant="inline" />
             <LanguageToggle compact />
             <button
               onClick={() => navigate('/home')}

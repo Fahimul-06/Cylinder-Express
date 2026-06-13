@@ -15,6 +15,11 @@ import AddressesPage from './pages/AddressesPage';
 import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import OffersPage from './pages/OffersPage';
+import AboutPage from './pages/AboutPage';
+import FAQPage from './pages/FAQPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfUsePage from './pages/TermsOfUsePage';
+import ContactUsPage from './pages/ContactUsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
@@ -101,7 +106,7 @@ function AppRoutes() {
   return (
     <>
       {user && !isAdminRoute && <Navbar />}
-      {user && <NotificationCenter />}
+      {user && profile?.role === 'delivery' && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
@@ -114,6 +119,11 @@ function AppRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
+        <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+        <Route path="/faq" element={<ProtectedRoute><FAQPage /></ProtectedRoute>} />
+        <Route path="/privacy" element={<ProtectedRoute><PrivacyPolicyPage /></ProtectedRoute>} />
+        <Route path="/terms" element={<ProtectedRoute><TermsOfUsePage /></ProtectedRoute>} />
+        <Route path="/contact" element={<ProtectedRoute><ContactUsPage /></ProtectedRoute>} />
         <Route path="/delivery" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, CheckCheck, Volume2, X } from 'lucide-react';
 import { apiClient } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type NotificationItem = {
   id: string;
@@ -44,8 +45,9 @@ function playAlarm() {
   }
 }
 
-export default function NotificationCenter() {
+export default function NotificationCenter({ variant = 'floating' }: { variant?: 'floating' | 'inline' }) {
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -96,14 +98,16 @@ export default function NotificationCenter() {
 
   if (!user) return null;
 
+  const isInline = variant === 'inline';
+
   return (
-    <div className="fixed bottom-4 right-4 z-[1000]">
+    <div className={isInline ? 'relative' : 'fixed bottom-4 right-4 z-[1000]'}>
       {urgentUnread.length > 0 && !open && (
         <div className="mb-3 max-w-sm rounded-2xl border border-red-200 bg-red-50 p-3 shadow-lg">
           <div className="flex items-start gap-2">
             <Volume2 className="mt-0.5 h-5 w-5 text-red-600" />
             <div>
-              <p className="text-sm font-bold text-red-800">Urgent alert</p>
+              <p className="text-sm font-bold text-red-800">{t('notifications.urgentAlert')}</p>
               <p className="text-xs text-red-700">{urgentUnread[0].message}</p>
             </div>
           </div>
@@ -111,11 +115,11 @@ export default function NotificationCenter() {
       )}
 
       {open && (
-        <div className="mb-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
+        <div className={isInline ? 'absolute right-0 top-12 z-[1000] w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl' : 'mb-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl'}>
           <div className="flex items-center justify-between border-b border-gray-100 p-4">
             <div>
-              <h3 className="font-bold text-gray-900">Notifications</h3>
-              <p className="text-xs text-gray-500">Order, delivery and admin alerts</p>
+              <h3 className="font-bold text-gray-900">{t('notifications.title')}</h3>
+              <p className="text-xs text-gray-500">{t('notifications.subtitle')}</p>
             </div>
             <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100">
               <X className="h-4 w-4" />
@@ -124,7 +128,7 @@ export default function NotificationCenter() {
 
           <div className="max-h-96 overflow-y-auto p-3">
             {notifications.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500">No notifications yet.</p>
+              <p className="py-8 text-center text-sm text-gray-500">{t('notifications.empty')}</p>
             ) : notifications.map((item) => (
               <div
                 key={item.id}
@@ -132,7 +136,7 @@ export default function NotificationCenter() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className={`text-sm font-bold ${item.urgent ? 'text-red-800' : 'text-gray-900'}`}>{item.title}</p>
-                  {!item.is_read && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">NEW</span>}
+                  {!item.is_read && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">{t('notifications.new')}</span>}
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-gray-700">{item.message}</p>
                 <p className="mt-2 text-[10px] text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
@@ -146,7 +150,7 @@ export default function NotificationCenter() {
                 onClick={() => Notification.requestPermission().catch(() => {})}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700"
               >
-                Enable browser alerts
+                {t('notifications.enableBrowserAlerts')}
               </button>
             )}
             <button
@@ -154,7 +158,7 @@ export default function NotificationCenter() {
               className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white hover:bg-gray-800"
             >
               <CheckCheck className="h-3.5 w-3.5" />
-              Mark all read
+              {t('notifications.markAllRead')}
             </button>
           </div>
         </div>
@@ -162,8 +166,8 @@ export default function NotificationCenter() {
 
       <button
         onClick={() => setOpen((value) => !value)}
-        className={`relative flex h-13 w-13 items-center justify-center rounded-full shadow-lg transition ${urgentUnread.length ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-        aria-label="Open notifications"
+        className={`relative flex ${isInline ? 'h-10 w-10' : 'h-13 w-13'} items-center justify-center rounded-full shadow-lg transition ${urgentUnread.length ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+        aria-label={t('notifications.open')}
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (

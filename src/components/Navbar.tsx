@@ -4,10 +4,11 @@ import { useCart } from '../contexts/CartContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, User, LogOut, MapPin, Package,
-  Menu, X, ClipboardList, Sparkles, Shield
+  Menu, X, ClipboardList, Sparkles, Shield, Info, HelpCircle, Phone, ShieldCheck, FileText
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
+import NotificationCenter from './NotificationCenter';
 
 export default function Navbar() {
   const { user, profile, signOut } = useAuth();
@@ -26,6 +27,11 @@ export default function Navbar() {
     { path: '/cart', label: t('nav.cart'), icon: ShoppingCart, badge: totalItems },
     { path: '/orders', label: t('nav.orders'), icon: ClipboardList, badge: 0 },
     { path: '/addresses', label: t('nav.addresses'), icon: MapPin, badge: 0 },
+    { path: '/about', label: t('nav.about'), icon: Info, badge: 0 },
+    { path: '/faq', label: t('nav.faq'), icon: HelpCircle, badge: 0 },
+    { path: '/privacy', label: t('nav.privacy'), icon: ShieldCheck, badge: 0 },
+    { path: '/terms', label: t('nav.terms'), icon: FileText, badge: 0 },
+    { path: '/contact', label: t('nav.contact'), icon: Phone, badge: 0 },
     ...(profile?.is_admin ? [{ path: '/admin', label: t('nav.admin'), icon: Shield, badge: 0 }] : []),
   ];
 
@@ -67,6 +73,7 @@ export default function Navbar() {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              <NotificationCenter variant="inline" />
               <LanguageToggle />
               <button
                 onClick={() => navigate('/profile')}
@@ -115,7 +122,7 @@ export default function Navbar() {
                 </button>
               ))}
               <div className="pt-2 border-t border-gray-100 space-y-2">
-                <div className="px-4"><LanguageToggle compact /></div>
+                <div className="px-4 flex items-center gap-3"><NotificationCenter variant="inline" /><LanguageToggle compact /></div>
                 <button
                   onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                   className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
