@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Mail, Lock, Eye, EyeOff, ArrowRight, X, CheckCircle } from 'lucide-react';
+import { Phone, Mail, Lock, Eye, EyeOff, X, CheckCircle } from 'lucide-react';
 
 type ForgotStep = 'phone' | 'otp' | 'password' | 'success';
 
@@ -289,31 +289,24 @@ export default function LoginPage() {
       {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
 
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex">
-        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 to-blue-800 relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/10" />
-          <div className="relative z-10 flex flex-col justify-center px-12 text-white">
-            <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mb-8 backdrop-blur-sm">
-              <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="w-14 h-14 object-contain" />
-            </div>
-            <h1 className="text-4xl font-bold mb-4">Welcome Back</h1>
-            <p className="text-xl text-blue-100 mb-8">Sign in to order LPG cylinders and services</p>
-            <div className="space-y-4">
-              {['Fast doorstep delivery', 'Track your orders in real-time', 'Book services instantly'].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                    <ArrowRight className="w-3 h-3" />
-                  </div>
-                  <span className="text-blue-100">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-white/5 rounded-full" />
-          <div className="absolute -top-16 -right-16 w-48 h-48 bg-white/5 rounded-full" />
+        <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-blue-900">
+          <img
+            src="/Cylinder-ExpressCover.png"
+            alt="Cylinder Express fast LPG cylinder delivery"
+            className="absolute inset-0 h-full w-full object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-950/15 via-transparent to-transparent" />
         </div>
 
         <div className="flex-1 flex items-center justify-center px-4 py-8">
           <div className="w-full max-w-md">
+            <div className="lg:hidden mb-6 overflow-hidden rounded-2xl border border-blue-100 shadow-lg shadow-blue-600/10">
+              <img
+                src="/Cylinder-ExpressCover.png"
+                alt="Cylinder Express fast LPG cylinder delivery"
+                className="w-full h-auto object-cover"
+              />
+            </div>
             <div className="lg:hidden flex items-center gap-3 mb-8">
               <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="w-10 h-10 object-contain" />
               <span className="font-bold text-xl text-gray-900">Cylinder<span className="text-blue-600">Express</span></span>
