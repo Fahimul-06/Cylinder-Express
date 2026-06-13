@@ -80,6 +80,8 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, lowercase: true, trim: true, sparse: true },
   phone: { type: String, trim: true, sparse: true },
   password_hash: { type: String, required: true },
+  social_provider: { type: String, default: null, index: true },
+  social_id: { type: String, default: null, index: true },
 }, { toJSON });
 
 const ProfileSchema = new mongoose.Schema({
@@ -165,6 +167,96 @@ const models = {
 function signUser(user) {
   const safe = { id: user.id, email: user.email || null, phone: user.phone || null };
   return { access_token: jwt.sign(safe, JWT_SECRET, { expiresIn: '7d' }), user: safe };
+}
+
+async function fetchSocialProfile(provider, accessToken) {
+  if (!accessToken) throw new Error('Social access token is required');
+
+  if (provider === 'google') {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.sub) throw new Error(payload.error_description || payload.error || 'Google login verification failed');
+    return {
+      provider: 'google',
+      providerId: String(payload.sub),
+      email: payload.email ? String(payload.email).toLowerCase() : null,
+      name: payload.name || payload.given_name || 'Google User',
+      avatar: payload.picture || null,
+    };
+  }
+
+  if (provider === 'facebook') {
+    const url = new URL('https://graph.facebook.com/me');
+    url.searchParams.set('fields', 'id,name,email,picture.type(large)');
+    url.searchParams.set('access_token', accessToken);
+    const response = await fetch(url);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.id) throw new Error(payload.error?.message || 'Facebook login verification failed');
+    return {
+      provider: 'facebook',
+      providerId: String(payload.id),
+      email: payload.email ? String(payload.email).toLowerCase() : null,
+      name: payload.name || 'Facebook User',
+      avatar: payload.picture?.data?.url || null,
+    };
+  }
+
+  throw new Error('Unsupported social login provider');
+}
+
+async function signInOrCreateSocialUser(socialProfile) {
+  const socialPhone = `${socialProfile.provider}:${socialProfile.providerId}`;
+  let user = await models.users.findOne({ social_provider: socialProfile.provider, social_id: socialProfile.providerId });
+
+  if (!user && socialProfile.email) {
+    user = await models.users.findOne({ email: socialProfile.email });
+    if (user) {
+      user.social_provider = socialProfile.provider;
+      user.social_id = socialProfile.providerId;
+      await user.save();
+    }
+  }
+
+  if (!user) {
+    user = await models.users.create({
+      email: socialProfile.email || `${socialProfile.provider}_${socialProfile.providerId}@social.cylinderexpress.local`,
+      phone: socialPhone,
+      password_hash: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12),
+      social_provider: socialProfile.provider,
+      social_id: socialProfile.providerId,
+    });
+  }
+
+  let profile = await models.profiles.findOne({ user_id: user.id });
+  if (!profile) {
+    const existingProfiles = await models.profiles.countDocuments();
+    profile = await models.profiles.create({
+      user_id: user.id,
+      full_name: socialProfile.name,
+      phone: socialPhone,
+      email: socialProfile.email || null,
+      avatar_url: socialProfile.avatar || null,
+      is_admin: existingProfiles === 0,
+      role: existingProfiles === 0 ? 'admin' : 'customer',
+      permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+      is_active: true,
+    });
+  } else {
+    let changed = false;
+    if (socialProfile.avatar && !profile.avatar_url) { profile.avatar_url = socialProfile.avatar; changed = true; }
+    if (socialProfile.email && !profile.email) { profile.email = socialProfile.email; changed = true; }
+    if (changed) await profile.save();
+  }
+
+  if (profile?.is_active === false) {
+    const error = new Error('This account is inactive. Please contact the administrator.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return user;
 }
 
 const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'locations', 'users'];
@@ -493,6 +585,19 @@ app.post('/api/auth/signin', async (req, res) => {
     const session = signUser(user);
     res.json({ session, user: session.user });
   } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/auth/social', async (req, res) => {
+  try {
+    const provider = String(req.body.provider || '').toLowerCase();
+    const accessToken = String(req.body.accessToken || '');
+    const socialProfile = await fetchSocialProfile(provider, accessToken);
+    const user = await signInOrCreateSocialUser(socialProfile);
+    const session = signUser(user);
+    res.json({ session, user: session.user });
+  } catch (error) {
+    res.status(error.statusCode || 401).json({ error: error.message || 'Social login failed' });
+  }
 });
 
 app.get('/api/auth/session', requireAuth, async (req, res) => {

@@ -3,6 +3,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Phone, Mail, Lock, Eye, EyeOff, X, CheckCircle, ShieldCheck, Gauge, Headphones, Flame, UserRound } from 'lucide-react';
 
+
+function loadExternalScript(src: string, id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById(id)) return resolve();
+    const script = document.createElement('script');
+    script.src = src;
+    script.id = id;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${id}`));
+    document.body.appendChild(script);
+  });
+}
+
 type ForgotStep = 'phone' | 'otp' | 'password' | 'success';
 
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
@@ -251,7 +266,7 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithSocial } = useAuth();
   const navigate = useNavigate();
   const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('phone');
   const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -284,6 +299,75 @@ export default function LoginPage() {
     }
     setLoading(false);
   };
+
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const facebookAppId = import.meta.env.VITE_FACEBOOK_APP_ID || '';
+
+  async function completeSocialLogin(provider: 'google' | 'facebook', accessToken: string) {
+    setLoading(true);
+    setError('');
+    const { error: socialError } = await signInWithSocial(provider, accessToken);
+    if (socialError) {
+      setError(socialError);
+    } else {
+      navigate('/home');
+    }
+    setLoading(false);
+  }
+
+  async function handleGoogleLogin() {
+    try {
+      if (!googleClientId) {
+        setError('Google login is not configured. Add VITE_GOOGLE_CLIENT_ID in frontend environment.');
+        return;
+      }
+      setError('');
+      await loadExternalScript('https://accounts.google.com/gsi/client', 'google-identity-services');
+      const google = (window as any).google;
+      if (!google?.accounts?.oauth2) throw new Error('Google login could not load. Please try again.');
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: googleClientId,
+        scope: 'openid email profile',
+        callback: (response: { access_token?: string; error?: string }) => {
+          if (response.error || !response.access_token) {
+            setError(response.error || 'Google login was cancelled.');
+            return;
+          }
+          void completeSocialLogin('google', response.access_token);
+        },
+      });
+      tokenClient.requestAccessToken({ prompt: 'select_account' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google login failed.');
+      setLoading(false);
+    }
+  }
+
+  async function handleFacebookLogin() {
+    try {
+      if (!facebookAppId) {
+        setError('Facebook login is not configured. Add VITE_FACEBOOK_APP_ID in frontend environment.');
+        return;
+      }
+      setError('');
+      await loadExternalScript('https://connect.facebook.net/en_US/sdk.js', 'facebook-jssdk');
+      const FB = (window as any).FB;
+      if (!FB) throw new Error('Facebook login could not load. Please try again.');
+      FB.init({ appId: facebookAppId, cookie: true, xfbml: false, version: 'v20.0' });
+      FB.login((response: any) => {
+        const token = response?.authResponse?.accessToken;
+        if (!token) {
+          setError('Facebook login was cancelled.');
+          return;
+        }
+        void completeSocialLogin('facebook', token);
+      }, { scope: 'public_profile,email' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Facebook login failed.');
+      setLoading(false);
+    }
+  }
 
   const featureItems = [
     { icon: ShieldCheck, title: 'নিরাপদ ডেলিভারি', subtitle: 'Safety verified gas service' },
@@ -463,17 +547,17 @@ export default function LoginPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    disabled
-                    title="Social sign in coming soon"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-500 opacity-80"
+                    onClick={handleGoogleLogin}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-3 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span className="text-base font-black text-red-500">G</span> Google
                   </button>
                   <button
                     type="button"
-                    disabled
-                    title="Social sign in coming soon"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-500 opacity-80"
+                    onClick={handleFacebookLogin}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/90 py-3 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-xs font-black text-white">f</span> Facebook
                   </button>
