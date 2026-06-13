@@ -25,17 +25,12 @@ export default function HomePage() {
   const [services, setServices] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
-
-  const heroImages = [
-    '/home-hero-1.png',
-    '/home-hero-2.png',
-  ];
+  const heroImages = ['/home-hero-1.png', '/home-hero-2.png'];
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       setHeroIndex((prev) => (prev + 1) % heroImages.length);
     }, 5000);
-
     return () => window.clearInterval(timer);
   }, [heroImages.length]);
 
@@ -84,7 +79,6 @@ export default function HomePage() {
                 />
               ))}
             </div>
-
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/20 px-3 py-1.5 backdrop-blur-sm">
               {heroImages.map((_, index) => (
                 <button
@@ -96,21 +90,6 @@ export default function HomePage() {
                 />
               ))}
             </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              { icon: Truck, label: 'Fast Delivery', sub: 'Same-day in Dhaka' },
-              { icon: Shield, label: 'Safe & Verified', sub: 'Quality assured' },
-              { icon: Clock, label: '24/7 Support', sub: 'Always available' },
-              { icon: MapPin, label: 'Wide Coverage', sub: 'Quick city delivery' },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="rounded-2xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm">
-                <Icon className="mb-2 h-5 w-5 text-blue-600" />
-                <p className="text-sm font-semibold text-gray-900">{label}</p>
-                <p className="text-xs text-gray-500">{sub}</p>
-              </div>
-            ))}
           </div>
         </div>
       </div>
