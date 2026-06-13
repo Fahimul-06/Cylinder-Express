@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Order, OrderItem, Profile, ServiceBooking } from '../../lib/types';
 import {
@@ -38,13 +38,26 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | EntryType>('all');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
-    fetchOrdersAndServices();
+    fetchOrdersAndServices(true);
+    const timer = window.setInterval(() => fetchOrdersAndServices(false), 5000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) fetchOrdersAndServices(false);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
-  async function fetchOrdersAndServices() {
-    setLoading(true);
+  async function fetchOrdersAndServices(showLoader = true) {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+    if (showLoader) setLoading(true);
 
     const [ordersRes, servicesRes] = await Promise.all([
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
@@ -112,7 +125,9 @@ export default function AdminOrders() {
       }
     }
     setCustomerLocationMap(cMap);
-    setLoading(false);
+    setLastUpdated(new Date());
+    fetchingRef.current = false;
+    if (showLoader) setLoading(false);
   }
 
   async function updateEntryStatus(type: EntryType, id: string, status: string) {
@@ -222,6 +237,7 @@ export default function AdminOrders() {
           <p className="text-sm text-gray-500">
             {orders.length} product orders · {bookings.length} service bookings
           </p>
+          <p className="text-xs text-green-600 mt-1">Auto-updating every 5 seconds{lastUpdated ? ` · Last checked ${lastUpdated.toLocaleTimeString('en-BD')}` : ''}</p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex items-center gap-2">

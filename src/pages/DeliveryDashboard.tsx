@@ -3,6 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Order, Address, Profile, LocationPoint } from '../lib/types';
 import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2, History, Wallet } from 'lucide-react';
+import NotificationBell from '../components/NotificationBell';
+import LanguageToggle from '../components/LanguageToggle';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const ACTIVE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
@@ -49,6 +52,7 @@ function loadGoogleMaps(): Promise<void> {
 
 export default function DeliveryDashboard() {
   const { user, profile, signOut } = useAuth();
+  const { t } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any | null>(null);
   const markersRef = useRef<any[]>([]);
@@ -94,11 +98,11 @@ export default function DeliveryDashboard() {
   const startSharing = () => {
     setMessage('');
     if (!navigator.geolocation) {
-      setMessage('Location is not supported on this device/browser.');
+      setMessage(t('delivery.locationUnsupported'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(saveDeliveryLocation, () => setMessage('Please allow location permission.'), { enableHighAccuracy: true });
-    watchIdRef.current = navigator.geolocation.watchPosition(saveDeliveryLocation, () => setMessage('Could not update live location.'), {
+    navigator.geolocation.getCurrentPosition(saveDeliveryLocation, () => setMessage(t('delivery.allowLocation')), { enableHighAccuracy: true });
+    watchIdRef.current = navigator.geolocation.watchPosition(saveDeliveryLocation, () => setMessage(t('delivery.locationUpdateFailed')), {
       enableHighAccuracy: true,
       maximumAge: 5000,
       timeout: 15000,
@@ -302,31 +306,43 @@ export default function DeliveryDashboard() {
           <div className="flex items-center gap-3">
             <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="w-10 h-10 object-contain" />
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Delivery Dashboard</h1>
+              <h1 className="text-lg font-bold text-gray-900">{t('delivery.dashboard')}</h1>
               <p className="text-xs text-gray-500">{profile?.full_name} • {profile?.phone}</p>
             </div>
           </div>
-          <button onClick={signOut} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-semibold flex items-center gap-2">
-            <LogOut className="w-4 h-4" /> Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <LanguageToggle compact />
+            <NotificationBell compact />
+            <button onClick={signOut} className="px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-semibold flex items-center gap-2">
+              <LogOut className="w-4 h-4" /> {t('nav.signOut')}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 grid lg:grid-cols-[380px,1fr] gap-6">
         <section className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{t('delivery.sidebar')}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <NotificationBell />
+              <LanguageToggle />
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-bold text-gray-900">Live Location</h2>
-                <p className="text-xs text-gray-500">Share your location after admin assigns orders to you.</p>
+                <h2 className="font-bold text-gray-900">{t('delivery.liveLocation')}</h2>
+                <p className="text-xs text-gray-500">{t('delivery.liveLocationHelp')}</p>
               </div>
               <Navigation className="w-5 h-5 text-green-600" />
             </div>
             {message && <div className="mb-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-sm">{message}</div>}
             {sharing ? (
-              <button onClick={stopSharing} className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold text-sm">Stop Sharing</button>
+              <button onClick={stopSharing} className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold text-sm">{t('delivery.stopSharing')}</button>
             ) : (
-              <button onClick={startSharing} className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm">Start Sharing Location</button>
+              <button onClick={startSharing} className="w-full py-3 bg-green-600 text-white rounded-xl font-semibold text-sm">{t('delivery.startSharing')}</button>
             )}
             {deliveryLocation && <p className="text-xs text-gray-400 mt-3">Last: {deliveryLocation.latitude.toFixed(5)}, {deliveryLocation.longitude.toFixed(5)}</p>}
           </div>
@@ -337,14 +353,14 @@ export default function DeliveryDashboard() {
                 <Headphones className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <h2 className="font-bold text-gray-900">Delivery Support</h2>
-                <p className="text-xs text-gray-500">Call center numbers for any delivery problem.</p>
+                <h2 className="font-bold text-gray-900">{t('delivery.support')}</h2>
+                <p className="text-xs text-gray-500">{t('delivery.supportHelp')}</p>
               </div>
             </div>
             <div className="grid gap-2">
               {CALL_CENTER_NUMBERS.map((number) => (
                 <a key={number} href={`tel:${number}`} className="w-full py-2.5 px-3 rounded-xl bg-orange-600 text-white text-sm font-semibold flex items-center justify-center gap-2">
-                  <Phone className="w-4 h-4" /> Call {number}
+                  <Phone className="w-4 h-4" /> {t('delivery.call')} {number}
                 </a>
               ))}
             </div>
@@ -353,20 +369,20 @@ export default function DeliveryDashboard() {
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-bold text-gray-900 flex items-center gap-2"><History className="w-5 h-5 text-purple-600" /> Delivered Orders</h2>
-                <p className="text-xs text-gray-500">Your completed delivery history and total delivered amount.</p>
+                <h2 className="font-bold text-gray-900 flex items-center gap-2"><History className="w-5 h-5 text-purple-600" /> {t('delivery.deliveredOrders')}</h2>
+                <p className="text-xs text-gray-500">{t('delivery.deliveredOrdersHelp')}</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-900">{deliveredOrders.length}</p>
-                <p className="text-xs text-gray-500">Delivered</p>
+                <p className="text-xs text-gray-500">{t('status.delivered')}</p>
               </div>
             </div>
             <div className="bg-green-50 border border-green-100 rounded-xl p-4 mb-3">
-              <p className="text-xs text-green-700 flex items-center gap-1"><Wallet className="w-4 h-4" /> Total delivered amount</p>
+              <p className="text-xs text-green-700 flex items-center gap-1"><Wallet className="w-4 h-4" /> {t('delivery.totalDeliveredAmount')}</p>
               <p className="text-2xl font-bold text-green-800 mt-1">৳{deliveredTotal.toLocaleString('en-BD')}</p>
             </div>
             {deliveredOrders.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-3">No delivered orders yet.</p>
+              <p className="text-sm text-gray-400 text-center py-3">{t('delivery.noDeliveredOrders')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {deliveredOrders.slice(0, 20).map((order) => (
@@ -385,27 +401,27 @@ export default function DeliveryDashboard() {
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h2 className="font-bold text-gray-900">Assigned Active Orders</h2>
-                <p className="text-xs text-gray-500">Only admin-assigned orders appear here.</p>
+                <h2 className="font-bold text-gray-900">{t('delivery.assignedActiveOrders')}</h2>
+                <p className="text-xs text-gray-500">{t('delivery.assignedHelp')}</p>
               </div>
               <button onClick={loadOrders} className="p-2 bg-gray-50 rounded-xl text-gray-500"><RefreshCw className="w-4 h-4" /></button>
             </div>
-            {loading ? <div className="p-6 text-center text-gray-400">Loading orders...</div> : orders.length === 0 ? (
-              <div className="p-6 text-center text-gray-400">No assigned active orders found.</div>
+            {loading ? <div className="p-6 text-center text-gray-400">{t('delivery.loadingOrders')}</div> : orders.length === 0 ? (
+              <div className="p-6 text-center text-gray-400">{t('delivery.noAssignedOrders')}</div>
             ) : (
               <div className="divide-y divide-gray-50 max-h-[560px] overflow-y-auto">
                 {orders.map((order) => (
                   <button key={order.id} onClick={() => setSelectedOrderId(order.id)} className={`w-full text-left p-4 hover:bg-gray-50 ${selectedOrder?.id === order.id ? 'bg-blue-50' : ''}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-bold text-gray-900">Order #{order.id.slice(-6).toUpperCase()}</p>
+                        <p className="font-bold text-gray-900">{t('delivery.order')} #{order.id.slice(-6).toUpperCase()}</p>
                         <p className="text-sm text-gray-600 flex items-center gap-1 mt-1"><User className="w-3.5 h-3.5" /> {order.customer?.full_name || 'Customer'}</p>
                         <p className="text-xs text-gray-500 flex items-center gap-1 mt-1"><Phone className="w-3.5 h-3.5" /> {order.customer?.phone || '-'}</p>
                       </div>
                       <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">{order.status}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-start gap-1"><MapPin className="w-3.5 h-3.5 mt-0.5" /> {order.address ? `${order.address.address_line1}, ${order.address.area || order.address.city}` : 'Address not found'}</p>
-                    <p className="text-xs text-gray-400 mt-2">Customer route points: {order.customerRoute?.length || 0} • Live location: {order.customerLocation ? 'available' : 'not sharing'}</p>
+                    <p className="text-xs text-gray-500 mt-2 flex items-start gap-1"><MapPin className="w-3.5 h-3.5 mt-0.5" /> {order.address ? `${order.address.address_line1}, ${order.address.area || order.address.city}` : t('delivery.addressNotFound')}</p>
+                    <p className="text-xs text-gray-400 mt-2">{t('delivery.customerRoutePoints')}: {order.customerRoute?.length || 0} • {t('delivery.liveLocation')}: {order.customerLocation ? t('delivery.available') : t('delivery.notSharing')}</p>
                   </button>
                 ))}
               </div>
@@ -416,8 +432,8 @@ export default function DeliveryDashboard() {
         <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden min-h-[650px]">
           <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-gray-900 flex items-center gap-2"><Route className="w-5 h-5 text-blue-600" /> Delivery Route View</h2>
-              <p className="text-xs text-gray-500">Green line: delivery man to customer. Blue line: customer shared route.</p>
+              <h2 className="font-bold text-gray-900 flex items-center gap-2"><Route className="w-5 h-5 text-blue-600" /> {t('delivery.routeView')}</h2>
+              <p className="text-xs text-gray-500">{t('delivery.routeHelp')}</p>
             </div>
             {selectedOrder && <div className="text-xs text-gray-500 flex items-center gap-2"><Truck className="w-4 h-4" /> Selected #{selectedOrder.id.slice(-6).toUpperCase()}</div>}
           </div>
@@ -425,7 +441,7 @@ export default function DeliveryDashboard() {
             <div className="h-[590px] flex items-center justify-center text-center p-6">
               <div>
                 <MapPin className="w-10 h-10 text-red-400 mx-auto mb-3" />
-                <p className="font-semibold text-gray-900">Map could not load</p>
+                <p className="font-semibold text-gray-900">{t('adminLocations.mapError')}</p>
                 <p className="text-sm text-gray-500 mt-1">{mapError}</p>
               </div>
             </div>
@@ -435,16 +451,16 @@ export default function DeliveryDashboard() {
           {selectedOrder && (
             <div className="p-5 border-t border-gray-100 space-y-3">
               <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Customer</p><p className="font-semibold text-gray-900">{selectedOrder.customer?.full_name || '-'}</p></div>
-                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Amount</p><p className="font-semibold text-gray-900">৳{selectedOrder.total_amount}</p></div>
-                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">Status</p><p className="font-semibold text-gray-900 flex items-center gap-1"><PackageCheck className="w-4 h-4" /> {selectedOrder.status}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">{t('delivery.customer')}</p><p className="font-semibold text-gray-900">{selectedOrder.customer?.full_name || '-'}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">{t('delivery.amount')}</p><p className="font-semibold text-gray-900">৳{selectedOrder.total_amount}</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">{t('delivery.status')}</p><p className="font-semibold text-gray-900 flex items-center gap-1"><PackageCheck className="w-4 h-4" /> {selectedOrder.status}</p></div>
               </div>
               <button
                 onClick={markSelectedOrderDelivered}
                 disabled={markingDelivered}
                 className="w-full py-3 rounded-xl bg-green-600 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <CheckCircle2 className="w-5 h-5" /> {markingDelivered ? 'Updating...' : 'Mark Delivered'}
+                <CheckCircle2 className="w-5 h-5" /> {markingDelivered ? t('delivery.updating') : t('delivery.markDelivered')}
               </button>
             </div>
           )}
