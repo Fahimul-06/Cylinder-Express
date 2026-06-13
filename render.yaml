@@ -3,7 +3,7 @@ services:
     name: cylinder-express-api
     runtime: node
     plan: free
-    buildCommand: bash scripts/render-backend-build.sh
+    buildCommand: rm -rf node_modules && npm ci --omit=dev --no-audit --no-fund --prefer-online
     startCommand: node server/index.js
     envVars:
       - key: NODE_VERSION
@@ -26,7 +26,7 @@ services:
   - type: web
     name: cylinder-express-web
     runtime: static
-    buildCommand: bash scripts/render-frontend-build.sh
+    buildCommand: rm -rf node_modules && npm ci --no-audit --no-fund --prefer-online && npm run build
     staticPublishPath: ./dist
     envVars:
       - key: NODE_VERSION

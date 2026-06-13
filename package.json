@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "server": "node server/index.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
-    "render:frontend:build": "bash scripts/render-frontend-build.sh",
-    "render:backend:build": "bash scripts/render-backend-build.sh"
+    "render:frontend:build": "rm -rf node_modules && npm ci --no-audit --no-fund --prefer-online && npm run build",
+    "render:backend:build": "rm -rf node_modules && npm ci --omit=dev --no-audit --no-fund --prefer-online"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -50,6 +50,6 @@
   },
   "engines": {
     "node": "20.18.1",
-    "npm": "10.x"
+    "npm": "10.8.2"
   }
 }
