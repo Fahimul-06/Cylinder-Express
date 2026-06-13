@@ -101,7 +101,25 @@ const ProfileSchema = new mongoose.Schema({
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
 const AddressSchema = new mongoose.Schema({ user_id: String, label: String, address_line1: String, address_line2: String, city: String, district: String, area: String, postal_code: String, latitude: Number, longitude: Number, is_default: Boolean, ...common }, { toJSON });
-const OrderSchema = new mongoose.Schema({ user_id: String, address_id: String, delivery_man_id: { type: String, default: null, index: true }, status: { type: String, default: 'pending' }, total_amount: Number, delivery_fee: Number, floor_number: Number, floor_charge: Number, promo_code: String, discount_amount: Number, notes: String, ...common }, { toJSON });
+const OrderSchema = new mongoose.Schema({
+  user_id: String,
+  address_id: String,
+  delivery_man_id: { type: String, default: null, index: true },
+  status: { type: String, default: 'pending' },
+  total_amount: Number,
+  delivery_fee: Number,
+  floor_number: Number,
+  floor_charge: Number,
+  promo_code: String,
+  discount_amount: Number,
+  notes: String,
+  confirmed_at: { type: Date, default: null },
+  delivered_at: { type: Date, default: null },
+  cancelled_at: { type: Date, default: null },
+  admin_reminder_last_sent_at: { type: Date, default: null },
+  delivery_delay_notified_at: { type: Date, default: null },
+  ...common
+}, { toJSON });
 const OrderItemSchema = new mongoose.Schema({ order_id: String, product_id: String, quantity: Number, unit_price: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const ServiceBookingSchema = new mongoose.Schema({ user_id: String, product_id: String, address_id: String, status: { type: String, default: 'pending' }, scheduled_date: String, scheduled_time: String, notes: String, ...common }, { toJSON });
 const OfferSchema = new mongoose.Schema({ title: String, description: String, badge_text: String, discount_type: String, discount_value: Number, code: String, product_id: String, category_slug: String, bg_from: String, bg_to: String, image_url: String, valid_from: { type: Date, default: Date.now }, valid_until: Date, is_active: Boolean, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
@@ -111,6 +129,19 @@ const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, un
 const CustomerLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
+const NotificationSchema = new mongoose.Schema({
+  user_id: { type: String, index: true },
+  role_target: { type: String, default: null, index: true },
+  order_id: { type: String, default: null, index: true },
+  type: { type: String, default: 'info', index: true },
+  title: String,
+  message: String,
+  is_read: { type: Boolean, default: false, index: true },
+  urgent: { type: Boolean, default: false },
+  buzz: { type: Boolean, default: false },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now },
+}, { toJSON });
 
 const models = {
   users: mongoose.model('User', UserSchema),
@@ -128,6 +159,7 @@ const models = {
   customer_location_points: mongoose.model('CustomerLocationPoint', CustomerLocationPointSchema),
   delivery_locations: mongoose.model('DeliveryLocation', DeliveryLocationSchema),
   delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
+  notifications: mongoose.model('Notification', NotificationSchema),
 };
 
 function signUser(user) {
@@ -148,6 +180,121 @@ function hasAdminPermission(profile, permission) {
   if (!profile?.is_admin || profile.is_active === false) return false;
   if (profile.role !== 'sub_admin') return true;
   return Boolean(profile.permissions?.[permission]);
+}
+
+
+async function getOrderAdmins() {
+  const admins = await models.profiles.find({ is_admin: true, is_active: { $ne: false } });
+  return admins.filter((profile) => hasAdminPermission(profile, 'orders'));
+}
+
+async function createNotification({ user_id, role_target = null, order_id = null, type = 'info', title, message, urgent = false, buzz = false }) {
+  if (!user_id && !role_target) return null;
+  return models.notifications.create({
+    user_id: user_id || null,
+    role_target,
+    order_id: order_id || null,
+    type,
+    title,
+    message,
+    urgent: Boolean(urgent),
+    buzz: Boolean(buzz),
+    is_read: false,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+}
+
+async function notifyAdmins(payload) {
+  const admins = await getOrderAdmins();
+  await Promise.all(admins.map((admin) => createNotification({ ...payload, user_id: admin.user_id, role_target: 'admin' })));
+}
+
+async function notifyOrderCustomer(order, status) {
+  if (!order?.user_id) return;
+  const statusText = status === 'delivered' ? 'delivered' : status === 'confirmed' ? 'confirmed' : status;
+  const title = status === 'delivered' ? 'Order delivered' : status === 'confirmed' ? 'Order confirmed' : 'Order updated';
+  const message = status === 'delivered'
+    ? `Your Cylinder Express order #${String(order.id).slice(-6)} has been delivered. Thank you.`
+    : status === 'confirmed'
+      ? `Your Cylinder Express order #${String(order.id).slice(-6)} has been confirmed. Delivery will start soon.`
+      : `Your Cylinder Express order #${String(order.id).slice(-6)} is now ${statusText}.`;
+  await createNotification({ user_id: order.user_id, order_id: order.id, type: `order_${status}`, title, message, urgent: false, buzz: false });
+}
+
+async function notifyDeliveryManAssignment(order) {
+  if (!order?.delivery_man_id) return;
+  await createNotification({
+    user_id: order.delivery_man_id,
+    order_id: order.id,
+    type: 'delivery_assigned',
+    title: 'New delivery assigned',
+    message: `You have been assigned order #${String(order.id).slice(-6)}. Please start sharing location and deliver safely.`,
+    urgent: true,
+    buzz: true,
+  });
+}
+
+async function runOrderAlertChecks() {
+  const now = new Date();
+  const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
+  const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000);
+  const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+
+  const overduePending = await models.orders.find({
+    status: 'pending',
+    created_at: { $lte: fourMinutesAgo },
+    $or: [
+      { admin_reminder_last_sent_at: null },
+      { admin_reminder_last_sent_at: { $exists: false } },
+      { admin_reminder_last_sent_at: { $lte: oneMinuteAgo } },
+    ],
+  }).limit(50);
+
+  for (const order of overduePending) {
+    await notifyAdmins({
+      order_id: order.id,
+      type: 'admin_order_confirm_overdue',
+      title: 'Order confirmation overdue',
+      message: `Order #${String(order.id).slice(-6)} has not been confirmed within 4 minutes. Please confirm or cancel it now.`,
+      urgent: true,
+      buzz: true,
+    });
+    order.admin_reminder_last_sent_at = now;
+    await order.save();
+  }
+
+  const delayedDeliveries = await models.orders.find({
+    status: { $in: ['confirmed', 'processing'] },
+    delivery_man_id: { $nin: [null, ''] },
+    updated_at: { $lte: thirtyMinutesAgo },
+    $or: [
+      { delivery_delay_notified_at: null },
+      { delivery_delay_notified_at: { $exists: false } },
+    ],
+  }).limit(50);
+
+  for (const order of delayedDeliveries) {
+    await createNotification({
+      user_id: order.delivery_man_id,
+      order_id: order.id,
+      type: 'delivery_not_marked_delivered',
+      title: 'Delivery completion alarm',
+      message: `Order #${String(order.id).slice(-6)} is still not marked delivered after 30 minutes. Please update the delivery status.`,
+      urgent: true,
+      buzz: true,
+    });
+    await notifyAdmins({
+      order_id: order.id,
+      type: 'delivery_not_marked_delivered_admin',
+      title: 'Delivery delay alert',
+      message: `Assigned delivery man has not marked order #${String(order.id).slice(-6)} delivered within 30 minutes.`,
+      urgent: true,
+      buzz: true,
+    });
+    order.delivery_delay_notified_at = now;
+    await order.save();
+  }
 }
 
 async function sendBulkSmsBdMessage(phone, message) {
@@ -225,6 +372,42 @@ app.get('/api/admin/sms-status', requireAuth, requireAdminUserManagement, (_req,
     },
     error: null,
   });
+});
+
+
+app.get('/api/notifications', requireAuth, async (req, res) => {
+  try {
+    const notifications = await models.notifications
+      .find({ user_id: req.auth.id })
+      .sort({ created_at: -1 })
+      .limit(50);
+    const unread_count = await models.notifications.countDocuments({ user_id: req.auth.id, is_read: false });
+    res.json({ data: notifications.map((notification) => notification.toJSON()), unread_count, error: null });
+  } catch (error) {
+    res.status(500).json({ data: null, error: error.message });
+  }
+});
+
+app.post('/api/notifications/read', requireAuth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
+    const query = ids.length ? { user_id: req.auth.id, _id: { $in: ids } } : { user_id: req.auth.id, is_read: false };
+    await models.notifications.updateMany(query, { $set: { is_read: true, buzz: false, updated_at: new Date() } });
+    res.json({ success: true, error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/alerts/run', requireAuth, async (req, res) => {
+  try {
+    const profile = await models.profiles.findOne({ user_id: req.auth.id });
+    if (!profile?.is_admin) return res.status(403).json({ error: 'Admin only.' });
+    await runOrderAlertChecks();
+    res.json({ success: true, error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 function normalizeMongoField(field) {
@@ -495,9 +678,30 @@ app.post('/api/tables/:table', async (req, res) => {
     }
 
     if (action === 'update') {
-      await Model.updateMany(query, { ...body, updated_at: new Date() });
+      const previousDocs = req.params.table === 'orders' ? await Model.find(query) : [];
+      const updatePayload = { ...body, updated_at: new Date() };
+      if (req.params.table === 'orders' && body?.status) {
+        if (body.status === 'confirmed') updatePayload.confirmed_at = new Date();
+        if (body.status === 'delivered') updatePayload.delivered_at = new Date();
+        if (body.status === 'cancelled') updatePayload.cancelled_at = new Date();
+      }
+
+      await Model.updateMany(query, updatePayload);
       const updatedDocs = await Model.find(query);
       data = updatedDocs.map((d) => d.toJSON());
+
+      if (req.params.table === 'orders') {
+        const previousById = new Map(previousDocs.map((doc) => [doc.id, doc]));
+        for (const order of updatedDocs) {
+          const previous = previousById.get(order.id);
+          if (body?.status && previous?.status !== order.status && ['confirmed', 'delivered'].includes(String(order.status))) {
+            await notifyOrderCustomer(order, order.status);
+          }
+          if (body?.delivery_man_id !== undefined && String(previous?.delivery_man_id || '') !== String(order.delivery_man_id || '') && order.delivery_man_id) {
+            await notifyDeliveryManAssignment(order);
+          }
+        }
+      }
 
       if (req.params.table === 'orders' && ['delivered', 'cancelled'].includes(String(body?.status || ''))) {
         const orderIds = updatedDocs.map((doc) => doc.id);
@@ -774,6 +978,10 @@ mongoose.connect(MONGODB_URI).then(async () => {
   await ensureDefaultCatalog();
   await backfillProfileRolesAndPermissions();
   await backfillOrderUserIds();
+  await runOrderAlertChecks().catch((error) => console.error('Initial order alert check failed:', error.message));
+  setInterval(() => {
+    runOrderAlertChecks().catch((error) => console.error('Order alert check failed:', error.message));
+  }, 60 * 1000);
   app.listen(PORT, () => console.log(`Cylinder Express MongoDB API running on http://localhost:${PORT}`));
 }).catch((error) => {
   console.error('MongoDB connection failed:', error.message);

@@ -23,6 +23,7 @@ import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
+import NotificationCenter from './components/NotificationCenter';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -100,6 +101,7 @@ function AppRoutes() {
   return (
     <>
       {user && !isAdminRoute && <Navbar />}
+      {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
