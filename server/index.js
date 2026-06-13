@@ -502,10 +502,26 @@ app.post('/api/tables/:table', async (req, res) => {
       if (req.params.table === 'orders' && ['delivered', 'cancelled'].includes(String(body?.status || ''))) {
         const orderIds = updatedDocs.map((doc) => doc.id);
         const userIds = updatedDocs.map((doc) => doc.user_id).filter(Boolean);
+        const deliveryManIds = [...new Set(updatedDocs.map((doc) => doc.delivery_man_id).filter(Boolean))];
+
         await models.customer_locations.updateMany(
           { $or: [{ active_order_id: { $in: orderIds } }, { user_id: { $in: userIds } }] },
           { $set: { active_order_id: null, is_sharing: false, updated_at: new Date() } }
         );
+
+        for (const deliveryManId of deliveryManIds) {
+          const remainingActiveOrders = await models.orders.countDocuments({
+            delivery_man_id: deliveryManId,
+            status: { $in: ['pending', 'confirmed', 'processing'] },
+          });
+
+          if (remainingActiveOrders === 0) {
+            await models.delivery_locations.updateOne(
+              { user_id: deliveryManId },
+              { $set: { is_sharing: false, updated_at: new Date(), last_seen: new Date() } }
+            );
+          }
+        }
       }
     }
 

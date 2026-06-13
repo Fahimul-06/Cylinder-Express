@@ -389,7 +389,8 @@ export default function OrdersPage() {
 
                         {order.delivery_man_id && (() => {
                           const deliveryMan = deliveryProfiles[order.delivery_man_id!];
-                          const deliveryLive = deliveryLocations[order.delivery_man_id!];
+                          const isDeliveryActive = !['delivered', 'cancelled'].includes(order.status);
+                          const deliveryLive = isDeliveryActive ? deliveryLocations[order.delivery_man_id!] : undefined;
                           return (
                             <div className="rounded-xl border border-green-100 bg-green-50 p-3 text-sm">
                               <div className="flex items-center justify-between gap-3 mb-2">
@@ -428,7 +429,9 @@ export default function OrdersPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">Delivery man has not started live location sharing yet.</p>
+                                <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
+                                  {isDeliveryActive ? 'Delivery man has not started live location sharing yet.' : 'Delivery completed. Live delivery location sharing has stopped.'}
+                                </p>
                               )}
                             </div>
                           );

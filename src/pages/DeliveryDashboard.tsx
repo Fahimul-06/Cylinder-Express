@@ -140,9 +140,16 @@ export default function DeliveryDashboard() {
       updated_at: new Date().toISOString(),
     });
 
-    setOrders((current) => current.filter((order) => order.id !== selectedOrder.id));
-    setSelectedOrderId(null);
-    setMessage('Order marked as delivered. Customer live tracking has been stopped.');
+    const remainingActiveOrders = orders.filter((order) => order.id !== selectedOrder.id);
+    if (remainingActiveOrders.length === 0) {
+      await stopSharing();
+    }
+
+    setOrders(remainingActiveOrders);
+    setSelectedOrderId(remainingActiveOrders[0]?.id || null);
+    setMessage(remainingActiveOrders.length === 0
+      ? 'Order marked as delivered. Customer and delivery live tracking have been stopped.'
+      : 'Order marked as delivered. This customer can no longer see your live location.');
     setMarkingDelivered(false);
     loadOrders();
   };
