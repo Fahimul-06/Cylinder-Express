@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { CartItem, Offer, Product } from '../lib/types';
+import { useAuth } from './AuthContext';
 
 export interface CartItemOptions {
   valve_size?: string | null;
@@ -34,7 +35,28 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function normalizePromoCategorySlug(slug?: string | null) {
+  const aliases: Record<string, string> = {
+    cylinders: 'lpg-cylinders',
+    stoves: 'stoves-burners',
+    installation: 'services',
+  };
+  return aliases[slug || ''] || slug || '';
+}
+
+function itemMatchesOffer(item: CartItem, offer: Offer) {
+  if (offer.product_id) return item.product.id === offer.product_id;
+  if (offer.category_slug) {
+    const offerCategory = normalizePromoCategorySlug(offer.category_slug);
+    const categorySlug = normalizePromoCategorySlug(item.product.category?.slug || '');
+    const categoryId = normalizePromoCategorySlug(item.product.category_id || '');
+    return categorySlug === offerCategory || categoryId === offerCategory;
+  }
+  return true;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [promoCode, setPromoCode] = useState('');
   const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
@@ -95,18 +117,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const eligibleItemsForDiscount = useMemo(() => {
     if (!appliedOffer) return [];
 
-    return items.filter(item => {
-      // If offer is for a specific product, only that product qualifies
-      if (appliedOffer.product_id) {
-        return item.product.id === appliedOffer.product_id;
-      }
-      // If offer is for a category, only items in that category qualify
-      if (appliedOffer.category_slug) {
-        return item.product.category?.slug === appliedOffer.category_slug;
-      }
-      // If no product_id or category_slug, offer applies to all items
-      return true;
-    });
+    return items.filter(item => itemMatchesOffer(item, appliedOffer));
   }, [items, appliedOffer]);
 
   // Calculate discount only on eligible items
@@ -148,22 +159,34 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const offer = data as Offer;
+
+    if (user?.id) {
+      const maxUses = Math.max(1, Number(offer.max_uses_per_customer || 1));
+      const { count } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('promo_code', trimmed);
+
+      if ((count || 0) >= maxUses) {
+        setPromoError(maxUses === 1
+          ? 'You have already used this promo code.'
+          : `You have already used this promo code ${maxUses} times.`);
+        setAppliedOffer(null);
+        setPromoCode('');
+        return;
+      }
+    }
+
     // Check if cart has eligible items for this offer
-    const hasEligibleItems = items.some(item => {
-      if (data.product_id) {
-        return item.product.id === data.product_id;
-      }
-      if (data.category_slug) {
-        return item.product.category?.slug === data.category_slug;
-      }
-      return true;
-    });
+    const hasEligibleItems = items.some(item => itemMatchesOffer(item, offer));
 
     if (!hasEligibleItems) {
       let message = 'This promo code is not applicable to items in your cart.';
-      if (data.category_slug) {
-        message = `This promo code only applies to ${data.category_slug.replace(/-/g, ' ')} products.`;
-      } else if (data.product_id) {
+      if (offer.category_slug) {
+        message = `This promo code only applies to ${offer.category_slug.replace(/-/g, ' ')} products.`;
+      } else if (offer.product_id) {
         message = 'This promo code only applies to a specific product not in your cart.';
       }
       setPromoError(message);
@@ -172,7 +195,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setAppliedOffer(data);
+    setAppliedOffer(offer);
     setPromoCode(trimmed);
   };
 

@@ -126,6 +126,7 @@ export interface Offer {
   code: string | null;
   product_id: string | null;
   category_slug: string | null;
+  max_uses_per_customer: number | null;
   bg_from: string;
   bg_to: string;
   image_url: string | null;

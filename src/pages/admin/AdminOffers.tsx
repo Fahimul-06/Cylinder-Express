@@ -8,13 +8,13 @@ import {
 
 type OfferForm = Partial<Pick<Offer,
   'title' | 'description' | 'badge_text' | 'discount_type' | 'discount_value' |
-  'code' | 'category_slug' | 'bg_from' | 'bg_to' | 'valid_until' | 'is_active' | 'sort_order'
+  'code' | 'category_slug' | 'max_uses_per_customer' | 'bg_from' | 'bg_to' | 'valid_until' | 'is_active' | 'sort_order'
 >>;
 
 const emptyForm: OfferForm = {
   title: '', description: '', badge_text: 'OFFER',
   discount_type: 'percentage', discount_value: 0,
-  code: '', category_slug: '', bg_from: 'from-blue-500', bg_to: 'to-blue-700',
+  code: '', category_slug: '', max_uses_per_customer: 1, bg_from: 'from-blue-500', bg_to: 'to-blue-700',
   valid_until: '', is_active: true, sort_order: 0,
 };
 
@@ -29,7 +29,12 @@ const gradientOptions = [
   { from: 'from-sky-500', to: 'to-blue-600', label: 'Sky-Blue' },
 ];
 
-const categorySlugs = ['cylinders', 'installation', 'stoves', 'accessories', 'services'];
+const categoryOptions = [
+  { slug: 'lpg-cylinders', label: 'LPG Cylinders' },
+  { slug: 'stoves-burners', label: 'Stoves & Burners' },
+  { slug: 'accessories', label: 'Accessories' },
+  { slug: 'services', label: 'Services' },
+];
 
 export default function AdminOffers() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -63,6 +68,7 @@ export default function AdminOffers() {
       title: o.title, description: o.description || '', badge_text: o.badge_text,
       discount_type: o.discount_type, discount_value: o.discount_value,
       code: o.code || '', category_slug: o.category_slug || '',
+      max_uses_per_customer: o.max_uses_per_customer || 1,
       bg_from: o.bg_from, bg_to: o.bg_to,
       valid_until: o.valid_until ? o.valid_until.slice(0, 16) : '',
       is_active: o.is_active, sort_order: o.sort_order,
@@ -77,7 +83,8 @@ export default function AdminOffers() {
       title: form.title, description: form.description || null,
       badge_text: form.badge_text || 'OFFER',
       discount_type: form.discount_type, discount_value: form.discount_value,
-      code: form.code || null, category_slug: form.category_slug || null,
+      code: form.code ? form.code.trim().toUpperCase() : null, category_slug: form.category_slug || null,
+      max_uses_per_customer: Math.max(1, Number(form.max_uses_per_customer || 1)),
       bg_from: form.bg_from || 'from-blue-500', bg_to: form.bg_to || 'to-blue-700',
       valid_until: form.valid_until ? new Date(form.valid_until).toISOString() : null,
       is_active: form.is_active ?? true, sort_order: form.sort_order || 0,
@@ -172,6 +179,9 @@ export default function AdminOffers() {
                       {o.code && (
                         <span className="font-mono font-bold tracking-wider text-gray-600">{o.code}</span>
                       )}
+                      {o.max_uses_per_customer && (
+                        <span>Limit/customer: {o.max_uses_per_customer}</span>
+                      )}
                       {o.valid_until && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
@@ -247,9 +257,20 @@ export default function AdminOffers() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <select value={form.category_slug || ''} onChange={e => setForm(f => ({ ...f, category_slug: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600">
                     <option value="">All categories</option>
-                    {categorySlugs.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                    {categoryOptions.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Usage limit per customer</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={form.max_uses_per_customer || 1}
+                  onChange={e => setForm(f => ({ ...f, max_uses_per_customer: Math.max(1, Number(e.target.value || 1)) }))}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+                <p className="mt-1 text-xs text-gray-500">Set 1 for one-time use. Increase this if one customer can use this promo multiple times.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Gradient Color</label>
