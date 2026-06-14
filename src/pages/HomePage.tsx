@@ -25,7 +25,7 @@ export default function HomePage() {
   const [services, setServices] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
-  const heroImages = ['/home-hero-1.png', '/home-hero-2.png'];
+  const heroImages = ['/home-hero-1.png', '/home-hero-2.png', '/home-hero-3.png', '/home-hero-4.png', '/home-hero-5.png'];
 
   useEffect(() => {
     const timer = window.setInterval(() => {
