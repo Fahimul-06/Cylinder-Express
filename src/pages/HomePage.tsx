@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
   Flame, Package, Wrench, Shield, Truck, ChevronRight,
-  Star, MapPin, Clock, Sparkles
+  Star, MapPin, Sparkles
 } from 'lucide-react';
 import OffersCarousel from '../components/OffersCarousel';
 
