@@ -11,9 +11,7 @@ import {
 import { SERVICE_TIME_SLOTS } from '../lib/constants';
 import { isLpgCylinder } from '../lib/deliveryCharges';
 import ProductCard from '../components/ProductCard';
-
-const VALVE_SIZES = ['22mm', '20mm'];
-const VALVE_TYPES = ['Paul', 'Pin'];
+import { LPG_VALVE_CONNECTIONS, LPG_VALVE_SIZES } from '../lib/productOptions';
 
 const typeConfig = {
   new: { icon: Flame, label: 'New', color: 'bg-emerald-50 text-emerald-700' },
@@ -48,8 +46,8 @@ export default function ProductDetailPage() {
         .maybeSingle();
 
       setProduct(data);
-      setSelectedValveSize(data?.valve_size || '');
-      setSelectedValveType(data?.valve_connection || '');
+      setSelectedValveSize('');
+      setSelectedValveType('');
 
       if (data) {
         const { data: related } = await supabase
@@ -139,8 +137,6 @@ export default function ProductDetailPage() {
   const productDetails = [
     product.company_name ? { label: 'Company', value: product.company_name } : null,
     product.size ? { label: 'Size', value: product.size } : null,
-    product.valve_size ? { label: 'Valve Size', value: product.valve_size } : null,
-    product.valve_connection ? { label: 'Valve Type', value: product.valve_connection } : null,
   ].filter(Boolean) as { label: string; value: string }[];
 
   return (
@@ -298,7 +294,7 @@ export default function ProductDetailPage() {
                     <div>
                       <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Type</label>
                       <div className="grid grid-cols-2 gap-2">
-                        {VALVE_TYPES.map(type => (
+                        {LPG_VALVE_CONNECTIONS.map(type => (
                           <button
                             key={type}
                             type="button"
@@ -318,7 +314,7 @@ export default function ProductDetailPage() {
                     <div>
                       <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Size</label>
                       <div className="grid grid-cols-2 gap-2">
-                        {VALVE_SIZES.map(size => (
+                        {LPG_VALVE_SIZES.map(size => (
                           <button
                             key={size}
                             type="button"

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Product, Category } from '../../lib/types';
-import { LPG_COMPANIES, LPG_SIZES, LPG_VALVE_CONNECTIONS, LPG_VALVE_SIZES } from '../../lib/productOptions';
+import { LPG_COMPANIES, LPG_SIZES } from '../../lib/productOptions';
 import {
   Plus, Pencil, Trash2, X, Check, Search,
   Star, ToggleLeft, ToggleRight, Upload, Image, Loader2, Flame, Wrench, Package
@@ -9,13 +9,13 @@ import {
 
 type ProductForm = Partial<Pick<Product,
   'name' | 'description' | 'price' | 'image_url' | 'type' | 'company_name' | 'size' |
-  'valve_size' | 'valve_connection' | 'unit' | 'is_bestseller' | 'is_available' |
+  'unit' | 'is_bestseller' | 'is_available' |
   'sort_order' | 'category_id'
 >>;
 
 const emptyForm: ProductForm = {
   name: '', description: '', price: 0, image_url: '', type: 'new',
-  company_name: '', size: '', valve_size: '', valve_connection: '', unit: 'piece',
+  company_name: '', size: '', unit: 'piece',
   is_bestseller: false, is_available: true, sort_order: 0, category_id: '',
 };
 
@@ -64,7 +64,7 @@ export default function AdminProducts() {
       if (typeFilter !== 'all' && p.type !== typeFilter) return false;
       if (categoryFilter !== 'all' && p.category?.slug !== categoryFilter) return false;
       if (!q) return true;
-      return [p.name, p.description, p.category?.name, p.type, p.company_name, p.size, p.valve_size, p.valve_connection]
+      return [p.name, p.description, p.category?.name, p.type, p.company_name, p.size]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(q));
     });
@@ -89,8 +89,6 @@ export default function AdminProducts() {
       type: p.type,
       company_name: p.company_name || '',
       size: p.size || '',
-      valve_size: p.valve_size || '',
-      valve_connection: p.valve_connection || '',
       unit: p.unit,
       is_bestseller: p.is_bestseller,
       is_available: p.is_available,
@@ -150,6 +148,26 @@ export default function AdminProducts() {
 
   async function handleSave() {
     if (!form.name || !form.price || !form.category_id) return;
+    if (isLpgCylinderForm && (!form.company_name || !form.size)) {
+      alert('Please select LPG company name and cylinder size.');
+      return;
+    }
+
+    if (isLpgCylinderForm) {
+      const duplicate = products.find(p =>
+        p.id !== editing?.id &&
+        p.category_id === form.category_id &&
+        p.company_name === form.company_name &&
+        p.size === form.size &&
+        p.type === form.type
+      );
+
+      if (duplicate) {
+        alert(`This LPG cylinder already exists: ${duplicate.name}. Edit that product instead of uploading the same brand and size again for another valve.`);
+        return;
+      }
+    }
+
     setSaving(true);
     const payload = {
       name: form.name,
@@ -159,8 +177,8 @@ export default function AdminProducts() {
       type: form.type,
       company_name: isLpgCylinderForm ? form.company_name || null : null,
       size: form.size || null,
-      valve_size: isLpgCylinderForm ? form.valve_size || null : null,
-      valve_connection: isLpgCylinderForm ? form.valve_connection || null : null,
+      valve_size: null,
+      valve_connection: null,
       unit: form.unit || (isLpgCylinderForm ? 'cylinder' : 'piece'),
       is_bestseller: form.is_bestseller,
       is_available: form.is_available,
@@ -278,7 +296,7 @@ export default function AdminProducts() {
                         {p.is_bestseller && <Star className="w-3.5 h-3.5 text-blue-400 fill-blue-400" />}
                       </div>
                       <p className="text-xs text-gray-400">
-                        {[p.company_name, p.size, p.valve_size, p.valve_connection].filter(Boolean).join(' · ') || 'General item'} · ৳{p.price.toLocaleString()}
+                        {[p.company_name, p.size].filter(Boolean).join(' · ') || 'General item'} · ৳{p.price.toLocaleString()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -352,7 +370,7 @@ export default function AdminProducts() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h4 className="font-semibold text-blue-900 text-sm">LPG Cylinder Details</h4>
-                      <p className="text-xs text-blue-600">Use dropdowns to keep company, size and valve data clean.</p>
+                      <p className="text-xs text-blue-600">Create one product for each brand and size. Customers choose valve type and size on the product page.</p>
                     </div>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -378,27 +396,9 @@ export default function AdminProducts() {
                         {LPG_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Valve Size</label>
-                      <select
-                        value={form.valve_size || ''}
-                        onChange={e => setForm(f => ({ ...f, valve_size: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                      >
-                        <option value="">Select valve size...</option>
-                        {LPG_VALVE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Valve Type</label>
-                      <select
-                        value={form.valve_connection || ''}
-                        onChange={e => setForm(f => ({ ...f, valve_connection: e.target.value }))}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                      >
-                        <option value="">Select valve type...</option>
-                        {LPG_VALVE_CONNECTIONS.map(type => <option key={type} value={type}>{type}</option>)}
-                      </select>
+                    <div className="sm:col-span-2 rounded-xl bg-white border border-blue-100 p-3">
+                      <p className="text-sm font-semibold text-blue-900">Valve selection is not uploaded separately.</p>
+                      <p className="text-xs text-blue-700 mt-1">Available customer choices: Paul / Pin and 22mm / 20mm. These options appear automatically on the cylinder product page.</p>
                     </div>
                   </div>
                 </div>
