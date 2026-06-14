@@ -2,7 +2,7 @@ import { Product } from '../lib/types';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Star, Flame, RotateCcw, Wrench, Truck } from 'lucide-react';
-import { getDeliveryFeeLabel } from '../lib/deliveryCharges';
+import { getDeliveryFeeLabel, isLpgCylinder } from '../lib/deliveryCharges';
 
 const typeIcons = {
   new: Flame,
@@ -25,7 +25,8 @@ const typeLabels = {
 export default function ProductCard({ product, compact = false }: { product: Product; compact?: boolean }) {
   const { addItem, getItemQuantity, updateQuantity } = useCart();
   const navigate = useNavigate();
-  const qty = getItemQuantity(product.id);
+  const isCylinder = isLpgCylinder(product);
+  const qty = isCylinder ? 0 : getItemQuantity(product.id);
   const TypeIcon = typeIcons[product.type];
   const details = [product.company_name, product.size, product.valve_size, product.valve_connection].filter(Boolean).join(' · ');
 
@@ -121,11 +122,18 @@ export default function ProductCard({ product, compact = false }: { product: Pro
             </div>
           ) : (
             <button
-              onClick={e => { e.stopPropagation(); addItem(product); }}
+              onClick={e => {
+                e.stopPropagation();
+                if (isCylinder) {
+                  navigate(`/product/${product.id}`);
+                  return;
+                }
+                addItem(product);
+              }}
               className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md whitespace-nowrap"
             >
               <ShoppingCart className="w-4 h-4" />
-              Add
+              {isCylinder ? 'Select' : 'Add'}
             </button>
           )}
         </div>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
-import { calculateCartDeliveryFee, getDeliveryFeeLabel } from '../lib/deliveryCharges';
+import { calculateCartDeliveryFee, getDeliveryFeeLabel, getProductDeliveryFee } from '../lib/deliveryCharges';
 import {
   ShoppingCart, Trash2, Plus, Minus,
   MapPin, ArrowRight, Tag, X, Check, Building2
@@ -55,9 +55,9 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-3">
-            {items.map(({ product, quantity }) => (
+            {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
               <div
-                key={product.id}
+                key={cart_key}
                 className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-4"
               >
                 <div
@@ -77,9 +77,17 @@ export default function CartPage() {
                   >
                     {product.name}
                   </h3>
-                  {product.size && (
-                    <span className="text-xs text-gray-500">{product.size}</span>
-                  )}
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {product.size && (
+                      <span className="text-xs text-gray-500">{product.size}</span>
+                    )}
+                    {selected_valve_connection && (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">Valve: {selected_valve_connection}</span>
+                    )}
+                    {selected_valve_size && (
+                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">{selected_valve_size}</span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     ৳{product.price.toLocaleString()} x {quantity}
                   </p>
@@ -89,14 +97,14 @@ export default function CartPage() {
                   <div className="flex items-center justify-between mt-3">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => updateQuantity(product.id, quantity - 1)}
+                        onClick={() => updateQuantity(cart_key, quantity - 1)}
                         className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
                       <span className="w-8 text-center font-semibold text-sm">{quantity}</span>
                       <button
-                        onClick={() => updateQuantity(product.id, quantity + 1)}
+                        onClick={() => updateQuantity(cart_key, quantity + 1)}
                         className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center hover:bg-blue-200 transition-colors"
                       >
                         <Plus className="w-3 h-3" />
@@ -105,7 +113,7 @@ export default function CartPage() {
                     <div className="flex items-center gap-3">
                       <span className="font-bold text-blue-600">৳{(product.price * quantity).toLocaleString()}</span>
                       <button
-                        onClick={() => removeItem(product.id)}
+                        onClick={() => removeItem(cart_key)}
                         className="text-gray-400 hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -174,15 +182,15 @@ export default function CartPage() {
               <div className="space-y-3 text-sm">
                 {/* Itemized product prices */}
                 <div className="space-y-1.5">
-                  {items.map(({ product, quantity }) => (
-                    <div key={product.id} className="space-y-1">
+                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
+                    <div key={cart_key} className="space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-gray-500 truncate mr-2">{product.name} x{quantity}</span>
+                        <span className="text-gray-500 truncate mr-2">{product.name}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} x{quantity}</span>
                         <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-gray-400">{getDeliveryFeeLabel(product)} x{quantity}</span>
-                        <span className="text-gray-500">৳{(calculateCartDeliveryFee([{ product, quantity }])).toLocaleString()}</span>
+                        <span className="text-gray-500">৳{(getProductDeliveryFee(product) * quantity).toLocaleString()}</span>
                       </div>
                     </div>
                   ))}

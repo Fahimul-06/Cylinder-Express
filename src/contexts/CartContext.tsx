@@ -2,15 +2,27 @@ import { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { CartItem, Offer, Product } from '../lib/types';
 
+export interface CartItemOptions {
+  valve_size?: string | null;
+  valve_connection?: string | null;
+}
+
+export function buildCartItemKey(productId: string, options?: CartItemOptions) {
+  const valveSize = options?.valve_size || '';
+  const valveConnection = options?.valve_connection || '';
+  if (!valveSize && !valveConnection) return productId;
+  return `${productId}::${valveSize}::${valveConnection}`;
+}
+
 interface CartContextType {
   items: CartItem[];
-  addItem: (product: Product, quantity?: number) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addItem: (product: Product, quantity?: number, options?: CartItemOptions) => void;
+  removeItem: (cartKey: string) => void;
+  updateQuantity: (cartKey: string, quantity: number) => void;
   clearCart: () => void;
   totalItems: number;
   totalPrice: number;
-  getItemQuantity: (productId: string) => number;
+  getItemQuantity: (productId: string, options?: CartItemOptions) => number;
   promoCode: string;
   appliedOffer: Offer | null;
   promoError: string;
@@ -28,31 +40,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
   const [promoError, setPromoError] = useState('');
 
-  const addItem = (product: Product, quantity = 1) => {
+  const addItem = (product: Product, quantity = 1, options?: CartItemOptions) => {
+    const cartKey = buildCartItemKey(product.id, options);
+    const productForCart: Product = {
+      ...product,
+      valve_size: options?.valve_size ?? product.valve_size ?? null,
+      valve_connection: options?.valve_connection ?? product.valve_connection ?? null,
+    };
+
     setItems(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
+      const existing = prev.find(i => i.cart_key === cartKey);
       if (existing) {
         return prev.map(i =>
-          i.product.id === product.id
+          i.cart_key === cartKey
             ? { ...i, quantity: i.quantity + quantity }
             : i
         );
       }
-      return [...prev, { product, quantity }];
+      return [...prev, {
+        cart_key: cartKey,
+        product: productForCart,
+        quantity,
+        selected_valve_size: options?.valve_size ?? null,
+        selected_valve_connection: options?.valve_connection ?? null,
+      }];
     });
   };
 
-  const removeItem = (productId: string) => {
-    setItems(prev => prev.filter(i => i.product.id !== productId));
+  const removeItem = (cartKey: string) => {
+    setItems(prev => prev.filter(i => i.cart_key !== cartKey));
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = (cartKey: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(productId);
+      removeItem(cartKey);
       return;
     }
     setItems(prev =>
-      prev.map(i => (i.product.id === productId ? { ...i, quantity } : i))
+      prev.map(i => (i.cart_key === cartKey ? { ...i, quantity } : i))
     );
   };
 
@@ -157,9 +182,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPromoError('');
   };
 
-  const getItemQuantity = (productId: string) => {
-    const item = items.find(i => i.product.id === productId);
-    return item?.quantity ?? 0;
+  const getItemQuantity = (productId: string, options?: CartItemOptions) => {
+    if (options) {
+      const cartKey = buildCartItemKey(productId, options);
+      const item = items.find(i => i.cart_key === cartKey);
+      return item?.quantity ?? 0;
+    }
+    return items
+      .filter(i => i.product.id === productId)
+      .reduce((sum, i) => sum + i.quantity, 0);
   };
 
   return (

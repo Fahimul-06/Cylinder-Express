@@ -109,8 +109,11 @@ export interface ServiceBooking {
 }
 
 export interface CartItem {
+  cart_key: string;
   product: Product;
   quantity: number;
+  selected_valve_size?: string | null;
+  selected_valve_connection?: string | null;
 }
 
 export interface Offer {

@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Product } from '../lib/types';
-import { useCart } from '../contexts/CartContext';
+import { buildCartItemKey, useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   ShoppingCart, Star, Flame, RotateCcw, Wrench, MapPin,
   ChevronRight, Minus, Plus, Calendar, Clock, Truck
 } from 'lucide-react';
 import { SERVICE_TIME_SLOTS } from '../lib/constants';
+import { isLpgCylinder } from '../lib/deliveryCharges';
+import ProductCard from '../components/ProductCard';
+
+const VALVE_SIZES = ['22mm', '20mm'];
+const VALVE_TYPES = ['Paul', 'Pin'];
 
 const typeConfig = {
   new: { icon: Flame, label: 'New', color: 'bg-emerald-50 text-emerald-700' },
@@ -22,6 +27,7 @@ export default function ProductDetailPage() {
   const { addItem, getItemQuantity, updateQuantity } = useCart();
   const { user } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
   const [bookingDate, setBookingDate] = useState('');
@@ -29,25 +35,62 @@ export default function ProductDetailPage() {
   const [bookingNotes, setBookingNotes] = useState('');
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [selectedValveSize, setSelectedValveSize] = useState('');
+  const [selectedValveType, setSelectedValveType] = useState('');
 
   useEffect(() => {
     async function fetchProduct() {
+      setLoading(true);
       const { data } = await supabase
         .from('products')
         .select('*, category:categories(*)')
         .eq('id', id)
         .maybeSingle();
+
       setProduct(data);
+      setSelectedValveSize(data?.valve_size || '');
+      setSelectedValveType(data?.valve_connection || '');
+
+      if (data) {
+        const { data: related } = await supabase
+          .from('products')
+          .select('*, category:categories(*)')
+          .eq('is_available', true)
+          .order('sort_order');
+
+        const scored = ((related || []) as Product[])
+          .filter(item => item.id !== data.id)
+          .map((item: Product) => ({
+            item,
+            score:
+              (item.category_id === data.category_id ? 4 : 0) +
+              (item.type === data.type ? 2 : 0) +
+              (item.company_name && item.company_name === data.company_name ? 2 : 0),
+          }))
+          .sort((a: { item: Product; score: number }, b: { item: Product; score: number }) => b.score - a.score || a.item.name.localeCompare(b.item.name))
+          .slice(0, 8)
+          .map(({ item }: { item: Product; score: number }) => item);
+        setRelatedProducts(scored);
+      } else {
+        setRelatedProducts([]);
+      }
+
       setLoading(false);
     }
     if (id) fetchProduct();
   }, [id]);
 
-  const cartQty = product ? getItemQuantity(product.id) : 0;
+  const needsValveSelection = product ? isLpgCylinder(product) : false;
+  const selectedCartOptions = needsValveSelection
+    ? { valve_size: selectedValveSize, valve_connection: selectedValveType }
+    : undefined;
+  const cartKey = product ? buildCartItemKey(product.id, selectedCartOptions) : '';
+  const cartQty = product ? getItemQuantity(product.id, selectedCartOptions) : 0;
 
   const handleAddToCart = () => {
     if (!product) return;
-    addItem(product, qty);
+    if (needsValveSelection && (!selectedValveSize || !selectedValveType)) return;
+    addItem(product, qty, selectedCartOptions);
   };
 
   const handleBookService = async () => {
@@ -245,6 +288,55 @@ export default function ProductDetailPage() {
               </div>
             ) : (
               <>
+                {needsValveSelection && (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
+                    <div>
+                      <h3 className="font-bold text-blue-950">Select cylinder valve</h3>
+                      <p className="text-xs text-blue-700 mt-1">Choose the correct valve type and valve size before adding this cylinder to cart.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {VALVE_TYPES.map(type => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setSelectedValveType(type)}
+                            className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all ${
+                              selectedValveType === type
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Size</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {VALVE_SIZES.map(size => (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => setSelectedValveSize(size)}
+                            className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all ${
+                              selectedValveSize === size
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium text-gray-700">Quantity:</span>
                   <div className="flex items-center gap-3">
@@ -270,14 +362,14 @@ export default function ProductDetailPage() {
                       <span className="text-green-700 font-medium text-sm">{cartQty} in cart</span>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => updateQuantity(product.id, cartQty - 1)}
+                          onClick={() => updateQuantity(cartKey, cartQty - 1)}
                           className="w-8 h-8 rounded-lg bg-green-100 text-green-700 font-bold hover:bg-green-200 flex items-center justify-center"
                         >
                           -
                         </button>
                         <span className="font-semibold">{cartQty}</span>
                         <button
-                          onClick={() => updateQuantity(product.id, cartQty + 1)}
+                          onClick={() => updateQuantity(cartKey, cartQty + 1)}
                           className="w-8 h-8 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 flex items-center justify-center"
                         >
                           +
@@ -295,7 +387,8 @@ export default function ProductDetailPage() {
                 ) : (
                   <button
                     onClick={handleAddToCart}
-                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+                    disabled={needsValveSelection && (!selectedValveSize || !selectedValveType)}
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-5 h-5" />
                     Add to Cart - ৳{(qty * product.price).toLocaleString()}
@@ -313,6 +406,28 @@ export default function ProductDetailPage() {
             )}
           </div>
         </div>
+
+        {relatedProducts.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Related Products</h2>
+                <p className="text-sm text-gray-500">More products and services you may need</p>
+              </div>
+              <button
+                onClick={() => navigate('/products')}
+                className="hidden sm:inline-flex text-blue-600 text-sm font-semibold hover:text-blue-700"
+              >
+                View all
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {relatedProducts.map(item => (
+                <ProductCard key={item.id} product={item} compact />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -321,8 +321,8 @@ export default function CheckoutPage() {
                 <h3 className="font-bold text-gray-900">Order Items</h3>
               </div>
               <div className="divide-y divide-gray-100">
-                {items.map(({ product, quantity }) => (
-                  <div key={product.id} className="flex items-center gap-3 py-3">
+                {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
+                  <div key={cart_key} className="flex items-center gap-3 py-3">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       <img
                         src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=100'}
@@ -332,6 +332,13 @@ export default function CheckoutPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                      {(selected_valve_connection || selected_valve_size) && (
+                        <p className="text-xs text-blue-600 font-semibold">
+                          {selected_valve_connection && `Valve: ${selected_valve_connection}`}
+                          {selected_valve_connection && selected_valve_size ? ' · ' : ''}
+                          {selected_valve_size}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-400">৳{product.price.toLocaleString()} &times; {quantity}</p>
                     </div>
                     <span className="font-semibold text-sm text-gray-900">৳{(product.price * quantity).toLocaleString()}</span>
@@ -360,10 +367,10 @@ export default function CheckoutPage() {
               <div className="space-y-3 text-sm">
                 {/* Itemized prices */}
                 <div className="space-y-1.5">
-                  {items.map(({ product, quantity }) => (
-                    <div key={product.id} className="space-y-1">
+                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
+                    <div key={cart_key} className="space-y-1">
                       <div className="flex justify-between">
-                        <span className="text-gray-500 truncate mr-2">{product.name} &times;{quantity}</span>
+                        <span className="text-gray-500 truncate mr-2">{product.name}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} &times;{quantity}</span>
                         <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
