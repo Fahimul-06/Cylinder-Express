@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Order, OrderItem, ServiceBooking, Profile, DeliveryLocation, LocationPoint } from '../lib/types';
+import { Order, OrderItem, ServiceBooking, Profile, DeliveryLocation, LocationPoint, Address } from '../lib/types';
 import {
   ShoppingBag, Wrench, Clock, Check, X, Truck,
   ChevronDown, ChevronUp, Package, Calendar, Tag, Building2,
@@ -11,21 +11,6 @@ import {
 type Tab = 'orders' | 'services';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-type GoogleMapsApi = {
-  maps: {
-    Map: new (element: HTMLElement, options: Record<string, unknown>) => any;
-    Marker: new (options: Record<string, unknown>) => any;
-    Polyline: new (options: Record<string, unknown>) => any;
-    InfoWindow: new (options: Record<string, unknown>) => any;
-    LatLngBounds: new () => any;
-    SymbolPath: { CIRCLE: unknown; FORWARD_CLOSED_ARROW: unknown };
-  };
-};
-
-declare global {
-  interface Window { google?: GoogleMapsApi; }
-}
 
 function loadGoogleMaps(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -48,30 +33,76 @@ function loadGoogleMaps(): Promise<void> {
   });
 }
 
-function DeliveryMovementMap({ deliveryLive, routePoints }: { deliveryLive: DeliveryLocation; routePoints: LocationPoint[] }) {
+function formatOrderAddress(address?: Address | null) {
+  if (!address) return '';
+  return [address.address_line1, address.address_line2, address.area, address.city, address.district]
+    .filter(Boolean)
+    .join(', ');
+}
+
+function DeliveryMovementMap({
+  deliveryLive,
+  routePoints,
+  customerPoint,
+  customerAddressText,
+}: {
+  deliveryLive: DeliveryLocation;
+  routePoints: LocationPoint[];
+  customerPoint?: { lat: number; lng: number } | null;
+  customerAddressText?: string;
+}) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any | null>(null);
+  const directionsRendererRef = useRef<any | null>(null);
   const overlaysRef = useRef<any[]>([]);
   const [mapError, setMapError] = useState('');
+  const [deliveryPlaceName, setDeliveryPlaceName] = useState('Detecting delivery man place...');
+
+  useEffect(() => {
+    let cancelled = false;
+    async function detectPlaceName() {
+      try {
+        await loadGoogleMaps();
+        const maps = (window.google as any)?.maps;
+        if (cancelled || !maps) return;
+        const geocoder = new maps.Geocoder();
+        geocoder.geocode(
+          { location: { lat: deliveryLive.latitude, lng: deliveryLive.longitude } },
+          (results: any[], status: string) => {
+            if (cancelled) return;
+            if (status === 'OK' && results?.[0]?.formatted_address) {
+              setDeliveryPlaceName(results[0].formatted_address);
+            } else {
+              setDeliveryPlaceName('Live location detected, place name unavailable');
+            }
+          }
+        );
+      } catch {
+        if (!cancelled) setDeliveryPlaceName('Live location detected');
+      }
+    }
+    detectPlaceName();
+    return () => { cancelled = true; };
+  }, [deliveryLive.latitude, deliveryLive.longitude]);
 
   useEffect(() => {
     let cancelled = false;
     async function renderMap() {
       try {
         await loadGoogleMaps();
-        if (cancelled || !mapRef.current || !window.google?.maps) return;
+        const maps = (window.google as any)?.maps;
+        if (cancelled || !mapRef.current || !maps) return;
 
-        const route = routePoints
+        const current = { lat: deliveryLive.latitude, lng: deliveryLive.longitude };
+        const cleanRoute = routePoints
           .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
           .slice(-100)
           .map((point) => ({ lat: point.latitude, lng: point.longitude }));
-        const current = { lat: deliveryLive.latitude, lng: deliveryLive.longitude };
-        const path = route.length > 0 ? [...route, current] : [current];
 
         if (!mapInstanceRef.current) {
-          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-            center: current,
-            zoom: 16,
+          mapInstanceRef.current = new maps.Map(mapRef.current, {
+            center: customerPoint || current,
+            zoom: 15,
             mapTypeControl: false,
             streetViewControl: false,
             fullscreenControl: true,
@@ -80,12 +111,74 @@ function DeliveryMovementMap({ deliveryLive, routePoints }: { deliveryLive: Deli
 
         overlaysRef.current.forEach((overlay) => overlay.setMap?.(null));
         overlaysRef.current = [];
+        if (directionsRendererRef.current) {
+          directionsRendererRef.current.setMap(null);
+          directionsRendererRef.current = null;
+        }
 
-        const bounds = new window.google.maps.LatLngBounds();
-        path.forEach((point) => bounds.extend(point));
+        const bounds = new maps.LatLngBounds();
+        bounds.extend(current);
+        if (customerPoint) bounds.extend(customerPoint);
+        cleanRoute.forEach((point) => bounds.extend(point));
 
-        if (path.length > 1) {
-          const polyline = new window.google.maps.Polyline({
+        const deliveryMarker = new maps.Marker({
+          position: current,
+          map: mapInstanceRef.current,
+          title: 'Delivery man live location',
+          label: 'D',
+        });
+        overlaysRef.current.push(deliveryMarker);
+
+        if (customerPoint) {
+          const customerMarker = new maps.Marker({
+            position: customerPoint,
+            map: mapInstanceRef.current,
+            title: customerAddressText || 'Customer delivery address',
+            label: 'C',
+          });
+          overlaysRef.current.push(customerMarker);
+
+          const directionsService = new maps.DirectionsService();
+          const directionsRenderer = new maps.DirectionsRenderer({
+            map: mapInstanceRef.current,
+            suppressMarkers: true,
+            preserveViewport: true,
+            polylineOptions: {
+              strokeColor: '#2563eb',
+              strokeOpacity: 0.95,
+              strokeWeight: 5,
+            },
+          });
+          directionsRendererRef.current = directionsRenderer;
+
+          directionsService.route(
+            {
+              origin: customerPoint,
+              destination: current,
+              travelMode: maps.TravelMode.DRIVING,
+            },
+            (result: any, status: string) => {
+              if (cancelled) return;
+              if (status === 'OK' && result) {
+                directionsRenderer.setDirections(result);
+                mapInstanceRef.current.fitBounds(bounds);
+              } else {
+                const fallbackLine = new maps.Polyline({
+                  path: [customerPoint, current],
+                  geodesic: true,
+                  strokeColor: '#2563eb',
+                  strokeOpacity: 0.85,
+                  strokeWeight: 4,
+                  map: mapInstanceRef.current,
+                });
+                overlaysRef.current.push(fallbackLine);
+                mapInstanceRef.current.fitBounds(bounds);
+              }
+            }
+          );
+        } else if (cleanRoute.length > 0) {
+          const path = [...cleanRoute, current];
+          const polyline = new maps.Polyline({
             path,
             geodesic: true,
             strokeColor: '#16a34a',
@@ -94,17 +187,6 @@ function DeliveryMovementMap({ deliveryLive, routePoints }: { deliveryLive: Deli
             map: mapInstanceRef.current,
           });
           overlaysRef.current.push(polyline);
-        }
-
-        const marker = new window.google.maps.Marker({
-          position: current,
-          map: mapInstanceRef.current,
-          title: 'Delivery man live location',
-          label: 'D',
-        });
-        overlaysRef.current.push(marker);
-
-        if (path.length > 1) {
           mapInstanceRef.current.fitBounds(bounds);
         } else {
           mapInstanceRef.current.setCenter(current);
@@ -116,17 +198,35 @@ function DeliveryMovementMap({ deliveryLive, routePoints }: { deliveryLive: Deli
     }
 
     renderMap();
-    return () => { cancelled = true; };
-  }, [deliveryLive.latitude, deliveryLive.longitude, routePoints]);
+    return () => {
+      cancelled = true;
+      if (directionsRendererRef.current) {
+        directionsRendererRef.current.setMap(null);
+        directionsRendererRef.current = null;
+      }
+    };
+  }, [deliveryLive.latitude, deliveryLive.longitude, routePoints, customerPoint?.lat, customerPoint?.lng, customerAddressText]);
 
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-green-100 bg-white">
-      <div className="px-3 py-2 flex items-center justify-between gap-2 bg-white">
-        <div>
-          <p className="text-xs font-bold text-green-900">Live delivery movement</p>
-          <p className="text-[11px] text-gray-500">Tracking inside this order page</p>
+      <div className="px-3 py-2 bg-white space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold text-green-900">Live delivery movement</p>
+            <p className="text-[11px] text-gray-500">Tracking inside this order page</p>
+          </div>
+          <span className="text-[11px] text-gray-400">Last updated {new Date(deliveryLive.updated_at || deliveryLive.last_seen).toLocaleTimeString('en-BD')}</span>
         </div>
-        <span className="text-[11px] text-gray-400">Last updated {new Date(deliveryLive.updated_at || deliveryLive.last_seen).toLocaleTimeString('en-BD')}</span>
+        <div className="grid sm:grid-cols-2 gap-2 text-[11px]">
+          <div className="rounded-lg bg-blue-50 px-2.5 py-2">
+            <p className="font-bold text-blue-800">Customer address</p>
+            <p className="text-blue-700 mt-0.5">{customerAddressText || 'Customer delivery address will show when saved.'}</p>
+          </div>
+          <div className="rounded-lg bg-green-50 px-2.5 py-2">
+            <p className="font-bold text-green-800">Delivery man live place</p>
+            <p className="text-green-700 mt-0.5">{deliveryPlaceName}</p>
+          </div>
+        </div>
       </div>
       {mapError ? (
         <div className="p-3 text-xs text-red-600 bg-red-50">{mapError}</div>
@@ -344,7 +444,20 @@ export default function OrdersPage() {
         supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
         supabase.from('service_bookings').select('*, product:products(name, price)').eq('user_id', userId).order('created_at', { ascending: false }),
       ]);
-      const orderList = ordRes.data || [];
+      const rawOrders = (ordRes.data || []) as Order[];
+      const addressIds = [...new Set(rawOrders.map((order) => order.address_id).filter(Boolean))] as string[];
+      let addressMap: Record<string, Address> = {};
+      if (addressIds.length > 0) {
+        const { data: addressData } = await supabase
+          .from('addresses')
+          .select('*')
+          .in('id', addressIds);
+        addressMap = Object.fromEntries(((addressData || []) as Address[]).map((address) => [address.id, address]));
+      }
+      const orderList = rawOrders.map((order) => ({
+        ...order,
+        address: order.address_id ? addressMap[order.address_id] || order.address : order.address,
+      }));
       setOrders(orderList);
       setBookings(bookRes.data || []);
 
@@ -562,6 +675,8 @@ export default function OrdersPage() {
                                 <DeliveryMovementMap
                                   deliveryLive={deliveryLive}
                                   routePoints={deliveryRoutes[order.id] || []}
+                                  customerPoint={order.address?.latitude && order.address?.longitude ? { lat: order.address.latitude, lng: order.address.longitude } : null}
+                                  customerAddressText={formatOrderAddress(order.address)}
                                 />
                               ) : (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
