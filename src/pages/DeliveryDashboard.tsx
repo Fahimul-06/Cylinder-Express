@@ -81,6 +81,7 @@ export default function DeliveryDashboard() {
       accuracy: position.coords.accuracy,
       is_sharing: true,
       last_seen: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     setDeliveryLocation(payload);
     setSharing(true);
@@ -97,6 +98,10 @@ export default function DeliveryDashboard() {
 
   const startSharing = () => {
     setMessage('');
+    if (watchIdRef.current !== null) {
+      setSharing(true);
+      return;
+    }
     if (!navigator.geolocation) {
       setMessage(t('delivery.locationUnsupported'));
       return;
@@ -145,15 +150,10 @@ export default function DeliveryDashboard() {
     });
 
     const remainingActiveOrders = orders.filter((order) => order.id !== selectedOrder.id);
-    if (remainingActiveOrders.length === 0) {
-      await stopSharing();
-    }
 
     setOrders(remainingActiveOrders);
     setSelectedOrderId(remainingActiveOrders[0]?.id || null);
-    setMessage(remainingActiveOrders.length === 0
-      ? 'Order marked as delivered. Customer and delivery live tracking have been stopped.'
-      : 'Order marked as delivered. This customer can no longer see your live location.');
+    setMessage('Order marked as delivered. This customer can no longer see your live location, but your delivery location sharing remains ON for your next assigned delivery.');
     setMarkingDelivered(false);
     loadOrders();
   };
@@ -225,6 +225,11 @@ export default function DeliveryDashboard() {
     const timer = window.setInterval(loadOrders, 10000);
     return () => { window.clearInterval(timer); if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current); };
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (!user || sharing || watchIdRef.current !== null) return;
+    startSharing();
+  }, [user, sharing]);
 
   useEffect(() => {
     if (!mapsReady || !mapRef.current || mapInstanceRef.current) return;

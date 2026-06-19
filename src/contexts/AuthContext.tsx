@@ -113,15 +113,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => {
     if (!user) return { error: 'Not authenticated' };
+    const profileUpdates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; updated_at: string } = {
+      updated_at: new Date().toISOString(),
+    };
+    if (updates.full_name !== undefined) profileUpdates.full_name = updates.full_name;
+    if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
+    if (updates.email !== undefined) profileUpdates.email = updates.email;
+    if (updates.avatar_url !== undefined) profileUpdates.avatar_url = updates.avatar_url;
+
     const { error: profileError } = await supabase
       .from('profiles')
-      .update({
-        full_name: updates.full_name,
-        phone: updates.phone,
-        email: updates.email,
-        avatar_url: updates.avatar_url,
-        updated_at: new Date().toISOString(),
-      })
+      .update(profileUpdates)
       .eq('user_id', user.id);
     if (profileError) return { error: profileError.message };
 

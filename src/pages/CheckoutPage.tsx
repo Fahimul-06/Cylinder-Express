@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { API_BASE_URL, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { Address } from '../lib/types';
@@ -8,11 +8,11 @@ import { FLOORS, FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
 import { calculateCartDeliveryFee, getProductDeliveryFee } from '../lib/deliveryCharges';
 import {
   MapPin, ChevronRight, Check, ShoppingBag,
-  Truck, CreditCard, Building2, Info, Tag
+  Truck, CreditCard, Building2, Info, Tag, Phone, ShieldCheck
 } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { user } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const { items, totalPrice, clearCart, appliedOffer, promoCode, discountAmount, eligibleItemsForDiscount } = useCart();
   const navigate = useNavigate();
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -22,6 +22,13 @@ export default function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedFloor, setSelectedFloor] = useState(1);
+  const [phoneSavedForOrder, setPhoneSavedForOrder] = useState(false);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneSaving, setPhoneSaving] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
 
   const cylinderItems = useMemo(
     () => items.filter(i => i.product.type === 'new' || i.product.type === 'refill'),
@@ -59,6 +66,82 @@ export default function CheckoutPage() {
   }, [user]);
 
 
+  useEffect(() => {
+    if (profile?.phone && isRealCustomerPhone(profile.phone)) {
+      setPhoneInput(formatBangladeshPhone(profile.phone));
+      setPhoneSavedForOrder(true);
+    }
+  }, [profile?.phone]);
+
+  const customerHasPhone = phoneSavedForOrder || isRealCustomerPhone(profile?.phone);
+
+  const normalizeCustomerPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.startsWith('880') && digits.length === 13) return `0${digits.slice(3)}`;
+    if (digits.startsWith('0') && digits.length === 11) return digits;
+    return digits;
+  };
+
+  async function sendPhoneOtp() {
+    const cleaned = normalizeCustomerPhone(phoneInput);
+    if (!/^01[3-9]\d{8}$/.test(cleaned)) {
+      setPhoneError('Enter a valid Bangladesh phone number, for example 017XXXXXXXX.');
+      return;
+    }
+    setPhoneSaving(true);
+    setPhoneError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to send OTP.');
+      setPhoneInput(cleaned);
+      setPhoneOtpSent(true);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : 'Failed to send OTP. Please try again.');
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
+
+  async function verifyAndSavePhone() {
+    const cleaned = normalizeCustomerPhone(phoneInput);
+    if (!/^01[3-9]\d{8}$/.test(cleaned)) {
+      setPhoneError('Enter a valid Bangladesh phone number.');
+      return;
+    }
+    if (!/^\d{6}$/.test(phoneOtp.trim())) {
+      setPhoneError('Enter the 6-digit OTP sent to your phone.');
+      return;
+    }
+    setPhoneSaving(true);
+    setPhoneError('');
+    try {
+      const verifyRes = await fetch(`${API_BASE_URL}/functions/v1/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned, otp: phoneOtp.trim() }),
+      });
+      const verifyData = await verifyRes.json().catch(() => ({}));
+      if (!verifyRes.ok || verifyData.error) throw new Error(verifyData.error || 'Invalid OTP.');
+
+      const { error } = await updateProfile({ phone: cleaned });
+      if (error) throw new Error(error);
+
+      setPhoneSavedForOrder(true);
+      setPhoneModalOpen(false);
+      setPhoneOtp('');
+      setPhoneOtpSent(false);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : 'Could not save phone number.');
+    } finally {
+      setPhoneSaving(false);
+    }
+  }
+
   async function startInitialLocationShare(orderId: string) {
     if (!user || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -93,6 +176,11 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     if (!user || !selectedAddress || items.length === 0) return;
+    if (!customerHasPhone) {
+      setPhoneModalOpen(true);
+      setPhoneError('Please add and verify your phone number before placing an order.');
+      return;
+    }
     setPlacing(true);
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -111,6 +199,11 @@ export default function CheckoutPage() {
       .maybeSingle();
 
     if (orderError) {
+      const message = orderError.message || 'Could not place order.';
+      if (message.toLowerCase().includes('phone')) {
+        setPhoneModalOpen(true);
+        setPhoneError(message);
+      }
       setPlacing(false);
       return;
     }
@@ -170,6 +263,30 @@ export default function CheckoutPage() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
+
+            {!customerHasPhone && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <Phone className="w-5 h-5 text-amber-700" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-amber-900">Phone number required</h3>
+                      <p className="text-sm text-amber-700 mt-1">
+                        Your account was created with social login. Please add and verify your phone number before placing an order.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPhoneModalOpen(true)}
+                    className="px-4 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-semibold hover:bg-amber-700 whitespace-nowrap"
+                  >
+                    Add Phone
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Delivery Address */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -431,7 +548,7 @@ export default function CheckoutPage() {
                 className="w-full mt-5 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-5 h-5" />
-                {placing ? 'Placing Order...' : `Place Order - ৳${grandTotal.toLocaleString()}`}
+                {placing ? 'Placing Order...' : customerHasPhone ? `Place Order - ৳${grandTotal.toLocaleString()}` : 'Add Phone Number to Order'}
               </button>
 
               {!selectedAddress && (
@@ -441,8 +558,107 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {phoneModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Add phone number</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  We need a verified phone number so delivery staff and support can contact you about this order.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>
+                <input
+                  value={phoneInput}
+                  onChange={(e) => { setPhoneInput(e.target.value); setPhoneOtpSent(false); setPhoneOtp(''); setPhoneError(''); }}
+                  placeholder="017XXXXXXXX"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+              </div>
+
+              {phoneOtpSent && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">OTP Code</label>
+                  <input
+                    value={phoneOtp}
+                    onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter 6-digit OTP"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  />
+                </div>
+              )}
+
+              {phoneError && <p className="text-sm text-red-600">{phoneError}</p>}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setPhoneModalOpen(false); setPhoneError(''); }}
+                  className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                {!phoneOtpSent ? (
+                  <button
+                    type="button"
+                    onClick={sendPhoneOtp}
+                    disabled={phoneSaving}
+                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {phoneSaving ? 'Sending...' : 'Send OTP'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={verifyAndSavePhone}
+                    disabled={phoneSaving}
+                    className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {phoneSaving ? 'Saving...' : 'Verify & Continue'}
+                  </button>
+                )}
+              </div>
+
+              {phoneOtpSent && (
+                <button
+                  type="button"
+                  onClick={sendPhoneOtp}
+                  disabled={phoneSaving}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function isRealCustomerPhone(phone?: string | null): boolean {
+  if (!phone) return false;
+  const value = String(phone).trim();
+  if (!value || value.includes(':') || value.includes('@')) return false;
+  const digits = value.replace(/\D/g, '');
+  if (digits.startsWith('880')) return /^8801[3-9]\d{8}$/.test(digits);
+  return /^01[3-9]\d{8}$/.test(digits);
+}
+
+function formatBangladeshPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('880') && digits.length === 13) return `0${digits.slice(3)}`;
+  return digits;
 }
 
 function getOrdinal(n: number): string {

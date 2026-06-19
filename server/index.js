@@ -765,6 +765,11 @@ app.post('/api/tables/:table', async (req, res) => {
       if (req.params.table === 'orders') {
         for (const rawItem of payload) {
           const item = ensureUserOwnedPayload(req.params.table, rawItem, userId);
+          const customerId = item.user_id || userId;
+          const customerProfile = customerId ? await models.profiles.findOne({ user_id: customerId }) : null;
+          if (!customerProfile || !isRealCustomerPhone(customerProfile.phone)) {
+            return res.status(400).json({ data: null, error: 'Please add and verify your phone number before placing an order.' });
+          }
           if (item.promo_code) {
             const code = String(item.promo_code).trim().toUpperCase();
             const offer = await models.offers.findOne({ code, is_active: true });
@@ -775,7 +780,6 @@ app.post('/api/tables/:table', async (req, res) => {
               return res.status(400).json({ data: null, error: 'This promo code has expired.' });
             }
 
-            const customerId = item.user_id || userId;
             const maxUses = Math.max(1, Number(offer.max_uses_per_customer || 1));
             if (customerId) {
               const usedCount = await models.orders.countDocuments({
@@ -826,10 +830,24 @@ app.post('/api/tables/:table', async (req, res) => {
         if (body.status === 'delivered') updatePayload.delivered_at = new Date();
         if (body.status === 'cancelled') updatePayload.cancelled_at = new Date();
       }
+      if (req.params.table === 'profiles' && body?.phone !== undefined) {
+        const normalizedPhone = normalizeCustomerPhone(body.phone);
+        if (!isRealCustomerPhone(normalizedPhone)) {
+          return res.status(400).json({ data: null, error: 'Invalid Bangladesh phone number.' });
+        }
+        updatePayload.phone = normalizedPhone;
+      }
 
       await Model.updateMany(query, updatePayload);
       const updatedDocs = await Model.find(query);
       data = updatedDocs.map((d) => d.toJSON());
+
+      if (req.params.table === 'profiles' && body?.phone !== undefined) {
+        for (const profile of updatedDocs) {
+          await models.users.findByIdAndUpdate(profile.user_id, { phone: updatePayload.phone });
+        }
+        data = updatedDocs.map((d) => d.toJSON());
+      }
 
       if (req.params.table === 'orders') {
         const previousById = new Map(previousDocs.map((doc) => [doc.id, doc]));
@@ -847,26 +865,15 @@ app.post('/api/tables/:table', async (req, res) => {
       if (req.params.table === 'orders' && ['delivered', 'cancelled'].includes(String(body?.status || ''))) {
         const orderIds = updatedDocs.map((doc) => doc.id);
         const userIds = updatedDocs.map((doc) => doc.user_id).filter(Boolean);
-        const deliveryManIds = [...new Set(updatedDocs.map((doc) => doc.delivery_man_id).filter(Boolean))];
-
         await models.customer_locations.updateMany(
           { $or: [{ active_order_id: { $in: orderIds } }, { user_id: { $in: userIds } }] },
           { $set: { active_order_id: null, is_sharing: false, updated_at: new Date() } }
         );
 
-        for (const deliveryManId of deliveryManIds) {
-          const remainingActiveOrders = await models.orders.countDocuments({
-            delivery_man_id: deliveryManId,
-            status: { $in: ['pending', 'confirmed', 'processing'] },
-          });
-
-          if (remainingActiveOrders === 0) {
-            await models.delivery_locations.updateOne(
-              { user_id: deliveryManId },
-              { $set: { is_sharing: false, updated_at: new Date(), last_seen: new Date() } }
-            );
-          }
-        }
+        // Delivery man's device location sharing stays ON after completing an order.
+        // Customer visibility is controlled by order status on the customer app, so delivered/cancelled
+        // orders no longer display the delivery man's live location while the driver can continue
+        // sharing for the next assigned delivery without turning location on again.
       }
     }
 
@@ -897,6 +904,20 @@ function phoneLookupValues(phone) {
   const normalized = normalizePhoneForSms(raw);
   const local = normalized.startsWith('880') ? `0${normalized.slice(3)}` : digits;
   return Array.from(new Set([raw, digits, normalized, local].filter(Boolean)));
+}
+
+function isRealCustomerPhone(phone) {
+  if (!phone) return false;
+  const value = String(phone).trim();
+  if (!value || value.includes(':') || value.includes('@')) return false;
+  const digits = value.replace(/\D/g, '');
+  return /^01[3-9]\d{8}$/.test(digits) || /^8801[3-9]\d{8}$/.test(digits);
+}
+
+function normalizeCustomerPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (/^8801[3-9]\d{8}$/.test(digits)) return `0${digits.slice(3)}`;
+  return digits;
 }
 
 async function sendBulkSmsBdOtp(phone, otp) {
