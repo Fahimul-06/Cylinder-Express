@@ -19,6 +19,50 @@ const emptyForm: HeroForm = {
   is_active: true,
 };
 
+async function resizeHeroImageToFitBox(file: File): Promise<File> {
+  if (file.type === 'image/gif') return file;
+
+  const targetWidth = 1600;
+  const targetHeight = 700;
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = imageUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+    const scale = Math.min(targetWidth / image.width, targetHeight / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const drawX = (targetWidth - drawWidth) / 2;
+    const drawY = (targetHeight - drawHeight) / 2;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.92));
+    if (!blob) return file;
+
+    const originalName = file.name.replace(/\.[^.]+$/, '');
+    return new File([blob], `${originalName}-hero-fit.webp`, { type: 'image/webp' });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 export default function AdminHeroImages() {
   const [slides, setSlides] = useState<HeroSlide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,17 +115,22 @@ export default function AdminHeroImages() {
       return;
     }
     setUploadingImage(true);
-    const ext = file.name.split('.').pop();
-    const fileName = `hero/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { data, error } = await supabase.storage.from('product-images').upload(fileName, file, { upsert: false });
-    if (error) {
-      alert('Hero image upload failed: ' + error.message);
+    try {
+      const fittedFile = await resizeHeroImageToFitBox(file);
+      const ext = fittedFile.name.split('.').pop() || 'webp';
+      const fileName = `hero/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage.from('product-images').upload(fileName, fittedFile, { upsert: false });
+      if (error) {
+        alert('Hero image upload failed: ' + error.message);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(data.path);
+      setForm(f => ({ ...f, image_url: urlData.publicUrl }));
+    } catch (error) {
+      alert('Hero image resize/upload failed. Please try another image.');
+    } finally {
       setUploadingImage(false);
-      return;
     }
-    const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(data.path);
-    setForm(f => ({ ...f, image_url: urlData.publicUrl }));
-    setUploadingImage(false);
   }
 
   const handleFileDrop = useCallback((e: React.DragEvent) => {
@@ -168,7 +217,7 @@ export default function AdminHeroImages() {
         {slides.map((slide, index) => (
           <div key={slide.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="aspect-[16/7] bg-gray-100 overflow-hidden">
-              <img src={slide.image_url} alt={slide.title || `Hero ${index + 1}`} className="w-full h-full object-cover" />
+              <img src={slide.image_url} alt={slide.title || `Hero ${index + 1}`} className="w-full h-full object-contain" />
             </div>
             <div className="p-4 flex items-center gap-3">
               <div className="flex-1 min-w-0">
@@ -218,7 +267,7 @@ export default function AdminHeroImages() {
                   {form.image_url ? (
                     <div className="p-3">
                       <div className="aspect-[16/7] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
-                        <img src={form.image_url} alt="Hero preview" className="w-full h-full object-cover" />
+                        <img src={form.image_url} alt="Hero preview" className="w-full h-full object-contain" />
                       </div>
                       <div className="mt-3 flex items-center justify-between gap-3">
                         <div>
@@ -230,7 +279,7 @@ export default function AdminHeroImages() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-                      {uploadingImage ? <><Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" /><p className="text-sm text-blue-600 font-medium">Uploading photo...</p></> : <><div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3"><Upload className="w-6 h-6 text-blue-500" /></div><p className="text-sm font-medium text-gray-700">Click to choose hero photo</p><p className="text-xs text-gray-400 mt-1">or drag & drop here</p><p className="text-xs text-gray-300 mt-1">Best ratio: 16:7 or 16:8 · Max 8MB</p></>}
+                      {uploadingImage ? <><Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" /><p className="text-sm text-blue-600 font-medium">Uploading photo...</p></> : <><div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3"><Upload className="w-6 h-6 text-blue-500" /></div><p className="text-sm font-medium text-gray-700">Click to choose hero photo</p><p className="text-xs text-gray-400 mt-1">or drag & drop here</p><p className="text-xs text-gray-300 mt-1">Any ratio accepted · Auto-fitted to hero box · Max 8MB</p></>}
                     </div>
                   )}
                 </div>

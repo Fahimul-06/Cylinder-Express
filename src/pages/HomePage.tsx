@@ -79,7 +79,7 @@ export default function HomePage() {
                   key={image}
                   src={image}
                   alt={`Cylinder Express hero ${index + 1}`}
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${heroIndex === index ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 h-full w-full object-contain transition-opacity duration-700 ${heroIndex === index ? 'opacity-100' : 'opacity-0'}`}
                 />
               ))}
             </div>
