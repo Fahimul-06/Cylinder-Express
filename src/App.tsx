@@ -19,6 +19,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOffers from './pages/admin/AdminOffers';
+import AdminHeroImages from './pages/admin/AdminHeroImages';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
@@ -131,6 +132,7 @@ function AppRoutes() {
           <Route path="orders" element={<AdminRoute permission="orders"><AdminOrders /></AdminRoute>} />
           <Route path="products" element={<AdminRoute permission="products"><AdminProducts /></AdminRoute>} />
           <Route path="offers" element={<AdminRoute permission="offers"><AdminOffers /></AdminRoute>} />
+          <Route path="hero" element={<AdminRoute permission="offers"><AdminHeroImages /></AdminRoute>} />
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
         </Route>

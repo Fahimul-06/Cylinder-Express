@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Product, Category } from '../lib/types';
+import { Product, Category, HeroSlide } from '../lib/types';
 import { useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
@@ -25,7 +25,9 @@ export default function HomePage() {
   const [services, setServices] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
-  const heroImages = ['/home-hero-1.png', '/home-hero-2.png'];
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
+  const fallbackHeroImages = ['/home-hero-1.png', '/home-hero-2.png'];
+  const heroImages = heroSlides.length > 0 ? heroSlides.map(slide => slide.image_url) : fallbackHeroImages;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -36,16 +38,18 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchData() {
-      const [catRes, bestRes, cylRes, svcRes] = await Promise.all([
+      const [catRes, bestRes, cylRes, svcRes, heroRes] = await Promise.all([
         supabase.from('categories').select('*').order('sort_order'),
         supabase.from('products').select('*, category:categories(*)').eq('is_bestseller', true).eq('is_available', true).order('sort_order'),
         supabase.from('products').select('*, category:categories(*)').eq('is_available', true).in('type', ['new', 'refill']).order('sort_order').limit(6),
         supabase.from('products').select('*, category:categories(*)').eq('type', 'service').eq('is_available', true).order('sort_order'),
+        supabase.from('hero_slides').select('*').eq('is_active', true).order('sort_order'),
       ]);
       setCategories(catRes.data || []);
       setBestsellers(bestRes.data || []);
       setCylinders(cylRes.data || []);
       setServices(svcRes.data || []);
+      setHeroSlides(heroRes.data || []);
       setLoading(false);
     }
     fetchData();

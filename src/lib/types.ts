@@ -16,6 +16,18 @@ export interface Profile {
   updated_at: string;
 }
 
+
+export interface HeroSlide {
+  id: string;
+  title?: string | null;
+  subtitle?: string | null;
+  image_url: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Category {
   id: string;
   name: string;

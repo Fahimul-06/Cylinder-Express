@@ -1,7 +1,7 @@
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutDashboard, ShoppingBag, Package, Tag, ArrowLeft,
+  LayoutDashboard, ShoppingBag, Package, Tag, Image as ImageIcon, ArrowLeft,
   ChevronRight, MapPin, Users
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -20,6 +20,7 @@ export default function AdminLayout() {
     { path: '/admin/orders', label: t('admin.orders'), icon: ShoppingBag, permission: 'orders' as AdminPermissionKey },
     { path: '/admin/products', label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
     { path: '/admin/offers', label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
+    { path: '/admin/hero', label: 'Hero Photos', icon: ImageIcon, permission: 'offers' as AdminPermissionKey },
     { path: '/admin/locations', label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
     { path: '/admin/users', label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
