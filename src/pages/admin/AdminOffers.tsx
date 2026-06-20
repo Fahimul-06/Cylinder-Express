@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Offer } from '../../lib/types';
 import {
   Plus, Pencil, Trash2, X, Check, Search,
-  ToggleLeft, ToggleRight, Clock, Percent, BadgeDollarSign
+  ToggleLeft, ToggleRight, Clock, Percent, BadgeDollarSign, Upload, Image, Loader2
 } from 'lucide-react';
 
 type OfferForm = Partial<Pick<Offer,
   'title' | 'description' | 'badge_text' | 'discount_type' | 'discount_value' |
-  'code' | 'category_slug' | 'max_uses_per_customer' | 'bg_from' | 'bg_to' | 'valid_until' | 'is_active' | 'sort_order'
+  'code' | 'category_slug' | 'max_uses_per_customer' | 'bg_from' | 'bg_to' | 'image_url' | 'valid_until' | 'is_active' | 'sort_order'
 >>;
 
 const emptyForm: OfferForm = {
   title: '', description: '', badge_text: 'OFFER',
   discount_type: 'percentage', discount_value: 0,
-  code: '', category_slug: '', max_uses_per_customer: 1, bg_from: 'from-blue-500', bg_to: 'to-blue-700',
+  code: '', category_slug: '', max_uses_per_customer: 1, bg_from: 'from-blue-500', bg_to: 'to-blue-700', image_url: '',
   valid_until: '', is_active: true, sort_order: 0,
 };
 
@@ -45,6 +45,9 @@ export default function AdminOffers() {
   const [form, setForm] = useState<OfferForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchOffers();
@@ -69,12 +72,53 @@ export default function AdminOffers() {
       discount_type: o.discount_type, discount_value: o.discount_value,
       code: o.code || '', category_slug: o.category_slug || '',
       max_uses_per_customer: o.max_uses_per_customer || 1,
-      bg_from: o.bg_from, bg_to: o.bg_to,
+      bg_from: o.bg_from, bg_to: o.bg_to, image_url: o.image_url || '',
       valid_until: o.valid_until ? o.valid_until.slice(0, 16) : '',
       is_active: o.is_active, sort_order: o.sort_order,
     });
     setShowModal(true);
   }
+
+
+  async function uploadImage(file: File) {
+    if (!file) return;
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only JPEG, PNG, WebP, or GIF images are allowed.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB.');
+      return;
+    }
+    setUploadingImage(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `offers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { data, error } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, file, { upsert: false });
+    if (error) {
+      alert('Offer image upload failed: ' + error.message);
+      setUploadingImage(false);
+      return;
+    }
+    const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(data.path);
+    setForm(f => ({ ...f, image_url: urlData.publicUrl }));
+    setUploadingImage(false);
+  }
+
+  const handleFileDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadImage(file);
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadImage(file);
+    e.target.value = '';
+  };
 
   async function handleSave() {
     if (!form.title || !form.discount_value) return;
@@ -86,6 +130,7 @@ export default function AdminOffers() {
       code: form.code ? form.code.trim().toUpperCase() : null, category_slug: form.category_slug || null,
       max_uses_per_customer: Math.max(1, Number(form.max_uses_per_customer || 1)),
       bg_from: form.bg_from || 'from-blue-500', bg_to: form.bg_to || 'to-blue-700',
+      image_url: form.image_url || null,
       valid_until: form.valid_until ? new Date(form.valid_until).toISOString() : null,
       is_active: form.is_active ?? true, sort_order: form.sort_order || 0,
     };
@@ -160,6 +205,11 @@ export default function AdminOffers() {
               <div className="flex items-stretch">
                 {/* Color preview */}
                 <div className={`w-3 bg-gradient-to-b ${o.bg_from} ${o.bg_to} flex-shrink-0`} />
+                {o.image_url && (
+                  <div className="hidden sm:block w-24 h-20 m-3 rounded-xl overflow-hidden border border-gray-100 bg-gray-50 flex-shrink-0">
+                    <img src={o.image_url} alt={o.title} className="w-full h-full object-cover" />
+                  </div>
+                )}
                 <div className="flex-1 p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
@@ -231,6 +281,54 @@ export default function AdminOffers() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea value={form.description || ''} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none" />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Offer Picture</label>
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleFileDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-xl transition-all cursor-pointer ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'}`}
+                >
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif" onChange={handleFileChange} className="hidden" />
+                  {form.image_url ? (
+                    <div className="flex items-center gap-4 p-4">
+                      <div className="w-24 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                        <img src={form.image_url} alt="Offer preview" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate">Offer picture added</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Click or drag to replace</p>
+                        {uploadingImage && <div className="flex items-center gap-1 text-blue-600 text-xs mt-1"><Loader2 className="w-3 h-3 animate-spin" /> Uploading...</div>}
+                      </div>
+                      <button type="button" onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, image_url: '' })); }} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-7 px-4 text-center">
+                      {uploadingImage ? (
+                        <>
+                          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+                          <p className="text-sm text-blue-600 font-medium">Uploading picture...</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3"><Upload className="w-6 h-6 text-blue-500" /></div>
+                          <p className="text-sm font-medium text-gray-700">Click to choose offer picture</p>
+                          <p className="text-xs text-gray-400 mt-1">or drag & drop here</p>
+                          <p className="text-xs text-gray-300 mt-1">JPEG, PNG, WebP, GIF · Max 5MB</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 mb-1.5"><Image className="w-3.5 h-3.5 text-gray-400" /><span className="text-xs text-gray-400">Or paste image URL</span></div>
+                  <input value={form.image_url || ''} onChange={e => setForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://..." className="w-full px-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Badge Text</label>

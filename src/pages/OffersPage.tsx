@@ -107,6 +107,12 @@ export default function OffersPage() {
                   key={offer.id}
                   className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group"
                 >
+                  {offer.image_url && (
+                    <div className="h-44 sm:h-52 overflow-hidden bg-gray-100">
+                      <img src={offer.image_url} alt={offer.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+                  )}
+
                   {/* Gradient band */}
                   <div className={`bg-gradient-to-r ${offer.bg_from} ${offer.bg_to} p-5 relative overflow-hidden`}>
                     <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full" />

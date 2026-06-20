@@ -60,6 +60,12 @@ export default function OffersCarousel() {
         className={`bg-gradient-to-r ${offer.bg_from} ${offer.bg_to} rounded-2xl overflow-hidden cursor-pointer`}
         onClick={() => navigate(offer.category_slug ? `/products?category=${offer.category_slug}` : '/offers')}
       >
+        {offer.image_url && (
+          <div className="relative h-36 sm:h-44 overflow-hidden bg-black/10">
+            <img src={offer.image_url} alt={offer.title} className="h-full w-full object-cover opacity-95" />
+            <div className={`absolute inset-0 bg-gradient-to-r ${offer.bg_from} ${offer.bg_to} opacity-45`} />
+          </div>
+        )}
         <div className="relative p-5 sm:p-6">
           {/* decorative circles */}
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full pointer-events-none" />
