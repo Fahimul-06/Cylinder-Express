@@ -1,6 +1,6 @@
 import { CartItem, Product } from './types';
 
-export const OTHER_PRODUCT_DELIVERY_FEE = 70;
+export const OTHER_PRODUCT_DELIVERY_FEE = 0;
 
 export function parseKgSize(size?: string | null): number | null {
   if (!size) return null;
@@ -26,17 +26,22 @@ export function getCylinderDeliveryFeeBySize(size?: string | null): number {
 }
 
 export function getProductDeliveryFee(product: Product): number {
+  // Delivery charge applies only to LPG cylinders.
+  // Services, accessories, stoves, regulators, pipes, and all other non-cylinder products have no extra delivery charge.
   if (isLpgCylinder(product)) return getCylinderDeliveryFeeBySize(product.size);
-  return OTHER_PRODUCT_DELIVERY_FEE;
+  return 0;
 }
 
 export function calculateCartDeliveryFee(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + getProductDeliveryFee(item.product) * item.quantity, 0);
+  return items.reduce((sum, item) => {
+    if (!isLpgCylinder(item.product)) return sum;
+    return sum + getCylinderDeliveryFeeBySize(item.product.size) * item.quantity;
+  }, 0);
 }
 
 export function getDeliveryFeeLabel(product: Product): string {
   if (isLpgCylinder(product)) {
     return `Delivery ৳${getCylinderDeliveryFeeBySize(product.size)}`;
   }
-  return `Delivery ৳${OTHER_PRODUCT_DELIVERY_FEE}`;
+  return 'No delivery charge';
 }

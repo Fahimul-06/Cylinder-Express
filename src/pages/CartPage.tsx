@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
-import { calculateCartDeliveryFee, getDeliveryFeeLabel, getProductDeliveryFee } from '../lib/deliveryCharges';
+import { calculateCartDeliveryFee, getDeliveryFeeLabel, getProductDeliveryFee, isLpgCylinder } from '../lib/deliveryCharges';
 import {
   ShoppingCart, Trash2, Plus, Minus,
   MapPin, ArrowRight, Tag, X, Check, Building2
@@ -17,7 +17,7 @@ export default function CartPage() {
   const [promoInput, setPromoInput] = useState('');
 
   // Floor preview (default ground floor; user picks exact floor at checkout)
-  const cylinderItems = items.filter(i => i.product.type === 'new' || i.product.type === 'refill');
+  const cylinderItems = items.filter(i => isLpgCylinder(i.product));
   const totalCylinderQty = cylinderItems.reduce((s, i) => s + i.quantity, 0);
   const hasCylinders = totalCylinderQty > 0;
 
@@ -189,7 +189,7 @@ export default function CartPage() {
                         <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">{getDeliveryFeeLabel(product)} x{quantity}</span>
+                        <span className="text-gray-400">{getDeliveryFeeLabel(product)}{getProductDeliveryFee(product) > 0 ? ` x${quantity}` : ''}</span>
                         <span className="text-gray-500">৳{(getProductDeliveryFee(product) * quantity).toLocaleString()}</span>
                       </div>
                     </div>

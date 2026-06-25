@@ -85,9 +85,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
             <p className="text-blue-600 font-bold text-sm">৳{salePrice.toLocaleString()}</p>
             {hasSale && <p className="text-[11px] text-gray-400 line-through">৳{product.price.toLocaleString()}</p>}
           </div>
-          {product.type !== 'service' && (
-            <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500"><Truck className="w-3 h-3" /> {getDeliveryFeeLabel(product)}</p>
-          )}
+          <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500"><Truck className="w-3 h-3" /> {getDeliveryFeeLabel(product)}</p>
         </div>
       </div>
     );

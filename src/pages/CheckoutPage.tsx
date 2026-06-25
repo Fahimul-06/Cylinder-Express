@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { Address } from '../lib/types';
 import { FLOORS, FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
-import { calculateCartDeliveryFee, getProductDeliveryFee } from '../lib/deliveryCharges';
+import { calculateCartDeliveryFee, getDeliveryFeeLabel, getProductDeliveryFee, isLpgCylinder } from '../lib/deliveryCharges';
 import {
   MapPin, ChevronRight, Check, ShoppingBag,
   Truck, CreditCard, Building2, Info, Tag, Phone, ShieldCheck
@@ -31,7 +31,7 @@ export default function CheckoutPage() {
   const [phoneError, setPhoneError] = useState('');
 
   const cylinderItems = useMemo(
-    () => items.filter(i => i.product.type === 'new' || i.product.type === 'refill'),
+    () => items.filter(i => isLpgCylinder(i.product)),
     [items]
   );
   const totalCylinderQty = cylinderItems.reduce((s, i) => s + i.quantity, 0);
@@ -491,7 +491,7 @@ export default function CheckoutPage() {
                         <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">Delivery &times;{quantity}</span>
+                        <span className="text-gray-400">{getDeliveryFeeLabel(product)}{getProductDeliveryFee(product) > 0 ? ` ×${quantity}` : ''}</span>
                         <span className="text-gray-500">৳{(getProductDeliveryFee(product) * quantity).toLocaleString()}</span>
                       </div>
                     </div>
