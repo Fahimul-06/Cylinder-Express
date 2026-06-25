@@ -25,6 +25,7 @@ export default function CartPage() {
   const discount = discountAmount;
   const afterDiscount = subtotal - discount;
   const deliveryFee = calculateCartDeliveryFee(items);
+  const firstNonCylinderCartKey = items.find((item) => !isLpgCylinder(item.product))?.cart_key;
   const estimatedTotal = afterDiscount + deliveryFee;
 
   if (items.length === 0) {
@@ -182,18 +183,25 @@ export default function CartPage() {
               <div className="space-y-3 text-sm">
                 {/* Itemized product prices */}
                 <div className="space-y-1.5">
-                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
-                    <div key={cart_key} className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 truncate mr-2">{product.name}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} x{quantity}</span>
-                        <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => {
+                    const isCylinder = isLpgCylinder(product);
+                    const showDeliveryLine = isCylinder || (!hasCylinders && cart_key === firstNonCylinderCartKey);
+                    const lineDeliveryFee = isCylinder ? getProductDeliveryFee(product) * quantity : deliveryFee;
+                    return (
+                      <div key={cart_key} className="space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 truncate mr-2">{product.name}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} x{quantity}</span>
+                          <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
+                        </div>
+                        {showDeliveryLine && (
+                          <div className="flex justify-between text-xs">
+                            <span className="text-gray-400">{isCylinder ? `${getDeliveryFeeLabel(product)} x${quantity}` : 'Regular delivery charge'}</span>
+                            <span className="text-gray-500">৳{lineDeliveryFee.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-400">{getDeliveryFeeLabel(product)}{getProductDeliveryFee(product) > 0 ? ` x${quantity}` : ''}</span>
-                        <span className="text-gray-500">৳{(getProductDeliveryFee(product) * quantity).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="border-t border-gray-100 pt-3 flex justify-between">
