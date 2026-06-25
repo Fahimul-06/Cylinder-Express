@@ -180,7 +180,9 @@ export default function OffersPage() {
                     {/* CTA */}
                     <button
                       onClick={() => {
-                        if (offer.category_slug) {
+                        if (offer.product_id) {
+                          navigate(`/product/${offer.product_id}`);
+                        } else if (offer.category_slug) {
                           navigate(`/products?category=${offer.category_slug}`);
                         } else {
                           navigate('/products');

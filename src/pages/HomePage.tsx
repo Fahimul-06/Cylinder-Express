@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Product, Category, HeroSlide } from '../lib/types';
+import { Product, Category, HeroSlide, Offer } from '../lib/types';
 import { useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
   Flame, Package, Wrench, Shield, Truck, ChevronRight,
-  Star, MapPin, Sparkles
+  Star, MapPin, Sparkles, Tag
 } from 'lucide-react';
 import OffersCarousel from '../components/OffersCarousel';
 
@@ -23,6 +23,7 @@ export default function HomePage() {
   const [bestsellers, setBestsellers] = useState<Product[]>([]);
   const [cylinders, setCylinders] = useState<Product[]>([]);
   const [services, setServices] = useState<Product[]>([]);
+  const [saleProducts, setSaleProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroSlides, setHeroSlides] = useState<HeroSlide[]>([]);
@@ -38,17 +39,42 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchData() {
-      const [catRes, bestRes, cylRes, svcRes, heroRes] = await Promise.all([
+      const [catRes, bestRes, cylRes, svcRes, heroRes, offerRes] = await Promise.all([
         supabase.from('categories').select('*').order('sort_order'),
         supabase.from('products').select('*, category:categories(*)').eq('is_bestseller', true).eq('is_available', true).order('sort_order'),
         supabase.from('products').select('*, category:categories(*)').eq('is_available', true).in('type', ['new', 'refill']).order('sort_order').limit(6),
         supabase.from('products').select('*, category:categories(*)').eq('type', 'service').eq('is_available', true).order('sort_order'),
         supabase.from('hero_slides').select('*').eq('is_active', true).order('sort_order'),
+        supabase.from('offers').select('*').eq('is_active', true).order('sort_order'),
       ]);
+
+      const activeProductOffers = ((offerRes.data || []) as Offer[])
+        .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
+      const saleIds = [...new Set(activeProductOffers.map(offer => offer.product_id!).filter(Boolean))];
+      let saleItems: Product[] = [];
+      if (saleIds.length > 0) {
+        const saleRes = await supabase
+          .from('products')
+          .select('*, category:categories(*)')
+          .eq('is_available', true)
+          .in('id', saleIds)
+          .order('sort_order');
+        saleItems = (saleRes.data || []).map((product: Product) => ({
+          ...product,
+          active_offer: activeProductOffers.find(offer => offer.product_id === product.id) || null,
+        }));
+      }
+
+      const attachOffers = (items: Product[]) => items.map(item => ({
+        ...item,
+        active_offer: activeProductOffers.find(offer => offer.product_id === item.id) || null,
+      }));
+
       setCategories(catRes.data || []);
-      setBestsellers(bestRes.data || []);
-      setCylinders(cylRes.data || []);
-      setServices(svcRes.data || []);
+      setBestsellers(attachOffers(bestRes.data || []));
+      setCylinders(attachOffers(cylRes.data || []));
+      setServices(attachOffers(svcRes.data || []));
+      setSaleProducts(saleItems.slice(0, 8));
       setHeroSlides(heroRes.data || []);
       setLoading(false);
     }
@@ -115,6 +141,28 @@ export default function HomePage() {
           </div>
           <OffersCarousel />
         </section>
+
+        {saleProducts.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Tag className="w-5 h-5 text-red-600" />
+                <h2 className="text-lg font-bold text-gray-900">Sale Products</h2>
+              </div>
+              <button
+                onClick={() => navigate('/offers')}
+                className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700"
+              >
+                View Offers <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {saleProducts.slice(0, 4).map(product => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Categories */}
         <section>

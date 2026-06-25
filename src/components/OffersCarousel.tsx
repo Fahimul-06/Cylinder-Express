@@ -58,7 +58,7 @@ export default function OffersCarousel() {
       {/* Card */}
       <div
         className={`bg-gradient-to-r ${offer.bg_from} ${offer.bg_to} rounded-2xl overflow-hidden cursor-pointer`}
-        onClick={() => navigate(offer.category_slug ? `/products?category=${offer.category_slug}` : '/offers')}
+        onClick={() => navigate(offer.product_id ? `/product/${offer.product_id}` : offer.category_slug ? `/products?category=${offer.category_slug}` : '/offers')}
       >
         {offer.image_url && (
           <div className="relative h-36 sm:h-44 overflow-hidden bg-black/10">

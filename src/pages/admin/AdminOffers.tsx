@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Offer } from '../../lib/types';
+import { Offer, Product } from '../../lib/types';
 import {
   Plus, Pencil, Trash2, X, Check, Search,
   ToggleLeft, ToggleRight, Clock, Percent, BadgeDollarSign, Upload, Image, Loader2
@@ -8,13 +8,13 @@ import {
 
 type OfferForm = Partial<Pick<Offer,
   'title' | 'description' | 'badge_text' | 'discount_type' | 'discount_value' |
-  'code' | 'category_slug' | 'max_uses_per_customer' | 'bg_from' | 'bg_to' | 'image_url' | 'valid_until' | 'is_active' | 'sort_order'
+  'code' | 'product_id' | 'category_slug' | 'max_uses_per_customer' | 'bg_from' | 'bg_to' | 'image_url' | 'valid_until' | 'is_active' | 'sort_order'
 >>;
 
 const emptyForm: OfferForm = {
   title: '', description: '', badge_text: 'OFFER',
   discount_type: 'percentage', discount_value: 0,
-  code: '', category_slug: '', max_uses_per_customer: 1, bg_from: 'from-blue-500', bg_to: 'to-blue-700', image_url: '',
+  code: '', product_id: '', category_slug: '', max_uses_per_customer: 1, bg_from: 'from-blue-500', bg_to: 'to-blue-700', image_url: '',
   valid_until: '', is_active: true, sort_order: 0,
 };
 
@@ -38,6 +38,7 @@ const categoryOptions = [
 
 export default function AdminOffers() {
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -51,12 +52,22 @@ export default function AdminOffers() {
 
   useEffect(() => {
     fetchOffers();
+    fetchProducts();
   }, []);
 
   async function fetchOffers() {
     const { data } = await supabase.from('offers').select('*').order('sort_order');
     setOffers(data || []);
     setLoading(false);
+  }
+
+  async function fetchProducts() {
+    const { data } = await supabase
+      .from('products')
+      .select('*, category:categories(*)')
+      .eq('is_available', true)
+      .order('sort_order');
+    setProducts(data || []);
   }
 
   function openCreate() {
@@ -70,7 +81,7 @@ export default function AdminOffers() {
     setForm({
       title: o.title, description: o.description || '', badge_text: o.badge_text,
       discount_type: o.discount_type, discount_value: o.discount_value,
-      code: o.code || '', category_slug: o.category_slug || '',
+      code: o.code || '', product_id: o.product_id || '', category_slug: o.category_slug || '',
       max_uses_per_customer: o.max_uses_per_customer || 1,
       bg_from: o.bg_from, bg_to: o.bg_to, image_url: o.image_url || '',
       valid_until: o.valid_until ? o.valid_until.slice(0, 16) : '',
@@ -127,7 +138,9 @@ export default function AdminOffers() {
       title: form.title, description: form.description || null,
       badge_text: form.badge_text || 'OFFER',
       discount_type: form.discount_type, discount_value: form.discount_value,
-      code: form.code ? form.code.trim().toUpperCase() : null, category_slug: form.category_slug || null,
+      code: form.code ? form.code.trim().toUpperCase() : null,
+      product_id: form.product_id || null,
+      category_slug: form.category_slug || null,
       max_uses_per_customer: Math.max(1, Number(form.max_uses_per_customer || 1)),
       bg_from: form.bg_from || 'from-blue-500', bg_to: form.bg_to || 'to-blue-700',
       image_url: form.image_url || null,
@@ -157,6 +170,8 @@ export default function AdminOffers() {
     await supabase.from('offers').update({ is_active: newVal }).eq('id', o.id);
     setOffers(prev => prev.map(of => of.id === o.id ? { ...of, is_active: newVal } : of));
   }
+
+  const productNameById = (productId?: string | null) => products.find(p => p.id === productId)?.name || '';
 
   const filtered = offers.filter(o =>
     !search || o.title.toLowerCase().includes(search.toLowerCase()) || (o.code || '').toLowerCase().includes(search.toLowerCase())
@@ -228,6 +243,9 @@ export default function AdminOffers() {
                       </span>
                       {o.code && (
                         <span className="font-mono font-bold tracking-wider text-gray-600">{o.code}</span>
+                      )}
+                      {o.product_id && (
+                        <span className="text-blue-600 font-medium">Product: {productNameById(o.product_id) || 'Selected product'}</span>
                       )}
                       {o.max_uses_per_customer && (
                         <span>Limit/customer: {o.max_uses_per_customer}</span>
@@ -359,6 +377,23 @@ export default function AdminOffers() {
                   </select>
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specific Product Offer</label>
+                <select
+                  value={form.product_id || ''}
+                  onChange={e => setForm(f => ({ ...f, product_id: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                >
+                  <option value="">No specific product - category/general offer</option>
+                  {products.map(product => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} · ৳{product.price.toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Select a product here to show this offer directly on that product card and in the home sale products box.</p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Usage limit per customer</label>
                 <input

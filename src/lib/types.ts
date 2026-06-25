@@ -57,7 +57,9 @@ export interface Product {
   created_at: string;
   updated_at: string;
   category?: Category;
+  active_offer?: Offer | null;
 }
+
 
 export interface Address {
   id: string;

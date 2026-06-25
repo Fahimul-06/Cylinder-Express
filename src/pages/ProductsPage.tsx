@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Product, Category, SortOption, TypeFilter } from '../lib/types';
+import { Product, Category, SortOption, TypeFilter, Offer } from '../lib/types';
 import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
@@ -22,11 +22,17 @@ export default function ProductsPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const [prodRes, catRes] = await Promise.all([
+      const [prodRes, catRes, offerRes] = await Promise.all([
         supabase.from('products').select('*, category:categories(*)').eq('is_available', true).order('sort_order'),
         supabase.from('categories').select('*').order('sort_order'),
+        supabase.from('offers').select('*').eq('is_active', true).order('sort_order'),
       ]);
-      setProducts(prodRes.data || []);
+      const activeProductOffers = ((offerRes.data || []) as Offer[])
+        .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
+      setProducts((prodRes.data || []).map((product: Product) => ({
+        ...product,
+        active_offer: activeProductOffers.find(offer => offer.product_id === product.id) || null,
+      })));
       setCategories(catRes.data || []);
       setLoading(false);
     }

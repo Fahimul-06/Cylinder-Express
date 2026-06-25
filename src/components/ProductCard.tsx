@@ -1,7 +1,7 @@
-import { Product } from '../lib/types';
+import { Product, Offer } from '../lib/types';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Star, Flame, RotateCcw, Wrench, Truck } from 'lucide-react';
+import { ShoppingCart, Star, Flame, RotateCcw, Wrench, Truck, Tag } from 'lucide-react';
 import { getDeliveryFeeLabel, isLpgCylinder } from '../lib/deliveryCharges';
 
 const typeIcons = {
@@ -22,6 +22,27 @@ const typeLabels = {
   service: 'Service',
 };
 
+function isActiveOffer(offer?: Offer | null) {
+  if (!offer || !offer.is_active) return false;
+  if (offer.valid_until && new Date(offer.valid_until) < new Date()) return false;
+  return true;
+}
+
+function getDiscountedPrice(price: number, offer?: Offer | null) {
+  if (!isActiveOffer(offer)) return price;
+  if (offer!.discount_type === 'percentage') {
+    return Math.max(0, Math.round(price - (price * offer!.discount_value) / 100));
+  }
+  return Math.max(0, Math.round(price - offer!.discount_value));
+}
+
+function getOfferLabel(offer?: Offer | null) {
+  if (!isActiveOffer(offer)) return null;
+  return offer!.discount_type === 'percentage'
+    ? `${offer!.discount_value}% OFF`
+    : `৳${offer!.discount_value.toLocaleString()} OFF`;
+}
+
 export default function ProductCard({ product, compact = false }: { product: Product; compact?: boolean }) {
   const { addItem, getItemQuantity, updateQuantity } = useCart();
   const navigate = useNavigate();
@@ -29,6 +50,10 @@ export default function ProductCard({ product, compact = false }: { product: Pro
   const qty = isCylinder ? 0 : getItemQuantity(product.id);
   const TypeIcon = typeIcons[product.type];
   const details = [product.company_name, product.size, product.valve_size, product.valve_connection].filter(Boolean).join(' · ');
+  const activeOffer = isActiveOffer(product.active_offer) ? product.active_offer : null;
+  const offerLabel = getOfferLabel(activeOffer);
+  const salePrice = getDiscountedPrice(product.price, activeOffer);
+  const hasSale = Boolean(activeOffer && salePrice < product.price);
 
   if (compact) {
     return (
@@ -42,6 +67,11 @@ export default function ProductCard({ product, compact = false }: { product: Pro
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
+          {offerLabel && (
+            <span className="absolute top-2 right-2 flex items-center gap-1 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+              <Tag className="w-3 h-3" /> {offerLabel}
+            </span>
+          )}
           {product.is_bestseller && (
             <span className="absolute top-2 left-2 flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               <Star className="w-3 h-3" /> Best
@@ -51,7 +81,10 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         <div className="p-3">
           <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight min-h-[2.25rem]">{product.name}</h3>
           {details && <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{details}</p>}
-          <p className="text-blue-600 font-bold text-sm mt-1">৳{product.price.toLocaleString()}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <p className="text-blue-600 font-bold text-sm">৳{salePrice.toLocaleString()}</p>
+            {hasSale && <p className="text-[11px] text-gray-400 line-through">৳{product.price.toLocaleString()}</p>}
+          </div>
           {product.type !== 'service' && (
             <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500"><Truck className="w-3 h-3" /> {getDeliveryFeeLabel(product)}</p>
           )}
@@ -71,7 +104,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
-        <div className="absolute top-3 left-3 flex gap-2">
+        <div className="absolute top-3 left-3 flex flex-wrap gap-2">
           <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${typeColors[product.type]}`}>
             <TypeIcon className="w-3 h-3" />
             {typeLabels[product.type]}
@@ -79,6 +112,11 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           {product.is_bestseller && (
             <span className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
               <Star className="w-3 h-3" /> Best Seller
+            </span>
+          )}
+          {offerLabel && (
+            <span className="flex items-center gap-1 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+              <Tag className="w-3 h-3" /> {offerLabel}
             </span>
           )}
         </div>
@@ -94,14 +132,22 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         {product.description && (
           <p className="text-sm text-gray-500 mt-1 line-clamp-2 min-h-[2.5rem]">{product.description}</p>
         )}
+        {activeOffer && (
+          <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-red-600">
+            <Tag className="w-3.5 h-3.5" /> {activeOffer.title}
+          </p>
+        )}
         {product.type !== 'service' && (
           <p className="mt-2 flex items-center gap-1 text-xs text-gray-500"><Truck className="w-3.5 h-3.5" /> {getDeliveryFeeLabel(product)}</p>
         )}
         <div className="mt-auto pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="min-w-0">
-            <span className="text-lg sm:text-xl font-bold text-blue-600">৳{product.price.toLocaleString()}</span>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-lg sm:text-xl font-bold text-blue-600">৳{salePrice.toLocaleString()}</span>
+              {hasSale && <span className="text-sm text-gray-400 line-through">৳{product.price.toLocaleString()}</span>}
+            </div>
             {product.unit !== 'piece' && (
-              <span className="text-xs text-gray-400 ml-1">/{product.unit}</span>
+              <span className="text-xs text-gray-400">/{product.unit}</span>
             )}
           </div>
           {qty > 0 ? (
@@ -128,7 +174,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
                   navigate(`/product/${product.id}`);
                   return;
                 }
-                addItem(product);
+                addItem(hasSale ? { ...product, price: salePrice } : product);
               }}
               className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all hover:shadow-md whitespace-nowrap"
             >

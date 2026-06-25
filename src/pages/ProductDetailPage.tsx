@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Product } from '../lib/types';
+import { Product, Offer } from '../lib/types';
 import { buildCartItemKey, useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
   ShoppingCart, Star, Flame, RotateCcw, Wrench, MapPin,
-  ChevronRight, Minus, Plus, Calendar, Clock, Truck
+  ChevronRight, Minus, Plus, Calendar, Clock, Truck, Tag
 } from 'lucide-react';
 import { SERVICE_TIME_SLOTS } from '../lib/constants';
 import { isLpgCylinder } from '../lib/deliveryCharges';
@@ -18,6 +18,26 @@ const typeConfig = {
   refill: { icon: RotateCcw, label: 'Refill', color: 'bg-blue-50 text-blue-700' },
   service: { icon: Wrench, label: 'Service', color: 'bg-amber-50 text-amber-700' },
 };
+
+function isActiveOffer(offer?: Offer | null) {
+  if (!offer || !offer.is_active) return false;
+  if (offer.valid_until && new Date(offer.valid_until) < new Date()) return false;
+  return true;
+}
+
+function getDiscountedPrice(price: number, offer?: Offer | null) {
+  if (!isActiveOffer(offer)) return price;
+  if (offer!.discount_type === 'percentage') return Math.max(0, Math.round(price - (price * offer!.discount_value) / 100));
+  return Math.max(0, Math.round(price - offer!.discount_value));
+}
+
+function getOfferLabel(offer?: Offer | null) {
+  if (!isActiveOffer(offer)) return null;
+  return offer!.discount_type === 'percentage'
+    ? `${offer!.discount_value}% OFF`
+    : `৳${offer!.discount_value.toLocaleString()} OFF`;
+}
+
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -45,21 +65,32 @@ export default function ProductDetailPage() {
         .eq('id', id)
         .maybeSingle();
 
-      setProduct(data);
       setSelectedValveSize('');
       setSelectedValveType('');
 
       if (data) {
-        const { data: related } = await supabase
-          .from('products')
-          .select('*, category:categories(*)')
-          .eq('is_available', true)
-          .order('sort_order');
+        const [{ data: related }, { data: offerData }] = await Promise.all([
+          supabase
+            .from('products')
+            .select('*, category:categories(*)')
+            .eq('is_available', true)
+            .order('sort_order'),
+          supabase
+            .from('offers')
+            .select('*')
+            .eq('is_active', true)
+            .order('sort_order'),
+        ]);
+
+        const activeProductOffers = ((offerData || []) as Offer[])
+          .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
+        const productOffer = activeProductOffers.find(offer => offer.product_id === data.id) || null;
+        setProduct({ ...data, active_offer: productOffer });
 
         const scored = ((related || []) as Product[])
           .filter(item => item.id !== data.id)
           .map((item: Product) => ({
-            item,
+            item: { ...item, active_offer: activeProductOffers.find(offer => offer.product_id === item.id) || null },
             score:
               (item.category_id === data.category_id ? 4 : 0) +
               (item.type === data.type ? 2 : 0) +
@@ -70,6 +101,7 @@ export default function ProductDetailPage() {
           .map(({ item }: { item: Product; score: number }) => item);
         setRelatedProducts(scored);
       } else {
+        setProduct(null);
         setRelatedProducts([]);
       }
 
@@ -88,7 +120,8 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     if (!product) return;
     if (needsValveSelection && (!selectedValveSize || !selectedValveType)) return;
-    addItem(product, qty, selectedCartOptions);
+    const salePrice = getDiscountedPrice(product.price, product.active_offer);
+    addItem(salePrice < product.price ? { ...product, price: salePrice } : product, qty, selectedCartOptions);
   };
 
   const handleBookService = async () => {
@@ -138,6 +171,10 @@ export default function ProductDetailPage() {
     product.company_name ? { label: 'Company', value: product.company_name } : null,
     product.size ? { label: 'Size', value: product.size } : null,
   ].filter(Boolean) as { label: string; value: string }[];
+  const activeOffer = isActiveOffer(product.active_offer) ? product.active_offer : null;
+  const offerLabel = getOfferLabel(activeOffer);
+  const salePrice = getDiscountedPrice(product.price, activeOffer);
+  const hasSale = Boolean(activeOffer && salePrice < product.price);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -175,6 +212,11 @@ export default function ProductDetailPage() {
                   <Star className="w-4 h-4" /> Best Seller
                 </span>
               )}
+              {offerLabel && (
+                <span className="flex items-center gap-1 bg-red-600 text-white text-sm font-bold px-3 py-1.5 rounded-full">
+                  <Tag className="w-4 h-4" /> {offerLabel}
+                </span>
+              )}
             </div>
           </div>
 
@@ -193,12 +235,20 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-blue-600">৳{product.price.toLocaleString()}</span>
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-3xl font-bold text-blue-600">৳{salePrice.toLocaleString()}</span>
+              {hasSale && <span className="text-lg text-gray-400 line-through">৳{product.price.toLocaleString()}</span>}
               {product.unit !== 'piece' && (
                 <span className="text-gray-400">/ {product.unit}</span>
               )}
             </div>
+
+            {activeOffer && (
+              <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                <p className="flex items-center gap-2 text-sm font-bold text-red-700"><Tag className="w-4 h-4" /> {activeOffer.title}</p>
+                {activeOffer.description && <p className="text-xs text-red-600 mt-1">{activeOffer.description}</p>}
+              </div>
+            )}
 
             {product.description && (
               <p className="text-gray-600 leading-relaxed">{product.description}</p>
@@ -277,7 +327,7 @@ export default function ProductDetailPage() {
                       disabled={bookingLoading || !bookingDate || !bookingTime}
                       className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20"
                     >
-                      {bookingLoading ? 'Booking...' : `Book Service - ৳${product.price.toLocaleString()}`}
+                      {bookingLoading ? 'Booking...' : `Book Service - ৳${salePrice.toLocaleString()}`}
                     </button>
                   </>
                 )}
@@ -377,7 +427,7 @@ export default function ProductDetailPage() {
                       className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
                     >
                       <ShoppingCart className="w-5 h-5" />
-                      Go to Cart - ৳{(cartQty * product.price).toLocaleString()}
+                      Go to Cart - ৳{(cartQty * salePrice).toLocaleString()}
                     </button>
                   </div>
                 ) : (
@@ -387,7 +437,7 @@ export default function ProductDetailPage() {
                     className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-5 h-5" />
-                    Add to Cart - ৳{(qty * product.price).toLocaleString()}
+                    Add to Cart - ৳{(qty * salePrice).toLocaleString()}
                   </button>
                 )}
 
