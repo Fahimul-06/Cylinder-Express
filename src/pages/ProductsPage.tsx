@@ -138,75 +138,32 @@ export default function ProductsPage() {
           )}
         </div>
 
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
-          {typeFilters.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setTypeFilter(key)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                typeFilter === key
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-300'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-              showFilters ? 'bg-gray-900 text-white' : 'bg-white text-gray-600 border border-gray-200'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4" />
-            More
-          </button>
-        </div>
-
-        {showFilters && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4 space-y-4 animate-in slide-in-from-top">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Filters & Sort</h3>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="text-blue-600 text-sm font-medium hover:text-blue-700">
-                  Clear All
-                </button>
-              )}
-            </div>
-
+        <div className="bg-white rounded-2xl border border-gray-200 p-3 sm:p-4 mb-4 shadow-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_auto] gap-3 items-end">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Product / Service Box</label>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setCategoryFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    categoryFilter === 'all' ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                  }`}
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Category</label>
+              <div className="relative">
+                <select
+                  value={categoryFilter}
+                  onChange={e => setCategoryFilter(e.target.value)}
+                  className="w-full px-3.5 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 >
-                  All Boxes
-                </button>
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setCategoryFilter(cat.slug)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      categoryFilter === cat.slug ? 'bg-blue-100 text-blue-700' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+                  <option value="all">All Categories</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.slug}>{cat.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Sort</label>
               <div className="relative">
                 <select
                   value={sort}
                   onChange={e => setSort(e.target.value as SortOption)}
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  className="w-full px-3.5 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 >
                   <option value="name-asc">Name (A-Z)</option>
                   <option value="name-desc">Name (Z-A)</option>
@@ -214,8 +171,58 @@ export default function ProductsPage() {
                   <option value="price-desc">Price (High to Low)</option>
                   <option value="newest">Newest First</option>
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
+            </div>
+
+            <div className="flex gap-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="w-full sm:w-auto px-4 py-3 bg-blue-50 text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-100 whitespace-nowrap"
+                >
+                  Clear Filters
+                </button>
+              )}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
+                  showFilters ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Type
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-4 space-y-4 animate-in slide-in-from-top">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Product Type</h3>
+              {typeFilter !== 'all' && (
+                <button onClick={() => setTypeFilter('all')} className="text-blue-600 text-sm font-medium hover:text-blue-700">
+                  Clear Type
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {typeFilters.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setTypeFilter(key)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                    typeFilter === key
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         )}
