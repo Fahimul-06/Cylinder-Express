@@ -45,7 +45,7 @@ export default function Navbar() {
               <span className="font-bold text-lg text-gray-900">Cylinder<span className="text-blue-600">Express</span></span>
             </div>
 
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1 ml-8 lg:ml-12">
               {navItems.map(({ path, label, icon: Icon, badge }) => (
                 <button
                   key={path}
