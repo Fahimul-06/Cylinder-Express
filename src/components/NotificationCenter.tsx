@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getNotificationTargetPath } from '../lib/notificationRoutes';
 
 type NotificationItem = {
   id: string;
@@ -78,6 +80,7 @@ function playAlarm() {
 }
 
 export default function NotificationCenter() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastBuzzIds = useRef(new Set<string>());
@@ -104,7 +107,7 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     loadNotifications();
-    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 1000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 1000 : 5000;
     const timer = window.setInterval(loadNotifications, intervalMs);
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
@@ -131,9 +134,19 @@ export default function NotificationCenter() {
     if ('vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
 
     if ('Notification' in window && Notification.permission === 'granted' && newUrgent.length) {
-      newUrgent.slice(0, 3).forEach((item) => new Notification(item.title, { body: item.message, requireInteraction: true }));
+      newUrgent.slice(0, 3).forEach((item) => {
+        const browserNotification = new Notification(item.title, { body: item.message, requireInteraction: true });
+        browserNotification.onclick = () => {
+          window.focus();
+          navigate(getNotificationTargetPath(item, profile));
+          if (!item.is_read) {
+            apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids: [item.id] }) }).catch(() => {});
+          }
+          browserNotification.close();
+        };
+      });
     }
-  }, [urgentUnread]);
+  }, [urgentUnread, navigate, profile]);
 
   useEffect(() => {
     const unlock = () => unlockAlarmAudio();

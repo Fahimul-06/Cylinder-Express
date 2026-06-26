@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCheck, Volume2, ArrowLeft } from 'lucide-react';
+import { Bell, CheckCheck, Volume2, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getNotificationTargetPath } from '../lib/notificationRoutes';
 
 type NotificationItem = {
   id: string;
@@ -26,6 +28,7 @@ type NotificationResponse = {
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { profile } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -54,11 +57,21 @@ export default function NotificationsPage() {
     await loadNotifications();
   }
 
+  async function openNotification(item: NotificationItem) {
+    const targetPath = getNotificationTargetPath(item, profile);
+    if (!item.is_read) {
+      setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, is_read: true, buzz: false } : notification));
+      setUnreadCount((count) => Math.max(0, count - 1));
+      apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids: [item.id] }) }).catch(() => {});
+    }
+    navigate(targetPath);
+  }
+
   useEffect(() => {
     loadNotifications();
-    const timer = window.setInterval(loadNotifications, 3000);
+    const timer = window.setInterval(loadNotifications, profile?.is_admin || profile?.role === 'delivery' ? 1000 : 5000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [profile?.is_admin, profile?.role]);
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -131,9 +144,11 @@ export default function NotificationsPage() {
         ) : (
           <div className="space-y-3">
             {notifications.map((item) => (
-              <div
+              <button
                 key={item.id}
-                className={`rounded-2xl border p-4 shadow-sm ${
+                type="button"
+                onClick={() => openNotification(item)}
+                className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   item.is_read
                     ? 'border-gray-100 bg-white'
                     : item.urgent
@@ -142,18 +157,21 @@ export default function NotificationsPage() {
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className={`font-bold ${item.urgent ? 'text-red-800' : 'text-gray-900'}`}>{item.title}</p>
                     <p className="mt-1 text-sm leading-relaxed text-gray-700">{item.message}</p>
                   </div>
-                  {!item.is_read && (
-                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                      {t('notifications.new')}
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    {!item.is_read && (
+                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                        {t('notifications.new')}
+                      </span>
+                    )}
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
+                  </div>
                 </div>
                 <p className="mt-3 text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
-              </div>
+              </button>
             ))}
           </div>
         )}

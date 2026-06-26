@@ -528,12 +528,16 @@ app.get('/api/admin/sms-status', requireAuth, requireAdminUserManagement, (_req,
 
 app.get('/api/notifications', requireAuth, async (req, res) => {
   try {
-    const notifications = await models.notifications
-      .find({ user_id: req.auth.id })
-      .sort({ created_at: -1 })
-      .limit(50);
-    const unread_count = await models.notifications.countDocuments({ user_id: req.auth.id, is_read: false });
-    res.json({ data: notifications.map((notification) => notification.toJSON()), unread_count, error: null });
+    const [notifications, unread_count] = await Promise.all([
+      models.notifications
+        .find({ user_id: req.auth.id })
+        .sort({ created_at: -1 })
+        .limit(50)
+        .lean(),
+      models.notifications.countDocuments({ user_id: req.auth.id, is_read: false }),
+    ]);
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: notifications.map((notification) => ({ ...notification, id: String(notification._id) })), unread_count, error: null });
   } catch (error) {
     res.status(500).json({ data: null, error: error.message });
   }
