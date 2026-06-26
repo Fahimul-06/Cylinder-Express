@@ -17,7 +17,9 @@ export default function OffersPage() {
         .select('*')
         .eq('is_active', true)
         .order('sort_order');
-      setOffers(data || []);
+      const specialOffers = ((data || []) as Offer[])
+        .filter(offer => !offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
+      setOffers(specialOffers);
       setLoading(false);
     }
     fetchOffers();
@@ -180,9 +182,7 @@ export default function OffersPage() {
                     {/* CTA */}
                     <button
                       onClick={() => {
-                        if (offer.product_id) {
-                          navigate(`/product/${offer.product_id}`);
-                        } else if (offer.category_slug) {
+                        if (offer.category_slug) {
                           navigate(`/products?category=${offer.category_slug}`);
                         } else {
                           navigate('/products');

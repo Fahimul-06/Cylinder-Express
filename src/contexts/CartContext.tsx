@@ -161,6 +161,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const offer = data as Offer;
 
+    if (offer.product_id) {
+      setPromoError('Sale product discounts are applied automatically. Promo codes are only for special offers.');
+      setAppliedOffer(null);
+      setPromoCode('');
+      return;
+    }
+
     if (user?.id) {
       const maxUses = Math.max(1, Number(offer.max_uses_per_customer || 1));
       const { count } = await supabase

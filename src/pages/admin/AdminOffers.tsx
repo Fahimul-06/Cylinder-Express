@@ -138,9 +138,9 @@ export default function AdminOffers() {
       title: form.title, description: form.description || null,
       badge_text: form.badge_text || 'OFFER',
       discount_type: form.discount_type, discount_value: form.discount_value,
-      code: form.code ? form.code.trim().toUpperCase() : null,
+      code: form.product_id ? null : (form.code ? form.code.trim().toUpperCase() : null),
       product_id: form.product_id || null,
-      category_slug: form.category_slug || null,
+      category_slug: form.product_id ? null : (form.category_slug || null),
       max_uses_per_customer: Math.max(1, Number(form.max_uses_per_customer || 1)),
       bg_from: form.bg_from || 'from-blue-500', bg_to: form.bg_to || 'to-blue-700',
       image_url: form.image_url || null,
@@ -367,11 +367,23 @@ export default function AdminOffers() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Promo Code</label>
-                  <input value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+                  <input
+                    value={form.product_id ? '' : (form.code || '')}
+                    disabled={Boolean(form.product_id)}
+                    onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+                    placeholder={form.product_id ? 'Auto sale - no promo code needed' : 'SPECIAL10'}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Promo codes are only for Special Offers. Product sale discounts apply automatically.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select value={form.category_slug || ''} onChange={e => setForm(f => ({ ...f, category_slug: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600">
+                  <select
+                    value={form.product_id ? '' : (form.category_slug || '')}
+                    disabled={Boolean(form.product_id)}
+                    onChange={e => setForm(f => ({ ...f, category_slug: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
                     <option value="">All categories</option>
                     {categoryOptions.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
                   </select>
@@ -381,7 +393,12 @@ export default function AdminOffers() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Specific Product Offer</label>
                 <select
                   value={form.product_id || ''}
-                  onChange={e => setForm(f => ({ ...f, product_id: e.target.value }))}
+                  onChange={e => setForm(f => ({
+                    ...f,
+                    product_id: e.target.value,
+                    code: e.target.value ? '' : f.code,
+                    category_slug: e.target.value ? '' : f.category_slug,
+                  }))}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 >
                   <option value="">No specific product - category/general offer</option>
@@ -391,7 +408,7 @@ export default function AdminOffers() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-500">Select a product here to show this offer directly on that product card and in the home sale products box.</p>
+                <p className="mt-1 text-xs text-gray-500">Select a product here for an automatic sale price. Customer will not need any promo code.</p>
               </div>
 
               <div>
@@ -403,7 +420,7 @@ export default function AdminOffers() {
                   onChange={e => setForm(f => ({ ...f, max_uses_per_customer: Math.max(1, Number(e.target.value || 1)) }))}
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
-                <p className="mt-1 text-xs text-gray-500">Set 1 for one-time use. Increase this if one customer can use this promo multiple times.</p>
+                <p className="mt-1 text-xs text-gray-500">Used only for promo-code Special Offers. Product sale offers are automatic.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Gradient Color</label>
