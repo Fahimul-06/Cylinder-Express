@@ -360,7 +360,6 @@ async function runOrderAlertChecks() {
   const now = new Date();
   const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
   const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000);
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
   const twentyMinutesAgo = new Date(now.getTime() - 20 * 60 * 1000);
   const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
 
@@ -391,7 +390,8 @@ async function runOrderAlertChecks() {
     status: { $in: ['pending', 'confirmed'] },
     delivery_man_id: { $nin: [null, ''] },
     $or: [{ delivery_accepted_at: null }, { delivery_accepted_at: { $exists: false } }],
-    delivery_assigned_at: { $lte: fiveMinutesAgo },
+    // Start accept reminders immediately after assignment, then repeat every 30 seconds until accepted.
+    delivery_assigned_at: { $lte: now },
     $and: [{
       $or: [
         { delivery_accept_reminder_last_sent_at: null },
@@ -407,7 +407,7 @@ async function runOrderAlertChecks() {
       order_id: order.id,
       type: 'delivery_accept_overdue',
       title: 'Accept delivery now',
-      message: `Order #${String(order.id).slice(-6)} is waiting. Please accept this delivery immediately.`,
+      message: `Order #${String(order.id).slice(-6)} is assigned to you. Accept this delivery now. Alarm will repeat every 30 seconds until you accept.`,
       urgent: true,
       buzz: true,
     });
