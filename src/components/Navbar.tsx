@@ -38,14 +38,14 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16">
             <div
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-3 cursor-pointer shrink-0 pr-4 md:pr-8"
               onClick={() => navigate('/home')}
             >
-              <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="h-10 w-10 object-contain" />
-              <span className="font-bold text-lg text-gray-900">Cylinder<span className="text-blue-600">Express</span></span>
+              <img src="/CylinderExprerssLOGO.png" alt="Cylinder Express" className="h-12 w-12 object-contain" />
+              <span className="font-bold text-xl text-gray-900 whitespace-nowrap">Cylinder<span className="text-blue-600">Express</span></span>
             </div>
 
-            <div className="hidden md:flex items-center gap-1 ml-8 lg:ml-12">
+            <div className="hidden md:flex items-center gap-1 ml-12 lg:ml-20">
               {navItems.map(({ path, label, icon: Icon, badge }) => (
                 <button
                   key={path}
