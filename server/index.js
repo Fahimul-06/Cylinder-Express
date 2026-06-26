@@ -337,7 +337,7 @@ async function notifyDeliveryManAssignment(order) {
     order_id: order.id,
     type: 'delivery_assigned',
     title: 'New delivery assigned',
-    message: `You have been assigned order #${String(order.id).slice(-6)}. Please accept the delivery within 5 minutes and start delivery.`,
+    message: `New delivery assigned: order #${String(order.id).slice(-6)}. Open Delivery Dashboard and accept now.`,
     urgent: true,
     buzz: true,
   });
