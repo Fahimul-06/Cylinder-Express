@@ -27,7 +27,7 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
 
   useEffect(() => {
     loadUnread();
-    const intervalMs = profile?.is_admin ? 3000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 3000 : 15000;
     const timer = window.setInterval(loadUnread, intervalMs);
     const onFocus = () => loadUnread();
     window.addEventListener('focus', onFocus);
@@ -35,7 +35,7 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
-  }, [user?.id, profile?.is_admin]);
+  }, [user?.id, profile?.is_admin, profile?.role]);
 
   if (!user) return null;
 

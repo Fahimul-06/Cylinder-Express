@@ -91,6 +91,10 @@ export interface Order {
   promo_code: string | null;
   discount_amount: number;
   notes: string | null;
+  delivery_assigned_at?: string | null;
+  delivery_accepted_at?: string | null;
+  delivery_accept_reminder_last_sent_at?: string | null;
+  delivery_delivered_reminder_last_sent_at?: string | null;
   created_at: string;
   updated_at: string;
   items?: OrderItem[];

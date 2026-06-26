@@ -68,6 +68,7 @@ export default function DeliveryDashboard() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [markingDelivered, setMarkingDelivered] = useState(false);
+  const [acceptingDelivery, setAcceptingDelivery] = useState(false);
 
   const selectedOrder = useMemo(() => orders.find((o) => o.id === selectedOrderId) || orders[0] || null, [orders, selectedOrderId]);
   const deliveredTotal = useMemo(() => deliveredOrders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0), [deliveredOrders]);
@@ -123,6 +124,28 @@ export default function DeliveryDashboard() {
     }
   };
 
+
+
+  const acceptSelectedOrder = async () => {
+    if (!selectedOrder) return;
+    setMessage('');
+    setAcceptingDelivery(true);
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'processing', delivery_accepted_at: new Date().toISOString() })
+      .eq('id', selectedOrder.id);
+
+    if (error) {
+      setMessage(error.message || 'Could not accept this delivery.');
+      setAcceptingDelivery(false);
+      return;
+    }
+
+    setMessage(`Delivery accepted for order #${selectedOrder.id.slice(-6).toUpperCase()}.`);
+    setAcceptingDelivery(false);
+    await loadOrders();
+  };
 
   const markSelectedOrderDelivered = async () => {
     if (!selectedOrder) return;
@@ -460,6 +483,15 @@ export default function DeliveryDashboard() {
                 <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">{t('delivery.amount')}</p><p className="font-semibold text-gray-900">৳{selectedOrder.total_amount}</p></div>
                 <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs text-gray-400">{t('delivery.status')}</p><p className="font-semibold text-gray-900 flex items-center gap-1"><PackageCheck className="w-4 h-4" /> {selectedOrder.status}</p></div>
               </div>
+              {!selectedOrder.delivery_accepted_at && selectedOrder.status !== 'processing' && (
+                <button
+                  onClick={acceptSelectedOrder}
+                  disabled={acceptingDelivery}
+                  className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  <PackageCheck className="w-5 h-5" /> {acceptingDelivery ? t('delivery.updating') : 'Accept Delivery'}
+                </button>
+              )}
               <button
                 onClick={markSelectedOrderDelivered}
                 disabled={markingDelivered}

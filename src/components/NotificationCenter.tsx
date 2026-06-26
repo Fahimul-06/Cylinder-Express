@@ -27,10 +27,10 @@ function playAlarm() {
     if (!AudioContextClass) return;
     const context = new AudioContextClass();
     const masterGain = context.createGain();
-    masterGain.gain.value = 0.68;
+    masterGain.gain.value = 1.0;
     masterGain.connect(context.destination);
 
-    const frequencies = [880, 1175, 880, 1320, 990, 1320];
+    const frequencies = [880, 1175, 880, 1320, 990, 1320, 1175, 880];
     frequencies.forEach((frequency, index) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
@@ -47,7 +47,7 @@ function playAlarm() {
 
     setTimeout(() => {
       context.close().catch(() => {});
-    }, 1700);
+    }, 2200);
   } catch {
     // Browsers can block audio until the user has interacted with the page.
   }
@@ -57,6 +57,7 @@ export default function NotificationCenter() {
   const { user, profile } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastBuzzIds = useRef(new Set<string>());
+  const lastRepeatingBuzzAt = useRef(0);
 
   const urgentUnread = useMemo(
     () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz)),
@@ -78,7 +79,7 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     loadNotifications();
-    const intervalMs = profile?.is_admin ? 3000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 3000 : 15000;
     const timer = window.setInterval(loadNotifications, intervalMs);
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
@@ -86,17 +87,21 @@ export default function NotificationCenter() {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
-  }, [user?.id, profile?.is_admin]);
+  }, [user?.id, profile?.is_admin, profile?.role]);
 
   useEffect(() => {
     const newUrgent = urgentUnread.filter((item) => !lastBuzzIds.current.has(item.id));
-    if (!newUrgent.length) return;
-    newUrgent.forEach((item) => lastBuzzIds.current.add(item.id));
-    playAlarm();
-    if ('vibrate' in navigator) navigator.vibrate?.([450, 160, 450, 160, 450]);
+    const now = Date.now();
+    const shouldRepeatBuzz = urgentUnread.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
+    if (!newUrgent.length && !shouldRepeatBuzz) return;
 
-    if ('Notification' in window && Notification.permission === 'granted') {
-      newUrgent.slice(0, 3).forEach((item) => new Notification(item.title, { body: item.message }));
+    newUrgent.forEach((item) => lastBuzzIds.current.add(item.id));
+    lastRepeatingBuzzAt.current = now;
+    playAlarm();
+    if ('vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
+
+    if ('Notification' in window && Notification.permission === 'granted' && newUrgent.length) {
+      newUrgent.slice(0, 3).forEach((item) => new Notification(item.title, { body: item.message, requireInteraction: true }));
     }
   }, [urgentUnread]);
 

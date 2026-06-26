@@ -119,6 +119,10 @@ const OrderSchema = new mongoose.Schema({
   delivered_at: { type: Date, default: null },
   cancelled_at: { type: Date, default: null },
   admin_reminder_last_sent_at: { type: Date, default: null },
+  delivery_assigned_at: { type: Date, default: null },
+  delivery_accepted_at: { type: Date, default: null },
+  delivery_accept_reminder_last_sent_at: { type: Date, default: null },
+  delivery_delivered_reminder_last_sent_at: { type: Date, default: null },
   delivery_delay_notified_at: { type: Date, default: null },
   ...common
 }, { toJSON });
@@ -333,7 +337,7 @@ async function notifyDeliveryManAssignment(order) {
     order_id: order.id,
     type: 'delivery_assigned',
     title: 'New delivery assigned',
-    message: `You have been assigned order #${String(order.id).slice(-6)}. Please start sharing location and deliver safely.`,
+    message: `You have been assigned order #${String(order.id).slice(-6)}. Please accept the delivery within 5 minutes and start delivery.`,
     urgent: true,
     buzz: true,
   });
@@ -343,7 +347,9 @@ async function runOrderAlertChecks() {
   const now = new Date();
   const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
   const oneMinuteAgo = new Date(now.getTime() - 1 * 60 * 1000);
-  const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+  const twentyMinutesAgo = new Date(now.getTime() - 20 * 60 * 1000);
+  const thirtySecondsAgo = new Date(now.getTime() - 30 * 1000);
 
   const overduePending = await models.orders.find({
     status: 'pending',
@@ -368,35 +374,63 @@ async function runOrderAlertChecks() {
     await order.save();
   }
 
-  const delayedDeliveries = await models.orders.find({
-    status: { $in: ['confirmed', 'processing'] },
+  const deliveryAcceptOverdue = await models.orders.find({
+    status: { $in: ['pending', 'confirmed'] },
     delivery_man_id: { $nin: [null, ''] },
-    updated_at: { $lte: thirtyMinutesAgo },
-    $or: [
-      { delivery_delay_notified_at: null },
-      { delivery_delay_notified_at: { $exists: false } },
-    ],
+    $or: [{ delivery_accepted_at: null }, { delivery_accepted_at: { $exists: false } }],
+    delivery_assigned_at: { $lte: fiveMinutesAgo },
+    $and: [{
+      $or: [
+        { delivery_accept_reminder_last_sent_at: null },
+        { delivery_accept_reminder_last_sent_at: { $exists: false } },
+        { delivery_accept_reminder_last_sent_at: { $lte: thirtySecondsAgo } },
+      ],
+    }],
   }).limit(50);
 
-  for (const order of delayedDeliveries) {
+  for (const order of deliveryAcceptOverdue) {
     await createNotification({
       user_id: order.delivery_man_id,
       order_id: order.id,
-      type: 'delivery_not_marked_delivered',
-      title: 'Delivery completion alarm',
-      message: `Order #${String(order.id).slice(-6)} is still not marked delivered after 30 minutes. Please update the delivery status.`,
+      type: 'delivery_accept_overdue',
+      title: 'Accept delivery now',
+      message: `Order #${String(order.id).slice(-6)} is waiting. Please accept this delivery immediately.`,
       urgent: true,
       buzz: true,
     });
+    order.delivery_accept_reminder_last_sent_at = now;
+    await order.save();
+  }
+
+  const deliveryNotCompleted = await models.orders.find({
+    status: { $in: ['confirmed', 'processing'] },
+    delivery_man_id: { $nin: [null, ''] },
+    $or: [
+      { delivery_accepted_at: { $lte: twentyMinutesAgo } },
+      {
+        delivery_accepted_at: { $in: [null, undefined] },
+        delivery_assigned_at: { $lte: twentyMinutesAgo },
+      },
+    ],
+    $and: [{
+      $or: [
+        { delivery_delivered_reminder_last_sent_at: null },
+        { delivery_delivered_reminder_last_sent_at: { $exists: false } },
+        { delivery_delivered_reminder_last_sent_at: { $lte: thirtySecondsAgo } },
+      ],
+    }],
+  }).limit(50);
+
+  for (const order of deliveryNotCompleted) {
     await notifyAdmins({
       order_id: order.id,
-      type: 'delivery_not_marked_delivered_admin',
-      title: 'Delivery delay alert',
-      message: `Assigned delivery man has not marked order #${String(order.id).slice(-6)} delivered within 30 minutes.`,
+      type: 'delivery_not_delivered_20m_admin',
+      title: 'Delivery not completed',
+      message: `Order #${String(order.id).slice(-6)} has not been marked delivered within 20 minutes. Check the driver and assign another nearby delivery man if needed.`,
       urgent: true,
       buzz: true,
     });
-    order.delivery_delay_notified_at = now;
+    order.delivery_delivered_reminder_last_sent_at = now;
     await order.save();
   }
 }
@@ -864,8 +898,26 @@ app.post('/api/tables/:table', async (req, res) => {
       const updatePayload = { ...body, updated_at: new Date() };
       if (req.params.table === 'orders' && body?.status) {
         if (body.status === 'confirmed') updatePayload.confirmed_at = new Date();
+        if (body.status === 'processing') {
+          updatePayload.delivery_accepted_at = body.delivery_accepted_at ? new Date(body.delivery_accepted_at) : new Date();
+          updatePayload.delivery_accept_reminder_last_sent_at = null;
+        }
         if (body.status === 'delivered') updatePayload.delivered_at = new Date();
         if (body.status === 'cancelled') updatePayload.cancelled_at = new Date();
+      }
+      if (req.params.table === 'orders' && body?.delivery_man_id !== undefined) {
+        if (body.delivery_man_id) {
+          updatePayload.delivery_assigned_at = new Date();
+          updatePayload.delivery_accepted_at = null;
+          updatePayload.delivery_accept_reminder_last_sent_at = null;
+          updatePayload.delivery_delivered_reminder_last_sent_at = null;
+          updatePayload.delivery_delay_notified_at = null;
+        } else {
+          updatePayload.delivery_assigned_at = null;
+          updatePayload.delivery_accepted_at = null;
+          updatePayload.delivery_accept_reminder_last_sent_at = null;
+          updatePayload.delivery_delivered_reminder_last_sent_at = null;
+        }
       }
       if (req.params.table === 'profiles' && body?.phone !== undefined) {
         const normalizedPhone = normalizeCustomerPhone(body.phone);
@@ -1218,7 +1270,7 @@ mongoose.connect(MONGODB_URI).then(async () => {
   await runOrderAlertChecks().catch((error) => console.error('Initial order alert check failed:', error.message));
   setInterval(() => {
     runOrderAlertChecks().catch((error) => console.error('Order alert check failed:', error.message));
-  }, 60 * 1000);
+  }, 30 * 1000);
   app.listen(PORT, () => console.log(`Cylinder Express MongoDB API running on http://localhost:${PORT}`));
 }).catch((error) => {
   console.error('MongoDB connection failed:', error.message);
