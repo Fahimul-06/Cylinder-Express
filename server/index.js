@@ -818,6 +818,31 @@ app.post('/api/tables/:table', async (req, res) => {
         updated_at: new Date(),
       })));
       data = docs.map((d) => d.toJSON());
+
+      if (req.params.table === 'orders') {
+        await Promise.all(docs.map(async (order) => {
+          const orderNumber = String(order.id).slice(-6).toUpperCase();
+          const totalPayable = Number(order.total_amount || 0)
+            + Number(order.delivery_fee || 0)
+            + Number(order.floor_charge || 0)
+            - Number(order.discount_amount || 0);
+          const address = order.address_id
+            ? await models.addresses.findById(order.address_id).catch(() => null)
+            : null;
+          const addressText = address
+            ? [address.address_line1, address.area, address.city, address.district].filter(Boolean).join(', ')
+            : 'Customer address selected';
+
+          await notifyAdmins({
+            order_id: order.id,
+            type: 'new_order_admin',
+            title: 'New order received',
+            message: `New order #${orderNumber} placed. Amount: ৳${totalPayable.toLocaleString('en-BD')}. Address: ${addressText}. Confirm or assign delivery now.`,
+            urgent: true,
+            buzz: true,
+          });
+        }));
+      }
     }
 
     if (action === 'upsert') {

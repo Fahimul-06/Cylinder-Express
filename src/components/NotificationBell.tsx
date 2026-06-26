@@ -10,7 +10,7 @@ type NotificationResponse = {
 };
 
 export default function NotificationBell({ compact = false }: { compact?: boolean }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -27,9 +27,15 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
 
   useEffect(() => {
     loadUnread();
-    const timer = window.setInterval(loadUnread, 30000);
-    return () => window.clearInterval(timer);
-  }, [user?.id]);
+    const intervalMs = profile?.is_admin ? 3000 : 15000;
+    const timer = window.setInterval(loadUnread, intervalMs);
+    const onFocus = () => loadUnread();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [user?.id, profile?.is_admin]);
 
   if (!user) return null;
 

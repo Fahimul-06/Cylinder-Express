@@ -56,7 +56,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
-    const timer = window.setInterval(loadNotifications, 30000);
+    const timer = window.setInterval(loadNotifications, 3000);
     return () => window.clearInterval(timer);
   }, []);
 
