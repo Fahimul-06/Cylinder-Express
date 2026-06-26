@@ -337,7 +337,7 @@ async function notifyDeliveryManAssignment(order) {
     order_id: order.id,
     type: 'delivery_assigned',
     title: 'New delivery assigned',
-    message: `New delivery assigned: order #${String(order.id).slice(-6)}. Open Delivery Dashboard and accept now.`,
+    message: `You have been assigned order #${String(order.id).slice(-6)}. Please accept the delivery within 5 minutes and start delivery.`,
     urgent: true,
     buzz: true,
   });
@@ -540,7 +540,8 @@ app.post('/api/notifications/read', requireAuth, async (req, res) => {
 app.post('/api/alerts/run', requireAuth, async (req, res) => {
   try {
     const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    if (!profile?.is_admin) return res.status(403).json({ error: 'Admin only.' });
+    const canRunAlerts = profile?.is_admin || profile?.role === 'delivery';
+    if (!canRunAlerts) return res.status(403).json({ error: 'Admin or delivery only.' });
     await runOrderAlertChecks();
     res.json({ success: true, error: null });
   } catch (error) {

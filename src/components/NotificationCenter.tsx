@@ -21,6 +21,12 @@ type NotificationResponse = {
   error: string | null;
 };
 
+const REPEATING_BUZZ_TYPES = new Set([
+  'delivery_accept_overdue',
+  'delivery_not_delivered_20m_admin',
+  'admin_order_confirm_overdue',
+]);
+
 function playAlarm() {
   try {
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -30,37 +36,29 @@ function playAlarm() {
     masterGain.gain.value = 1.0;
     masterGain.connect(context.destination);
 
-    // Loud repeated alarm pattern for urgent order / delivery assignment alerts.
-    // Browsers still control the device's physical speaker volume, but this uses
-    // maximum web-audio gain and a sharp square-wave siren pattern.
-    const frequencies = [1040, 1560, 1040, 1560, 1240, 1760, 1240, 1760];
-    for (let burst = 0; burst < 3; burst += 1) {
-      frequencies.forEach((frequency, index) => {
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        const startAt = context.currentTime + burst * 2.1 + index * 0.22;
-        oscillator.type = 'square';
-        oscillator.frequency.setValueAtTime(frequency, startAt);
-        gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(1.0, startAt + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.19);
-        oscillator.connect(gain);
-        gain.connect(masterGain);
-        oscillator.start(startAt);
-        oscillator.stop(startAt + 0.2);
-      });
-    }
+    // Strong repeated alert pattern for noisy delivery environments.
+    // Browser volume is still controlled by the device/system volume.
+    const frequencies = [1046, 1396, 1046, 1568, 1175, 1568, 1396, 1046, 880, 1320, 880, 1320];
+    frequencies.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'square';
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.18);
+      gain.gain.exponentialRampToValueAtTime(1.0, context.currentTime + index * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.18 + 0.15);
+      oscillator.connect(gain);
+      gain.connect(masterGain);
+      oscillator.start(context.currentTime + index * 0.18);
+      oscillator.stop(context.currentTime + index * 0.18 + 0.16);
+    });
 
     setTimeout(() => {
       context.close().catch(() => {});
-    }, 7000);
+    }, 2600);
   } catch {
     // Browsers can block audio until the user has interacted with the page.
   }
-}
-
-function canReceiveRoleAlert(profile: { is_admin?: boolean; role?: string | null } | null | undefined) {
-  return Boolean(profile?.is_admin || profile?.role === 'delivery');
 }
 
 export default function NotificationCenter() {
@@ -77,7 +75,7 @@ export default function NotificationCenter() {
   async function loadNotifications() {
     if (!user) return;
     try {
-      if (canReceiveRoleAlert(profile)) {
+      if (profile?.is_admin || profile?.role === 'delivery') {
         apiClient('/api/alerts/run', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
       }
       const response = await apiClient<NotificationResponse>('/api/notifications');
@@ -89,7 +87,7 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     loadNotifications();
-    const intervalMs = canReceiveRoleAlert(profile) ? 1000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 2000 : 15000;
     const timer = window.setInterval(loadNotifications, intervalMs);
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
@@ -100,33 +98,16 @@ export default function NotificationCenter() {
   }, [user?.id, profile?.is_admin, profile?.role]);
 
   useEffect(() => {
-    if (!canReceiveRoleAlert(profile) || !('Notification' in window) || Notification.permission !== 'default') return;
-    const requestPermission = () => {
-      Notification.requestPermission().catch(() => {});
-      window.removeEventListener('pointerdown', requestPermission);
-      window.removeEventListener('keydown', requestPermission);
-      window.removeEventListener('touchstart', requestPermission);
-    };
-    window.addEventListener('pointerdown', requestPermission, { once: true });
-    window.addEventListener('keydown', requestPermission, { once: true });
-    window.addEventListener('touchstart', requestPermission, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', requestPermission);
-      window.removeEventListener('keydown', requestPermission);
-      window.removeEventListener('touchstart', requestPermission);
-    };
-  }, [profile?.is_admin, profile?.role]);
-
-  useEffect(() => {
     const newUrgent = urgentUnread.filter((item) => !lastBuzzIds.current.has(item.id));
+    const repeatingUrgent = urgentUnread.filter((item) => REPEATING_BUZZ_TYPES.has(item.type));
     const now = Date.now();
-    const shouldRepeatBuzz = urgentUnread.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
+    const shouldRepeatBuzz = repeatingUrgent.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
     if (!newUrgent.length && !shouldRepeatBuzz) return;
 
     newUrgent.forEach((item) => lastBuzzIds.current.add(item.id));
     lastRepeatingBuzzAt.current = now;
     playAlarm();
-    if ('vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
+    if ('vibrate' in navigator) navigator.vibrate?.([900, 180, 900, 180, 900, 180, 900]);
 
     if ('Notification' in window && Notification.permission === 'granted' && newUrgent.length) {
       newUrgent.slice(0, 3).forEach((item) => new Notification(item.title, { body: item.message, requireInteraction: true }));

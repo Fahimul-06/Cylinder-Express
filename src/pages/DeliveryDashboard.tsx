@@ -245,7 +245,7 @@ export default function DeliveryDashboard() {
   useEffect(() => {
     loadGoogleMaps().then(() => setMapsReady(true)).catch((err) => setMapError(err instanceof Error ? err.message : 'Map failed to load'));
     loadOrders();
-    const timer = window.setInterval(loadOrders, 3000);
+    const timer = window.setInterval(loadOrders, 10000);
     return () => { window.clearInterval(timer); if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current); };
   }, [loadOrders]);
 
