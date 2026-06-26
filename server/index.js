@@ -313,6 +313,19 @@ async function createNotification({ user_id, role_target = null, order_id = null
   });
 }
 
+async function silenceOrderNotifications(orderId, types = [], userId = null) {
+  if (!orderId || !types.length) return;
+  const query = {
+    order_id: String(orderId),
+    type: { $in: types },
+    $or: [{ is_read: false }, { buzz: true }, { urgent: true }],
+  };
+  if (userId) query.user_id = String(userId);
+  await models.notifications.updateMany(query, {
+    $set: { is_read: true, buzz: false, urgent: false, updated_at: new Date() },
+  });
+}
+
 async function notifyAdmins(payload) {
   const admins = await getOrderAdmins();
   await Promise.all(admins.map((admin) => createNotification({ ...payload, user_id: admin.user_id, role_target: 'admin' })));
@@ -540,8 +553,9 @@ app.post('/api/notifications/read', requireAuth, async (req, res) => {
 app.post('/api/alerts/run', requireAuth, async (req, res) => {
   try {
     const profile = await models.profiles.findOne({ user_id: req.auth.id });
-    const canRunAlerts = profile?.is_admin || profile?.role === 'delivery';
-    if (!canRunAlerts) return res.status(403).json({ error: 'Admin or delivery only.' });
+    if (!profile?.is_admin && profile?.role !== 'delivery') {
+      return res.status(403).json({ error: 'Admin or delivery user only.' });
+    }
     await runOrderAlertChecks();
     res.json({ success: true, error: null });
   } catch (error) {
@@ -943,11 +957,33 @@ app.post('/api/tables/:table', async (req, res) => {
         const previousById = new Map(previousDocs.map((doc) => [doc.id, doc]));
         for (const order of updatedDocs) {
           const previous = previousById.get(order.id);
+          const previousDeliveryManId = String(previous?.delivery_man_id || '');
+          const currentDeliveryManId = String(order.delivery_man_id || '');
+
           if (body?.status && previous?.status !== order.status && ['confirmed', 'delivered'].includes(String(order.status))) {
             await notifyOrderCustomer(order, order.status);
           }
-          if (body?.delivery_man_id !== undefined && String(previous?.delivery_man_id || '') !== String(order.delivery_man_id || '') && order.delivery_man_id) {
-            await notifyDeliveryManAssignment(order);
+
+          if (body?.status === 'processing') {
+            await silenceOrderNotifications(order.id, ['delivery_assigned', 'delivery_accept_overdue'], currentDeliveryManId);
+          }
+
+          if (['delivered', 'cancelled'].includes(String(body?.status || ''))) {
+            await silenceOrderNotifications(order.id, [
+              'delivery_assigned',
+              'delivery_accept_overdue',
+              'delivery_not_delivered_20m_admin',
+            ]);
+          }
+
+          if (body?.delivery_man_id !== undefined && previousDeliveryManId !== currentDeliveryManId) {
+            if (previousDeliveryManId) {
+              await silenceOrderNotifications(order.id, ['delivery_assigned', 'delivery_accept_overdue'], previousDeliveryManId);
+            }
+            await silenceOrderNotifications(order.id, ['delivery_not_delivered_20m_admin']);
+            if (order.delivery_man_id) {
+              await notifyDeliveryManAssignment(order);
+            }
           }
         }
       }

@@ -21,41 +21,57 @@ type NotificationResponse = {
   error: string | null;
 };
 
-const REPEATING_BUZZ_TYPES = new Set([
-  'delivery_accept_overdue',
-  'delivery_not_delivered_20m_admin',
-  'admin_order_confirm_overdue',
-]);
+let sharedAudioContext: AudioContext | null = null;
+
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedAudioContext || sharedAudioContext.state === 'closed') sharedAudioContext = new AudioContextClass();
+  if (sharedAudioContext.state === 'suspended') sharedAudioContext.resume().catch(() => {});
+  return sharedAudioContext;
+}
+
+function unlockAlarmAudio() {
+  try {
+    const context = getAudioContext();
+    if (!context) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.03);
+  } catch {
+    // Browser can still block audio until the page receives a user gesture.
+  }
+}
 
 function playAlarm() {
   try {
-    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const context = new AudioContextClass();
+    const context = getAudioContext();
+    if (!context) return;
     const masterGain = context.createGain();
     masterGain.gain.value = 1.0;
     masterGain.connect(context.destination);
 
-    // Strong repeated alert pattern for noisy delivery environments.
-    // Browser volume is still controlled by the device/system volume.
-    const frequencies = [1046, 1396, 1046, 1568, 1175, 1568, 1396, 1046, 880, 1320, 880, 1320];
-    frequencies.forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'square';
-      oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.18);
-      gain.gain.exponentialRampToValueAtTime(1.0, context.currentTime + index * 0.18 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.18 + 0.15);
-      oscillator.connect(gain);
-      gain.connect(masterGain);
-      oscillator.start(context.currentTime + index * 0.18);
-      oscillator.stop(context.currentTime + index * 0.18 + 0.16);
-    });
-
-    setTimeout(() => {
-      context.close().catch(() => {});
-    }, 2600);
+    const pattern = [980, 1318, 1568, 1318, 980, 740, 980, 1568];
+    for (let cycle = 0; cycle < 4; cycle += 1) {
+      pattern.forEach((frequency, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = context.currentTime + cycle * 1.65 + index * 0.18;
+        oscillator.type = index % 2 === 0 ? 'square' : 'sawtooth';
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.98, start + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.15);
+        oscillator.connect(gain);
+        gain.connect(masterGain);
+        oscillator.start(start);
+        oscillator.stop(start + 0.16);
+      });
+    }
   } catch {
     // Browsers can block audio until the user has interacted with the page.
   }
@@ -66,6 +82,7 @@ export default function NotificationCenter() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const lastBuzzIds = useRef(new Set<string>());
   const lastRepeatingBuzzAt = useRef(0);
+  const notificationPermissionAsked = useRef(false);
 
   const urgentUnread = useMemo(
     () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz)),
@@ -87,7 +104,7 @@ export default function NotificationCenter() {
 
   useEffect(() => {
     loadNotifications();
-    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 2000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 1000 : 15000;
     const timer = window.setInterval(loadNotifications, intervalMs);
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
@@ -98,21 +115,37 @@ export default function NotificationCenter() {
   }, [user?.id, profile?.is_admin, profile?.role]);
 
   useEffect(() => {
+    if ((profile?.is_admin || profile?.role === 'delivery') && !notificationPermissionAsked.current && 'Notification' in window && Notification.permission === 'default') {
+      notificationPermissionAsked.current = true;
+      Notification.requestPermission().catch(() => {});
+    }
+
     const newUrgent = urgentUnread.filter((item) => !lastBuzzIds.current.has(item.id));
-    const repeatingUrgent = urgentUnread.filter((item) => REPEATING_BUZZ_TYPES.has(item.type));
     const now = Date.now();
-    const shouldRepeatBuzz = repeatingUrgent.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
+    const shouldRepeatBuzz = urgentUnread.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
     if (!newUrgent.length && !shouldRepeatBuzz) return;
 
     newUrgent.forEach((item) => lastBuzzIds.current.add(item.id));
     lastRepeatingBuzzAt.current = now;
     playAlarm();
-    if ('vibrate' in navigator) navigator.vibrate?.([900, 180, 900, 180, 900, 180, 900]);
+    if ('vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
 
     if ('Notification' in window && Notification.permission === 'granted' && newUrgent.length) {
       newUrgent.slice(0, 3).forEach((item) => new Notification(item.title, { body: item.message, requireInteraction: true }));
     }
   }, [urgentUnread]);
+
+  useEffect(() => {
+    const unlock = () => unlockAlarmAudio();
+    window.addEventListener('click', unlock, { once: true });
+    window.addEventListener('touchstart', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('click', unlock);
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   return null;
 }
