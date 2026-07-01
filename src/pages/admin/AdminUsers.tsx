@@ -31,7 +31,7 @@ export default function AdminUsers() {
     password: '',
     permissions: { ...emptyPermissions },
   });
-  const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '', permanent_address: '', permanent_latitude: '', permanent_longitude: '' });
+  const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '' });
 
   const loadProfiles = async () => {
     setLoading(true);
@@ -115,10 +115,6 @@ export default function AdminUsers() {
       setError('Delivery man name, phone and password are required.');
       return;
     }
-    if ((deliveryForm.permanent_latitude || deliveryForm.permanent_longitude) && (Number.isNaN(Number(deliveryForm.permanent_latitude)) || Number.isNaN(Number(deliveryForm.permanent_longitude)))) {
-      setError('Permanent latitude and longitude must be valid numbers.');
-      return;
-    }
     if (deliveryForm.password.length < 6) {
       setError('Delivery man password must be at least 6 characters.');
       return;
@@ -132,7 +128,7 @@ export default function AdminUsers() {
         ? `Delivery man account created and login credentials were sent by SMS to ${result.sms.number || deliveryForm.phone}.`
         : `Delivery man account created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
-      setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_latitude: '', permanent_longitude: '' });
+      setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '' });
       await loadProfiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create delivery man.');
@@ -175,8 +171,7 @@ export default function AdminUsers() {
         method: 'PATCH',
         body: JSON.stringify({
           permanent_address: profile.permanent_address || '',
-          permanent_latitude: profile.permanent_latitude ?? '',
-          permanent_longitude: profile.permanent_longitude ?? '',
+          permanent_plus_code: profile.permanent_plus_code || '',
         }),
       });
       setMessage('Delivery man permanent location updated.');
@@ -346,20 +341,17 @@ export default function AdminUsers() {
               className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
             />
           </div>
-          <input
-            value={deliveryForm.permanent_latitude}
-            onChange={(e) => setDeliveryForm((prev) => ({ ...prev, permanent_latitude: e.target.value }))}
-            placeholder="Permanent latitude, e.g. 23.8103"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
-          />
-          <input
-            value={deliveryForm.permanent_longitude}
-            onChange={(e) => setDeliveryForm((prev) => ({ ...prev, permanent_longitude: e.target.value }))}
-            placeholder="Permanent longitude, e.g. 90.4125"
-            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
-          />
+          <div className="relative lg:col-span-3">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              value={deliveryForm.permanent_plus_code}
+              onChange={(e) => setDeliveryForm((prev) => ({ ...prev, permanent_plus_code: e.target.value }))}
+              placeholder="Plus Code, e.g. Q9XX+XX Dhaka"
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
+            />
+          </div>
         </div>
-        <p className="text-xs text-gray-500 mt-3">Permanent latitude/longitude is optional during account creation. Add it now or later to show this delivery man as a fixed point on the admin live map and to include him in the 600m nearest-driver assignment list.</p>
+        <p className="text-xs text-gray-500 mt-3">Save delivery man base location by Plus Code only. Latitude and longitude are not shown or saved from the admin dashboard.</p>
         <button
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
@@ -449,7 +441,7 @@ export default function AdminUsers() {
                   <tr>
                     <th className="px-5 py-3 text-left">Name</th>
                     <th className="px-5 py-3 text-left">Phone</th>
-                    <th className="px-5 py-3 text-left">Permanent Point</th>
+                    <th className="px-5 py-3 text-left">Plus Code Location</th>
                     <th className="px-5 py-3 text-left">Delivered Orders</th>
                     <th className="px-5 py-3 text-left">Delivered Amount</th>
                     <th className="px-5 py-3 text-left">Status</th>
@@ -476,26 +468,19 @@ export default function AdminUsers() {
                             placeholder="Base address"
                             className="w-full mb-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
                           />
-                          <div className="grid grid-cols-2 gap-2">
-                            <input
-                              value={profile.permanent_latitude ?? ''}
-                              onChange={(e) => updateLocalDeliveryProfile(profile.id, { permanent_latitude: e.target.value === '' ? null : Number(e.target.value) })}
-                              placeholder="Latitude"
-                              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
-                            />
-                            <input
-                              value={profile.permanent_longitude ?? ''}
-                              onChange={(e) => updateLocalDeliveryProfile(profile.id, { permanent_longitude: e.target.value === '' ? null : Number(e.target.value) })}
-                              placeholder="Longitude"
-                              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
-                            />
-                          </div>
+                          <input
+                            value={profile.permanent_plus_code || ''}
+                            onChange={(e) => updateLocalDeliveryProfile(profile.id, { permanent_plus_code: e.target.value })}
+                            placeholder="Plus Code, e.g. Q9XX+XX Dhaka"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
+                          />
+                          <p className="mt-1 text-[11px] text-gray-400">Admin saves Plus Code only. Latitude/longitude is hidden.</p>
                           <button
                             onClick={() => updateDeliveryManBase(profile)}
                             disabled={savingId === profile.id}
                             className="mt-2 px-3 py-2 rounded-lg bg-green-50 text-green-700 text-xs font-semibold disabled:opacity-60"
                           >
-                            Save Permanent Point
+                            Save Plus Code
                           </button>
                         </td>
                         <td className="px-5 py-3 font-bold text-gray-900">{report.orders.length}</td>

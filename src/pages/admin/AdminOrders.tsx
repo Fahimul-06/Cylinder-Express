@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Order, OrderItem, Profile, ServiceBooking } from '../../lib/types';
+
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 import {
   ShoppingBag, Clock, Check, X, Truck, ChevronDown,
   ChevronUp, Filter, Building2, Tag, MapPin, Wrench, Calendar,
@@ -33,6 +35,7 @@ export default function AdminOrders() {
   const [profileMap, setProfileMap] = useState<Record<string, any>>({});
   const [deliveryMen, setDeliveryMen] = useState<Profile[]>([]);
   const [customerLocationMap, setCustomerLocationMap] = useState<Record<string, { latitude: number; longitude: number }>>({});
+  const [deliveryPlusCodeCoords, setDeliveryPlusCodeCoords] = useState<Record<string, { latitude: number; longitude: number }>>({});
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -99,7 +102,9 @@ export default function AdminOrders() {
       .select('*')
       .eq('role', 'delivery')
       .order('full_name', { ascending: true });
-    setDeliveryMen((deliveryRes.data || []) as Profile[]);
+    const deliveryProfiles = (deliveryRes.data || []) as Profile[];
+    setDeliveryMen(deliveryProfiles);
+    geocodeDeliveryPlusCodes(deliveryProfiles);
 
     const iMap: Record<string, OrderItem[]> = {};
     if (itemsRes.data) {
@@ -128,6 +133,34 @@ export default function AdminOrders() {
     setLastUpdated(new Date());
     fetchingRef.current = false;
     if (showLoader) setLoading(false);
+  }
+
+  async function geocodeDeliveryPlusCodes(deliveryProfiles: Profile[]) {
+    const withPlusCode = deliveryProfiles.filter((man) =>
+      man.permanent_plus_code &&
+      !deliveryPlusCodeCoords[man.user_id] &&
+      !(typeof man.permanent_latitude === 'number' && typeof man.permanent_longitude === 'number')
+    );
+    if (!GOOGLE_MAPS_API_KEY || withPlusCode.length === 0) return;
+
+    const results: Record<string, { latitude: number; longitude: number }> = {};
+    await Promise.all(withPlusCode.map(async (man) => {
+      try {
+        const query = encodeURIComponent(man.permanent_plus_code || '');
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${GOOGLE_MAPS_API_KEY}`);
+        const data = await response.json();
+        const loc = data?.results?.[0]?.geometry?.location;
+        if (typeof loc?.lat === 'number' && typeof loc?.lng === 'number') {
+          results[man.user_id] = { latitude: loc.lat, longitude: loc.lng };
+        }
+      } catch {
+        // Keep assignment page usable even if one plus code cannot be geocoded.
+      }
+    }));
+
+    if (Object.keys(results).length > 0) {
+      setDeliveryPlusCodeCoords((prev) => ({ ...prev, ...results }));
+    }
   }
 
   async function updateEntryStatus(type: EntryType, id: string, status: string) {
@@ -208,14 +241,20 @@ export default function AdminOrders() {
     const target = getOrderTargetPoint(order, addr);
     if (!target) return [];
     return deliveryMen
-      .filter((man) => typeof man.permanent_latitude === 'number' && typeof man.permanent_longitude === 'number')
-      .map((man) => ({
-        ...man,
-        distance_m: distanceMeters(
-          { latitude: target.latitude, longitude: target.longitude },
-          { latitude: Number(man.permanent_latitude), longitude: Number(man.permanent_longitude) }
-        ),
-      }))
+      .map((man) => {
+        const plusCodePoint = deliveryPlusCodeCoords[man.user_id];
+        const basePoint = typeof man.permanent_latitude === 'number' && typeof man.permanent_longitude === 'number'
+          ? { latitude: Number(man.permanent_latitude), longitude: Number(man.permanent_longitude) }
+          : plusCodePoint;
+        return basePoint ? {
+          ...man,
+          distance_m: distanceMeters(
+            { latitude: target.latitude, longitude: target.longitude },
+            basePoint
+          ),
+        } : null;
+      })
+      .filter((man): man is Profile & { distance_m: number } => Boolean(man))
       .filter((man) => man.distance_m <= 600 || man.user_id === order.delivery_man_id)
       .sort((a, b) => a.distance_m - b.distance_m);
   };

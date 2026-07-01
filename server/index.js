@@ -97,6 +97,7 @@ const ProfileSchema = new mongoose.Schema({
   permanent_address: { type: String, default: null },
   permanent_latitude: { type: Number, default: null },
   permanent_longitude: { type: Number, default: null },
+  permanent_plus_code: { type: String, default: null, trim: true },
   ...common,
 }, { toJSON });
 
@@ -728,7 +729,7 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
 
 app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
-    const { full_name, phone, password, permanent_address, permanent_latitude, permanent_longitude } = req.body;
+    const { full_name, phone, password, permanent_address, permanent_plus_code } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const normalizedPhone = normalizePhoneForSms(phone);
@@ -748,8 +749,9 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
       permissions: {},
       is_active: true,
       permanent_address: permanent_address || null,
-      permanent_latitude: permanent_latitude === '' || permanent_latitude === undefined ? null : Number(permanent_latitude),
-      permanent_longitude: permanent_longitude === '' || permanent_longitude === undefined ? null : Number(permanent_longitude),
+      permanent_latitude: null,
+      permanent_longitude: null,
+      permanent_plus_code: permanent_plus_code ? String(permanent_plus_code).trim() : null,
     });
 
     const smsMessage = `Cylinder Express delivery account created. Username: ${normalizedPhone}. Password: ${password}. Login and share your live location before delivery.`;
@@ -775,8 +777,11 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     if (req.body.phone !== undefined) update.phone = req.body.phone;
     if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
     if (req.body.permanent_address !== undefined) update.permanent_address = req.body.permanent_address || null;
-    if (req.body.permanent_latitude !== undefined) update.permanent_latitude = req.body.permanent_latitude === '' || req.body.permanent_latitude === null ? null : Number(req.body.permanent_latitude);
-    if (req.body.permanent_longitude !== undefined) update.permanent_longitude = req.body.permanent_longitude === '' || req.body.permanent_longitude === null ? null : Number(req.body.permanent_longitude);
+    if (req.body.permanent_plus_code !== undefined) {
+      update.permanent_plus_code = req.body.permanent_plus_code ? String(req.body.permanent_plus_code).trim() : null;
+      update.permanent_latitude = null;
+      update.permanent_longitude = null;
+    }
     update.updated_at = new Date();
     const profile = await models.profiles.findOneAndUpdate({ _id: req.params.profileId, role: 'delivery' }, update, { new: true });
     if (!profile) return res.status(404).json({ error: 'Delivery man profile not found.' });

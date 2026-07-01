@@ -12,6 +12,7 @@ export interface Profile {
   permanent_address?: string | null;
   permanent_latitude?: number | null;
   permanent_longitude?: number | null;
+  permanent_plus_code?: string | null;
   created_at: string;
   updated_at: string;
 }
