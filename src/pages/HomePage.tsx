@@ -8,6 +8,7 @@ import {
   Star, MapPin, Sparkles, Tag
 } from 'lucide-react';
 import OffersCarousel from '../components/OffersCarousel';
+import { dedupeCustomerProducts } from '../lib/productCatalog';
 
 const categoryIcons: Record<string, typeof Flame> = {
   cylinders: Flame,
@@ -71,10 +72,10 @@ export default function HomePage() {
       }));
 
       setCategories(catRes.data || []);
-      setBestsellers(attachOffers(bestRes.data || []));
-      setCylinders(attachOffers(cylRes.data || []));
+      setBestsellers(dedupeCustomerProducts(attachOffers(bestRes.data || [])));
+      setCylinders(dedupeCustomerProducts(attachOffers(cylRes.data || [])).filter(p => p.category?.slug === 'lpg-cylinders').slice(0, 6));
       setServices(attachOffers(svcRes.data || []));
-      setSaleProducts(saleItems.slice(0, 8));
+      setSaleProducts(dedupeCustomerProducts(saleItems).slice(0, 8));
       setHeroSlides(heroRes.data || []);
       setLoading(false);
     }

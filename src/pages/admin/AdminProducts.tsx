@@ -104,8 +104,7 @@ export default function AdminProducts() {
     const updated = { ...form, ...next };
     const isLpg = categories.find(c => c.id === updated.category_id)?.slug === 'lpg-cylinders';
     if (!isLpg || !updated.company_name || !updated.size) return updated;
-    const typeText = updated.type === 'refill' ? 'Refill' : 'New Cylinder';
-    return { ...updated, name: `${updated.company_name} ${updated.size} ${typeText}`, unit: 'cylinder' };
+    return { ...updated, type: 'new' as const, name: `${updated.company_name} ${updated.size} LPG Cylinder`, unit: 'cylinder' };
   }
 
   async function uploadImage(file: File) {
@@ -161,12 +160,11 @@ export default function AdminProducts() {
         p.id !== editing?.id &&
         p.category_id === form.category_id &&
         p.company_name === form.company_name &&
-        p.size === form.size &&
-        p.type === form.type
+        p.size === form.size
       );
 
       if (duplicate) {
-        alert(`This LPG cylinder already exists: ${duplicate.name}. Edit that product instead of uploading the same brand and size again for another valve.`);
+        alert(`This LPG cylinder already exists: ${duplicate.name}. Edit the same product to manage both refill and new-cylinder prices.`);
         return;
       }
     }
@@ -358,15 +356,20 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
-                  <select
-                    value={form.type || 'new'}
-                    onChange={e => setForm(f => applyLpgName({ ...f, type: e.target.value as Product['type'] }))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                  >
-                    <option value="new">New Product</option>
-                    <option value="refill">Cylinder Refill</option>
-                    <option value="service">Service</option>
-                  </select>
+                  {isLpgCylinderForm ? (
+                    <div className="w-full px-4 py-2.5 border border-blue-100 bg-blue-50 rounded-xl text-sm font-semibold text-blue-800">
+                      LPG Cylinder — New/Refill selected by customer
+                    </div>
+                  ) : (
+                    <select
+                      value={form.type || 'new'}
+                      onChange={e => setForm(f => ({ ...f, type: e.target.value as Product['type'] }))}
+                      className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    >
+                      <option value="new">Product</option>
+                      <option value="service">Service</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -375,7 +378,7 @@ export default function AdminProducts() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h4 className="font-semibold text-blue-900 text-sm">LPG Cylinder Details</h4>
-                      <p className="text-xs text-blue-600">Create one product for each brand and size. Customers choose valve type and size on the product page.</p>
+                      <p className="text-xs text-blue-600">Create one product for each brand and size. Customers choose New Cylinder or Refill, valve type, and valve size on the product page.</p>
                     </div>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">

@@ -2,6 +2,7 @@ import { Product, Offer } from '../lib/types';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Star, Flame, RotateCcw, Wrench, Truck, Tag } from 'lucide-react';
+import { getLpgDisplayName } from '../lib/productCatalog';
 import { getDeliveryFeeLabel, isLpgCylinder } from '../lib/deliveryCharges';
 
 const typeIcons = {
@@ -48,8 +49,11 @@ export default function ProductCard({ product, compact = false }: { product: Pro
   const navigate = useNavigate();
   const isCylinder = isLpgCylinder(product);
   const qty = isCylinder ? 0 : getItemQuantity(product.id);
-  const TypeIcon = typeIcons[product.type];
-  const details = [product.company_name, product.size, product.valve_size, product.valve_connection].filter(Boolean).join(' · ');
+  const TypeIcon = isCylinder ? Flame : typeIcons[product.type];
+  const details = isCylinder ? [product.company_name, product.size].filter(Boolean).join(' · ') : [product.company_name, product.size, product.valve_size, product.valve_connection].filter(Boolean).join(' · ');
+  const displayName = getLpgDisplayName(product);
+  const displayTypeLabel = isCylinder ? 'LPG Cylinder' : typeLabels[product.type];
+  const displayTypeColor = isCylinder ? 'bg-blue-50 text-blue-700' : typeColors[product.type];
   const activeOffer = isActiveOffer(product.active_offer) ? product.active_offer : null;
   const offerLabel = getOfferLabel(activeOffer);
   const salePrice = getDiscountedPrice(product.price, activeOffer);
@@ -64,7 +68,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         <div className="relative h-28 sm:h-32 overflow-hidden bg-gray-100">
           <img
             src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=400'}
-            alt={product.name}
+            alt={displayName}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
           {offerLabel && (
@@ -79,10 +83,10 @@ export default function ProductCard({ product, compact = false }: { product: Pro
           )}
         </div>
         <div className="p-3">
-          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight min-h-[2.25rem]">{product.name}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-tight min-h-[2.25rem]">{displayName}</h3>
           {details && <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">{details}</p>}
           <div className="mt-1 flex items-baseline gap-2">
-            <p className="text-blue-600 font-bold text-sm">৳{salePrice.toLocaleString()}</p>
+            <p className="text-blue-600 font-bold text-sm">{isCylinder && <span className="text-[10px] font-medium text-gray-500 mr-1">Refill from</span>}৳{salePrice.toLocaleString()}</p>
             {hasSale && <p className="text-[11px] text-gray-400 line-through">৳{product.price.toLocaleString()}</p>}
           </div>
           <p className="mt-1 flex items-center gap-1 text-[11px] text-gray-500"><Truck className="w-3 h-3" /> {getDeliveryFeeLabel(product)}</p>
@@ -99,13 +103,13 @@ export default function ProductCard({ product, compact = false }: { product: Pro
       <div className="relative h-36 sm:h-48 overflow-hidden bg-gray-100">
         <img
           src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=400'}
-          alt={product.name}
+          alt={displayName}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
         <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${typeColors[product.type]}`}>
+          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${displayTypeColor}`}>
             <TypeIcon className="w-3 h-3" />
-            {typeLabels[product.type]}
+            {displayTypeLabel}
           </span>
           {product.is_bestseller && (
             <span className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -125,7 +129,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         )}
       </div>
       <div className="p-3 sm:p-4 flex flex-col flex-1">
-        <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem] sm:min-h-0 leading-snug">{product.name}</h3>
+        <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[2.5rem] sm:min-h-0 leading-snug">{displayName}</h3>
         {details && <p className="text-xs text-blue-600 font-medium mt-1 line-clamp-1">{details}</p>}
         {product.description && (
           <p className="text-sm text-gray-500 mt-1 line-clamp-2 min-h-[2.5rem]">{product.description}</p>
@@ -141,7 +145,7 @@ export default function ProductCard({ product, compact = false }: { product: Pro
         <div className="mt-auto pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="text-lg sm:text-xl font-bold text-blue-600">৳{salePrice.toLocaleString()}</span>
+              <span className="text-lg sm:text-xl font-bold text-blue-600">{isCylinder && <span className="block text-[11px] leading-none font-medium text-gray-500 mb-1">Refill price</span>}৳{salePrice.toLocaleString()}</span>
               {hasSale && <span className="text-sm text-gray-400 line-through">৳{product.price.toLocaleString()}</span>}
             </div>
             {product.unit !== 'piece' && (

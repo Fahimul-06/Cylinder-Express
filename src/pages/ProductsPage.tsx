@@ -5,8 +5,9 @@ import { useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
   Search, SlidersHorizontal, X, ChevronDown,
-  Flame, RotateCcw, Wrench, Package
+  Flame, Wrench, Package
 } from 'lucide-react';
+import { dedupeCustomerProducts } from '../lib/productCatalog';
 
 export default function ProductsPage() {
   const [searchParams] = useSearchParams();
@@ -29,10 +30,10 @@ export default function ProductsPage() {
       ]);
       const activeProductOffers = ((offerRes.data || []) as Offer[])
         .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
-      setProducts((prodRes.data || []).map((product: Product) => ({
+      setProducts(dedupeCustomerProducts((prodRes.data || []).map((product: Product) => ({
         ...product,
         active_offer: activeProductOffers.find(offer => offer.product_id === product.id) || null,
-      })));
+      }))));
       setCategories(catRes.data || []);
       setLoading(false);
     }
@@ -86,11 +87,9 @@ export default function ProductsPage() {
       .filter(group => group.items.length > 0 || !search && !sectionSearch[group.category.slug]);
   }, [categories, categoryFilter, filtered, search, sectionSearch]);
 
-  const typeFilters: { key: TypeFilter; label: string; icon: typeof Flame }[] = [
-    { key: 'all', label: 'All', icon: Package },
-    { key: 'new', label: 'New', icon: Flame },
-    { key: 'refill', label: 'Refill', icon: RotateCcw },
-    { key: 'service', label: 'Service', icon: Wrench },
+  const typeFilters: { key: TypeFilter; label: string; icon: typeof Package }[] = [
+    { key: 'all', label: 'All Products', icon: Package },
+    { key: 'service', label: 'Services', icon: Wrench },
   ];
 
   const clearFilters = () => {

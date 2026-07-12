@@ -13,6 +13,7 @@ import { isLpgCylinder } from '../lib/deliveryCharges';
 import ProductCard from '../components/ProductCard';
 import { LPG_VALVE_CONNECTIONS, LPG_VALVE_SIZES } from '../lib/productOptions';
 import { getCylinderBottlePrice, getCylinderGasPrice, getProductPriceForOrderType } from '../lib/cylinderPricing';
+import { dedupeCustomerProducts, getLpgDisplayName } from '../lib/productCatalog';
 
 const typeConfig = {
   new: { icon: Flame, label: 'New', color: 'bg-emerald-50 text-emerald-700' },
@@ -89,11 +90,8 @@ export default function ProductDetailPage() {
           .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
         const productOffer = activeProductOffers.find(offer => offer.product_id === data.id) || null;
         setProduct({ ...data, active_offer: productOffer });
-        if (isLpgCylinder(data) && (data.type === 'new' || data.type === 'refill')) {
-          setSelectedCylinderOrderType(data.type);
-        }
 
-        const scored = ((related || []) as Product[])
+        const scored = dedupeCustomerProducts((related || []) as Product[])
           .filter(item => item.id !== data.id)
           .map((item: Product) => ({
             item: { ...item, active_offer: activeProductOffers.find(offer => offer.product_id === item.id) || null },
@@ -181,9 +179,11 @@ export default function ProductDetailPage() {
     );
   }
 
-  const tc = typeConfig[product.type];
+  const isCylinder = isLpgCylinder(product);
+  const tc = isCylinder ? { icon: Flame, label: 'LPG Cylinder', color: 'bg-blue-50 text-blue-700' } : typeConfig[product.type];
   const TypeIcon = tc.icon;
   const isService = product.type === 'service';
+  const displayName = getLpgDisplayName(product);
   const productDetails = [
     product.company_name ? { label: 'Company', value: product.company_name } : null,
     product.size ? { label: 'Size', value: product.size } : null,
@@ -212,14 +212,14 @@ export default function ProductDetailPage() {
             </>
           )}
           <ChevronRight className="w-3 h-3" />
-          <span className="text-gray-900 font-medium">{product.name}</span>
+          <span className="text-gray-900 font-medium">{displayName}</span>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
           <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-gray-100">
             <img
               src={product.image_url || 'https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=600'}
-              alt={product.name}
+              alt={displayName}
               className="w-full h-full object-cover"
             />
             <div className="absolute top-4 left-4 flex gap-2">
@@ -242,7 +242,7 @@ export default function ProductDetailPage() {
 
           <div className="space-y-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{product.name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{displayName}</h1>
               {productDetails.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   {productDetails.map(detail => (
