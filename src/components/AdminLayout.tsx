@@ -8,6 +8,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
 import NotificationBell from './NotificationBell';
 import { AdminPermissionKey, profileHasPermission } from '../lib/types';
+import { ADMIN_DASHBOARD_PATH, adminPath } from '../lib/secureRoutes';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
@@ -16,13 +17,13 @@ export default function AdminLayout() {
   const { t } = useLanguage();
 
   const links = [
-    { path: '/admin', label: t('admin.dashboard'), icon: LayoutDashboard, end: true, permission: 'dashboard' as AdminPermissionKey },
-    { path: '/admin/orders', label: t('admin.orders'), icon: ShoppingBag, permission: 'orders' as AdminPermissionKey },
-    { path: '/admin/products', label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
-    { path: '/admin/offers', label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
-    { path: '/admin/hero', label: 'Hero Photos', icon: ImageIcon, permission: 'offers' as AdminPermissionKey },
-    { path: '/admin/locations', label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
-    { path: '/admin/users', label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
+    { path: ADMIN_DASHBOARD_PATH, label: t('admin.dashboard'), icon: LayoutDashboard, end: true, permission: 'dashboard' as AdminPermissionKey },
+    { path: adminPath('orders'), label: t('admin.orders'), icon: ShoppingBag, permission: 'orders' as AdminPermissionKey },
+    { path: adminPath('products'), label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
+    { path: adminPath('offers'), label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
+    { path: adminPath('hero'), label: 'Hero Photos', icon: ImageIcon, permission: 'offers' as AdminPermissionKey },
+    { path: adminPath('locations'), label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
+    { path: adminPath('users'), label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>

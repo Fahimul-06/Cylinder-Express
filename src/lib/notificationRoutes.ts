@@ -1,4 +1,5 @@
 import { Profile } from './types';
+import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath } from './secureRoutes';
 
 export type AppNotificationItem = {
   id: string;
@@ -16,7 +17,7 @@ export function getNotificationTargetPath(notification: AppNotificationItem, pro
   const text = `${type} ${title} ${message}`;
 
   if (type.includes('delivery_assigned') || type.includes('delivery_accept') || profile?.role === 'delivery') {
-    return '/delivery';
+    return DELIVERY_DASHBOARD_PATH;
   }
 
   if (
@@ -27,19 +28,19 @@ export function getNotificationTargetPath(notification: AppNotificationItem, pro
     text.includes('confirm or assign') ||
     text.includes('order confirmation overdue')
   ) {
-    return '/admin/orders';
+    return adminPath('orders');
   }
 
   if (type.startsWith('order_') || notification.order_id || text.includes('order #')) {
-    return profile?.is_admin ? '/admin/orders' : '/orders';
+    return profile?.is_admin ? adminPath('orders') : '/orders';
   }
 
   if (type.includes('offer') || type.includes('promo') || text.includes('offer') || text.includes('promo')) {
-    return profile?.is_admin ? '/admin/offers' : '/offers';
+    return profile?.is_admin ? adminPath('offers') : '/offers';
   }
 
   if (type.includes('product') || text.includes('product')) {
-    return profile?.is_admin ? '/admin/products' : '/products';
+    return profile?.is_admin ? adminPath('products') : '/products';
   }
 
   if (type.includes('address') || text.includes('address')) {
@@ -47,13 +48,13 @@ export function getNotificationTargetPath(notification: AppNotificationItem, pro
   }
 
   if (type.includes('location') || text.includes('location')) {
-    return profile?.is_admin ? '/admin/locations' : '/orders';
+    return profile?.is_admin ? adminPath('locations') : '/orders';
   }
 
   if (type.includes('user') || type.includes('profile') || text.includes('profile')) {
-    return profile?.is_admin ? '/admin/users' : '/profile';
+    return profile?.is_admin ? adminPath('users') : '/profile';
   }
 
-  if (profile?.is_admin) return '/admin';
+  if (profile?.is_admin) return ADMIN_DASHBOARD_PATH;
   return '/home';
 }

@@ -28,6 +28,7 @@ import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
+import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -79,7 +80,7 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
   if (permission && !profileHasPermission(profile, permission)) {
     const fallback = (['dashboard', 'orders', 'products', 'offers', 'locations', 'users'] as AdminPermissionKey[])
       .find((key) => profileHasPermission(profile, key));
-    const fallbackPath = fallback === 'dashboard' ? '/admin' : fallback ? `/admin/${fallback}` : '/home';
+    const fallbackPath = fallback === 'dashboard' ? ADMIN_DASHBOARD_PATH : fallback ? adminPath(fallback) : '/home';
     return <Navigate to={fallbackPath} replace />;
   }
   return <>{children}</>;
@@ -100,8 +101,8 @@ function AppRoutes() {
   }
 
   const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
-  const isAdminRoute = currentPath.startsWith('/admin');
-  const isDeliveryRoute = currentPath.startsWith('/delivery');
+  const isAdminRoute = isAdminDashboardPath(currentPath);
+  const isDeliveryRoute = isDeliveryDashboardPath(currentPath);
 
   return (
     <>
@@ -115,7 +116,7 @@ function AppRoutes() {
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
         <Route path="/terms-of-use" element={<StaticPage type="terms" />} />
         <Route path="/contact-us" element={<StaticPage type="contact" />} />
-        <Route path="/home" element={<ProtectedRoute>{profile?.role === 'delivery' ? <Navigate to="/delivery" replace /> : <HomePage />}</ProtectedRoute>} />
+        <Route path="/home" element={<ProtectedRoute>{profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />}</ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
         <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
         <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
@@ -125,9 +126,9 @@ function AppRoutes() {
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-        <Route path="/delivery" element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
+        <Route path={DELIVERY_DASHBOARD_PATH} element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         {/* Admin routes */}
-        <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+        <Route path={ADMIN_DASHBOARD_PATH} element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route index element={<AdminRoute permission="dashboard"><AdminDashboard /></AdminRoute>} />
           <Route path="orders" element={<AdminRoute permission="orders"><AdminOrders /></AdminRoute>} />
           <Route path="products" element={<AdminRoute permission="products"><AdminProducts /></AdminRoute>} />
@@ -136,7 +137,7 @@ function AppRoutes() {
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? '/delivery' : '/home') : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
       {!isAdminRoute && !isDeliveryRoute && <Footer />}
     </>

@@ -6,6 +6,7 @@ import {
   User, Mail, Phone, Lock, Eye, EyeOff, Save,
   Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard
 } from 'lucide-react';
+import { ADMIN_DASHBOARD_PATH } from '../lib/secureRoutes';
 
 export default function ProfilePage() {
   const { profile, updateProfile, updatePassword, signOut } = useAuth();
@@ -331,7 +332,7 @@ export default function ProfilePage() {
           {profile?.is_admin && (
             <>
               <button
-                onClick={() => navigate('/admin')}
+                onClick={() => navigate(ADMIN_DASHBOARD_PATH)}
                 className="w-full flex items-center justify-between p-4 hover:bg-blue-50 transition-colors"
               >
                 <div className="flex items-center gap-3">

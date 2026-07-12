@@ -1,4 +1,28 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+function resolveApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (envUrl) return envUrl.replace(/\/+$/, '');
+
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, origin } = window.location;
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+
+    // Render static frontend fallback:
+    // cylinder-express-web.onrender.com -> cylinder-express-api.onrender.com
+    if (hostname.endsWith('.onrender.com') && hostname.includes('-web.')) {
+      return `${protocol}//${hostname.replace('-web.', '-api.')}`;
+    }
+
+    // If frontend and backend are served from the same origin, this works without env.
+    return origin;
+  }
+
+  return 'http://localhost:5000';
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 const TOKEN_KEY = 'cylinder_express_auth_token';
 
 type Filter = { field: string; op: 'eq' | 'in' | 'gte'; value: unknown };
@@ -24,7 +48,14 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers || {}),
   } as Record<string, string>;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+  } catch (_error) {
+    throw new Error(
+      `Cannot connect to Cylinder Express server. Check VITE_API_BASE_URL, backend Render service status, and CLIENT_ORIGIN. Current API: ${API_BASE_URL}`
+    );
+  }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(payload.error || payload.message || 'Request failed');
   return payload as T;
