@@ -12,6 +12,7 @@ import { SERVICE_TIME_SLOTS } from '../lib/constants';
 import { isLpgCylinder } from '../lib/deliveryCharges';
 import ProductCard from '../components/ProductCard';
 import { LPG_VALVE_CONNECTIONS, LPG_VALVE_SIZES } from '../lib/productOptions';
+import { getCylinderBottlePrice, getCylinderGasPrice, getProductPriceForOrderType } from '../lib/cylinderPricing';
 
 const typeConfig = {
   new: { icon: Flame, label: 'New', color: 'bg-emerald-50 text-emerald-700' },
@@ -130,9 +131,11 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     if (!product) return;
     if (needsValveSelection && (!selectedValveSize || !selectedValveType || !selectedCylinderOrderType)) return;
-    const salePrice = getDiscountedPrice(product.price, product.active_offer);
+    const selectedBasePrice = getProductPriceForOrderType(product, selectedCylinderOrderType || null);
+    const salePrice = getDiscountedPrice(selectedBasePrice, product.active_offer);
     const productForCart = {
-      ...(salePrice < product.price ? { ...product, price: salePrice } : product),
+      ...product,
+      price: salePrice,
       type: selectedCylinderOrderType || product.type,
     };
     addItem(productForCart, qty, selectedCartOptions);
@@ -187,8 +190,11 @@ export default function ProductDetailPage() {
   ].filter(Boolean) as { label: string; value: string }[];
   const activeOffer = isActiveOffer(product.active_offer) ? product.active_offer : null;
   const offerLabel = getOfferLabel(activeOffer);
-  const salePrice = getDiscountedPrice(product.price, activeOffer);
-  const hasSale = Boolean(activeOffer && salePrice < product.price);
+  const selectedBasePrice = getProductPriceForOrderType(product, selectedCylinderOrderType || null);
+  const salePrice = getDiscountedPrice(selectedBasePrice, activeOffer);
+  const hasSale = Boolean(activeOffer && salePrice < selectedBasePrice);
+  const gasPrice = getCylinderGasPrice(product);
+  const bottlePrice = getCylinderBottlePrice(product);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -251,7 +257,7 @@ export default function ProductDetailPage() {
 
             <div className="flex items-baseline gap-2 flex-wrap">
               <span className="text-3xl font-bold text-blue-600">৳{salePrice.toLocaleString()}</span>
-              {hasSale && <span className="text-lg text-gray-400 line-through">৳{product.price.toLocaleString()}</span>}
+              {hasSale && <span className="text-lg text-gray-400 line-through">৳{selectedBasePrice.toLocaleString()}</span>}
               {product.unit !== 'piece' && (
                 <span className="text-gray-400">/ {product.unit}</span>
               )}
@@ -377,6 +383,31 @@ export default function ProductDetailPage() {
                           );
                         })}
                       </div>
+                      {selectedCylinderOrderType && (
+                        <div className="mt-3 rounded-xl border border-blue-100 bg-white p-3">
+                          {selectedCylinderOrderType === 'refill' ? (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm text-gray-600">Gas / refill price</span>
+                              <strong className="text-blue-700">৳{gasPrice.toLocaleString()}</strong>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-gray-600">Gas price</span>
+                                <span className="font-medium">৳{gasPrice.toLocaleString()}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-gray-600">Bottle price</span>
+                                <span className="font-medium">৳{bottlePrice.toLocaleString()}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-2">
+                                <strong className="text-gray-900">New cylinder price</strong>
+                                <strong className="text-blue-700">৳{(gasPrice + bottlePrice).toLocaleString()}</strong>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div>

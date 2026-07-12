@@ -45,6 +45,8 @@ export interface Product {
   name: string;
   description: string | null;
   price: number;
+  gas_price?: number | null;
+  bottle_price?: number | null;
   image_url: string | null;
   type: 'new' | 'refill' | 'service';
   company_name: string | null;

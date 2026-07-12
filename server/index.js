@@ -122,7 +122,7 @@ const ProfileSchema = new mongoose.Schema({
 }, { toJSON });
 
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
-const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
+const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, gas_price: { type: Number, default: null }, bottle_price: { type: Number, default: null }, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
 const AddressSchema = new mongoose.Schema({ user_id: String, label: String, address_line1: String, address_line2: String, city: String, district: String, area: String, postal_code: String, latitude: Number, longitude: Number, is_default: Boolean, ...common }, { toJSON });
 const OrderSchema = new mongoose.Schema({
   user_id: String,

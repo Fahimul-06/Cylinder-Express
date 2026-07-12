@@ -8,13 +8,13 @@ import {
 } from 'lucide-react';
 
 type ProductForm = Partial<Pick<Product,
-  'name' | 'description' | 'price' | 'image_url' | 'type' | 'company_name' | 'size' |
+  'name' | 'description' | 'price' | 'gas_price' | 'bottle_price' | 'image_url' | 'type' | 'company_name' | 'size' |
   'unit' | 'is_bestseller' | 'is_available' |
   'sort_order' | 'category_id'
 >>;
 
 const emptyForm: ProductForm = {
-  name: '', description: '', price: 0, image_url: '', type: 'new',
+  name: '', description: '', price: 0, gas_price: 0, bottle_price: 0, image_url: '', type: 'new',
   company_name: '', size: '', unit: 'piece',
   is_bestseller: false, is_available: true, sort_order: 0, category_id: '',
 };
@@ -85,6 +85,8 @@ export default function AdminProducts() {
       name: p.name,
       description: p.description || '',
       price: p.price,
+      gas_price: p.gas_price ?? p.price,
+      bottle_price: p.bottle_price ?? 0,
       image_url: p.image_url || '',
       type: p.type,
       company_name: p.company_name || '',
@@ -147,7 +149,8 @@ export default function AdminProducts() {
   };
 
   async function handleSave() {
-    if (!form.name || !form.price || !form.category_id) return;
+    const effectivePrice = isLpgCylinderForm ? Number(form.gas_price || 0) : Number(form.price || 0);
+    if (!form.name || effectivePrice <= 0 || !form.category_id) return;
     if (isLpgCylinderForm && (!form.company_name || !form.size)) {
       alert('Please select LPG company name and cylinder size.');
       return;
@@ -172,7 +175,9 @@ export default function AdminProducts() {
     const payload = {
       name: form.name,
       description: form.description || null,
-      price: form.price,
+      price: effectivePrice,
+      gas_price: isLpgCylinderForm ? Number(form.gas_price || 0) : null,
+      bottle_price: isLpgCylinderForm ? Number(form.bottle_price || 0) : null,
       image_url: form.image_url || null,
       type: form.type,
       company_name: isLpgCylinderForm ? form.company_name || null : null,
@@ -296,7 +301,7 @@ export default function AdminProducts() {
                         {p.is_bestseller && <Star className="w-3.5 h-3.5 text-blue-400 fill-blue-400" />}
                       </div>
                       <p className="text-xs text-gray-400">
-                        {[p.company_name, p.size].filter(Boolean).join(' · ') || 'General item'} · ৳{p.price.toLocaleString()}
+                        {[p.company_name, p.size].filter(Boolean).join(' · ') || 'General item'} · {p.category?.slug === 'lpg-cylinders' ? `Gas ৳${Number(p.gas_price ?? p.price).toLocaleString()} · Bottle ৳${Number(p.bottle_price ?? 0).toLocaleString()} · New ৳${(Number(p.gas_price ?? p.price) + Number(p.bottle_price ?? 0)).toLocaleString()}` : `৳${p.price.toLocaleString()}`} 
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -409,24 +414,52 @@ export default function AdminProducts() {
                 <input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
-                  <input type="number" value={form.price || 0} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+              {isLpgCylinderForm ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Gas / Refill Price *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.gas_price || 0}
+                        onChange={e => setForm(f => ({ ...f, gas_price: Number(e.target.value), price: Number(e.target.value) }))}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Customer refill price. This includes gas only.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Empty Bottle Price *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.bottle_price || 0}
+                        onChange={e => setForm(f => ({ ...f, bottle_price: Number(e.target.value) }))}
+                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Added only when customer selects New Cylinder.</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-blue-800">New cylinder total</span>
+                      <strong className="text-blue-950">৳{(Number(form.gas_price || 0) + Number(form.bottle_price || 0)).toLocaleString()}</strong>
+                    </div>
+                    <p className="mt-1 text-xs text-blue-700">Gas price + bottle price = new cylinder price</p>
+                  </div>
                 </div>
-                {!isLpgCylinderForm && (
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
+                    <input type="number" value={form.price || 0} onChange={e => setForm(f => ({ ...f, price: Number(e.target.value) }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Size / Variant</label>
                     <input value={form.size || ''} onChange={e => setForm(f => ({ ...f, size: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
                   </div>
-                )}
-                {isLpgCylinderForm && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                    <input value={form.unit || 'cylinder'} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600" />
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -502,7 +535,7 @@ export default function AdminProducts() {
               <button onClick={() => setShowModal(false)} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-all">Cancel</button>
               <button
                 onClick={handleSave}
-                disabled={saving || uploadingImage || !form.name || !form.price || !form.category_id}
+                disabled={saving || uploadingImage || !form.name || !(isLpgCylinderForm ? form.gas_price : form.price) || !form.category_id}
                 className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
