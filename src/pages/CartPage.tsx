@@ -56,7 +56,7 @@ export default function CartPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-3">
-            {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => (
+            {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection, selected_order_type }) => (
               <div
                 key={cart_key}
                 className="bg-white rounded-2xl border border-gray-100 p-4 flex gap-4"
@@ -81,6 +81,9 @@ export default function CartPage() {
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {product.size && (
                       <span className="text-xs text-gray-500">{product.size}</span>
+                    )}
+                    {selected_order_type && (
+                      <span className="px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-[11px] font-semibold">{selected_order_type === 'new' ? 'New Cylinder' : 'Refill'}</span>
                     )}
                     {selected_valve_connection && (
                       <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-semibold">Valve: {selected_valve_connection}</span>
@@ -183,14 +186,14 @@ export default function CartPage() {
               <div className="space-y-3 text-sm">
                 {/* Itemized product prices */}
                 <div className="space-y-1.5">
-                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection }) => {
+                  {items.map(({ cart_key, product, quantity, selected_valve_size, selected_valve_connection, selected_order_type }) => {
                     const isCylinder = isLpgCylinder(product);
                     const showDeliveryLine = isCylinder || (!hasCylinders && cart_key === firstNonCylinderCartKey);
                     const lineDeliveryFee = isCylinder ? getProductDeliveryFee(product) * quantity : deliveryFee;
                     return (
                       <div key={cart_key} className="space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-gray-500 truncate mr-2">{product.name}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} x{quantity}</span>
+                          <span className="text-gray-500 truncate mr-2">{product.name}{selected_order_type ? ` · ${selected_order_type === 'new' ? 'New' : 'Refill'}` : ''}{selected_valve_connection ? ` · ${selected_valve_connection}` : ''}{selected_valve_size ? ` · ${selected_valve_size}` : ''} x{quantity}</span>
                           <span className="font-medium text-gray-900 flex-shrink-0">৳{(product.price * quantity).toLocaleString()}</span>
                         </div>
                         {showDeliveryLine && (

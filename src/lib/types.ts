@@ -108,6 +108,9 @@ export interface OrderItem {
   product_id: string;
   quantity: number;
   unit_price: number;
+  selected_order_type?: 'new' | 'refill' | null;
+  selected_valve_size?: string | null;
+  selected_valve_connection?: string | null;
   created_at: string;
   product?: Product;
 }
@@ -133,6 +136,7 @@ export interface CartItem {
   quantity: number;
   selected_valve_size?: string | null;
   selected_valve_connection?: string | null;
+  selected_order_type?: 'new' | 'refill' | null;
 }
 
 export interface Offer {

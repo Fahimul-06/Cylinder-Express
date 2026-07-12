@@ -55,6 +55,7 @@ export default function ProductDetailPage() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [selectedValveSize, setSelectedValveSize] = useState('');
   const [selectedValveType, setSelectedValveType] = useState('');
+  const [selectedCylinderOrderType, setSelectedCylinderOrderType] = useState<'new' | 'refill' | ''>('');
 
   useEffect(() => {
     async function fetchProduct() {
@@ -67,6 +68,7 @@ export default function ProductDetailPage() {
 
       setSelectedValveSize('');
       setSelectedValveType('');
+      setSelectedCylinderOrderType('');
 
       if (data) {
         const [{ data: related }, { data: offerData }] = await Promise.all([
@@ -86,6 +88,9 @@ export default function ProductDetailPage() {
           .filter(offer => offer.product_id && (!offer.valid_until || new Date(offer.valid_until) >= new Date()));
         const productOffer = activeProductOffers.find(offer => offer.product_id === data.id) || null;
         setProduct({ ...data, active_offer: productOffer });
+        if (isLpgCylinder(data) && (data.type === 'new' || data.type === 'refill')) {
+          setSelectedCylinderOrderType(data.type);
+        }
 
         const scored = ((related || []) as Product[])
           .filter(item => item.id !== data.id)
@@ -111,17 +116,26 @@ export default function ProductDetailPage() {
   }, [id]);
 
   const needsValveSelection = product ? isLpgCylinder(product) : false;
+  const needsCylinderTypeSelection = needsValveSelection;
   const selectedCartOptions = needsValveSelection
-    ? { valve_size: selectedValveSize, valve_connection: selectedValveType }
+    ? {
+        valve_size: selectedValveSize,
+        valve_connection: selectedValveType,
+        order_type: selectedCylinderOrderType || null,
+      }
     : undefined;
   const cartKey = product ? buildCartItemKey(product.id, selectedCartOptions) : '';
   const cartQty = product ? getItemQuantity(product.id, selectedCartOptions) : 0;
 
   const handleAddToCart = () => {
     if (!product) return;
-    if (needsValveSelection && (!selectedValveSize || !selectedValveType)) return;
+    if (needsValveSelection && (!selectedValveSize || !selectedValveType || !selectedCylinderOrderType)) return;
     const salePrice = getDiscountedPrice(product.price, product.active_offer);
-    addItem(salePrice < product.price ? { ...product, price: salePrice } : product, qty, selectedCartOptions);
+    const productForCart = {
+      ...(salePrice < product.price ? { ...product, price: salePrice } : product),
+      type: selectedCylinderOrderType || product.type,
+    };
+    addItem(productForCart, qty, selectedCartOptions);
   };
 
   const handleBookService = async () => {
@@ -337,8 +351,32 @@ export default function ProductDetailPage() {
                 {needsValveSelection && (
                   <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
                     <div>
-                      <h3 className="font-bold text-blue-950">Select cylinder valve</h3>
-                      <p className="text-xs text-blue-700 mt-1">Choose the correct valve type and valve size before adding this cylinder to cart.</p>
+                      <h3 className="font-bold text-blue-950">Select cylinder options</h3>
+                      <p className="text-xs text-blue-700 mt-1">Choose New/Refill, valve type, and valve size before adding this cylinder to cart.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-800 mb-2">Cylinder Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['new', 'refill'] as const).map(type => {
+                          const Icon = type === 'new' ? Flame : RotateCcw;
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => setSelectedCylinderOrderType(type)}
+                              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold border transition-all ${
+                                selectedCylinderOrderType === type
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                              }`}
+                            >
+                              <Icon className="w-4 h-4" />
+                              {type === 'new' ? 'New Cylinder' : 'Refill'}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <div>
@@ -433,11 +471,15 @@ export default function ProductDetailPage() {
                 ) : (
                   <button
                     onClick={handleAddToCart}
-                    disabled={needsValveSelection && (!selectedValveSize || !selectedValveType)}
+                    disabled={(needsCylinderTypeSelection && !selectedCylinderOrderType) || (needsValveSelection && (!selectedValveSize || !selectedValveType))}
                     className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-5 h-5" />
-                    Add to Cart - ৳{(qty * salePrice).toLocaleString()}
+                    {needsCylinderTypeSelection && !selectedCylinderOrderType
+                      ? 'Select New or Refill'
+                      : needsValveSelection && (!selectedValveSize || !selectedValveType)
+                        ? 'Select Valve Options'
+                        : `Add to Cart - ৳${(qty * salePrice).toLocaleString()}`}
                   </button>
                 )}
 

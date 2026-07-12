@@ -6,13 +6,15 @@ import { useAuth } from './AuthContext';
 export interface CartItemOptions {
   valve_size?: string | null;
   valve_connection?: string | null;
+  order_type?: 'new' | 'refill' | null;
 }
 
 export function buildCartItemKey(productId: string, options?: CartItemOptions) {
   const valveSize = options?.valve_size || '';
   const valveConnection = options?.valve_connection || '';
-  if (!valveSize && !valveConnection) return productId;
-  return `${productId}::${valveSize}::${valveConnection}`;
+  const orderType = options?.order_type || '';
+  if (!valveSize && !valveConnection && !orderType) return productId;
+  return `${productId}::${orderType}::${valveSize}::${valveConnection}`;
 }
 
 interface CartContextType {
@@ -68,6 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ...product,
       valve_size: options?.valve_size ?? product.valve_size ?? null,
       valve_connection: options?.valve_connection ?? product.valve_connection ?? null,
+      type: options?.order_type ?? product.type,
     };
 
     setItems(prev => {
@@ -85,6 +88,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         quantity,
         selected_valve_size: options?.valve_size ?? null,
         selected_valve_connection: options?.valve_connection ?? null,
+        selected_order_type: options?.order_type ?? null,
       }];
     });
   };

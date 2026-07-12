@@ -599,7 +599,13 @@ export default function OrdersPage() {
                           <div className="divide-y divide-gray-50">
                             {orderItems.map(item => (
                               <div key={item.id} className="flex items-center justify-between py-2 text-sm">
-                                <span className="text-gray-700">{item.product?.name || 'Item'} &times; {item.quantity}</span>
+                                <span className="text-gray-700">
+                                  {item.product?.name || 'Item'}
+                                  {item.selected_order_type ? ` · ${item.selected_order_type === 'new' ? 'New' : 'Refill'}` : ''}
+                                  {item.selected_valve_connection ? ` · ${item.selected_valve_connection}` : ''}
+                                  {item.selected_valve_size ? ` · ${item.selected_valve_size}` : ''}
+                                  {' '}× {item.quantity}
+                                </span>
                                 <span className="font-medium text-gray-900">৳{(item.unit_price * item.quantity).toLocaleString()}</span>
                               </div>
                             ))}

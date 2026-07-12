@@ -64,7 +64,7 @@ export default function AdminOrders() {
 
     const [ordersRes, servicesRes] = await Promise.all([
       supabase.from('orders').select('*').order('created_at', { ascending: false }),
-      supabase.from('service_bookings').select('*, product:products(name, price, image_url)').order('created_at', { ascending: false }),
+      supabase.from('service_bookings').select('*, product:products(name, price, image_url, type)').order('created_at', { ascending: false }),
     ]);
 
     const orderList = ordersRes.data || [];
@@ -84,7 +84,7 @@ export default function AdminOrders() {
 
     const [itemsRes, addrRes, profileRes, customerLocRes] = await Promise.all([
       orderIds.length > 0
-        ? supabase.from('order_items').select('*, product:products(name, price, image_url)').in('order_id', orderIds)
+        ? supabase.from('order_items').select('*, product:products(name, price, image_url, type)').in('order_id', orderIds)
         : Promise.resolve({ data: [] }),
       addressIds.length > 0
         ? supabase.from('addresses').select('*').in('id', [...new Set(addressIds)])
@@ -507,7 +507,7 @@ export default function AdminOrders() {
                       <div className="divide-y divide-gray-50">
                         {items.map(item => (
                           <div key={item.id} className="flex items-center justify-between py-2 text-sm">
-                            <span className="text-gray-700">{item.product?.name || 'Item'} &times; {item.quantity}</span>
+                            <span className="text-gray-700">{item.product?.name || 'Item'}{item.selected_order_type ? ` · ${item.selected_order_type === 'new' ? 'New' : 'Refill'}` : ''}{item.selected_valve_connection ? ` · ${item.selected_valve_connection}` : ''}{item.selected_valve_size ? ` · ${item.selected_valve_size}` : ''} &times; {item.quantity}</span>
                             <span className="font-medium">৳{(item.unit_price * item.quantity).toLocaleString()}</span>
                           </div>
                         ))}
