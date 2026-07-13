@@ -11,7 +11,6 @@ import {
 import { SERVICE_TIME_SLOTS } from '../lib/constants';
 import { isLpgCylinder } from '../lib/deliveryCharges';
 import ProductCard from '../components/ProductCard';
-import { LPG_VALVE_CONNECTIONS, LPG_VALVE_SIZES } from '../lib/productOptions';
 import { getCylinderBottlePrice, getCylinderGasPrice, getProductPriceForOrderType } from '../lib/cylinderPricing';
 import { dedupeCustomerProducts, getLpgDisplayName } from '../lib/productCatalog';
 
@@ -55,8 +54,6 @@ export default function ProductDetailPage() {
   const [bookingNotes, setBookingNotes] = useState('');
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
-  const [selectedValveSize, setSelectedValveSize] = useState('');
-  const [selectedValveType, setSelectedValveType] = useState('');
   const [selectedCylinderOrderType, setSelectedCylinderOrderType] = useState<'new' | 'refill' | ''>('');
 
   useEffect(() => {
@@ -68,16 +65,9 @@ export default function ProductDetailPage() {
         .eq('id', id)
         .maybeSingle();
 
-      setSelectedValveSize('');
-      setSelectedValveType('');
       setSelectedCylinderOrderType('');
 
       if (data) {
-        if (isLpgCylinder(data as Product)) {
-          setSelectedValveSize(data.valve_size || '22mm');
-          setSelectedValveType(data.valve_connection || 'Pin');
-        }
-
         const [{ data: related }, { data: offerData }] = await Promise.all([
           supabase
             .from('products')
@@ -120,11 +110,13 @@ export default function ProductDetailPage() {
   }, [id]);
 
   const needsValveSelection = product ? isLpgCylinder(product) : false;
+  const assignedValveType = product?.valve_connection || 'Pin';
+  const assignedValveSize = product?.valve_size || '22mm';
   const needsCylinderTypeSelection = needsValveSelection;
   const selectedCartOptions = needsValveSelection
     ? {
-        valve_size: selectedValveSize,
-        valve_connection: selectedValveType,
+        valve_size: assignedValveSize,
+        valve_connection: assignedValveType,
         order_type: selectedCylinderOrderType || null,
       }
     : undefined;
@@ -133,7 +125,7 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (!product) return;
-    if (needsValveSelection && (!selectedValveSize || !selectedValveType || !selectedCylinderOrderType)) return;
+    if (needsValveSelection && !selectedCylinderOrderType) return;
     const selectedBasePrice = getProductPriceForOrderType(product, selectedCylinderOrderType || null);
     const salePrice = getDiscountedPrice(selectedBasePrice, product.active_offer);
     const productForCart = {
@@ -363,7 +355,7 @@ export default function ProductDetailPage() {
                   <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
                     <div>
                       <h3 className="font-bold text-blue-950">Select cylinder options</h3>
-                      <p className="text-xs text-blue-700 mt-1">Choose New/Refill before adding this cylinder to cart. Valve defaults to Pin and 22mm when the admin has not specified them.</p>
+                      <p className="text-xs text-blue-700 mt-1">Choose New Cylinder or Refill. Valve type and size are fixed for this product.</p>
                     </div>
 
                     <div>
@@ -415,43 +407,14 @@ export default function ProductDetailPage() {
                       )}
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Type</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {LPG_VALVE_CONNECTIONS.map(type => (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => setSelectedValveType(type)}
-                            className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all ${
-                              selectedValveType === type
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                                : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
-                            }`}
-                          >
-                            {type}
-                          </button>
-                        ))}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-gray-200 bg-white p-3">
+                        <p className="text-xs font-medium text-gray-500">Valve Type</p>
+                        <p className="mt-1 text-sm font-bold text-gray-900">{assignedValveType}</p>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-800 mb-2">Valve Size</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {LPG_VALVE_SIZES.map(size => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => setSelectedValveSize(size)}
-                            className={`px-4 py-3 rounded-xl text-sm font-bold border transition-all ${
-                              selectedValveSize === size
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                                : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
-                            }`}
-                          >
-                            {size}
-                          </button>
-                        ))}
+                      <div className="rounded-xl border border-gray-200 bg-white p-3">
+                        <p className="text-xs font-medium text-gray-500">Valve Size</p>
+                        <p className="mt-1 text-sm font-bold text-gray-900">{assignedValveSize}</p>
                       </div>
                     </div>
                   </div>
@@ -507,15 +470,13 @@ export default function ProductDetailPage() {
                 ) : (
                   <button
                     onClick={handleAddToCart}
-                    disabled={(needsCylinderTypeSelection && !selectedCylinderOrderType) || (needsValveSelection && (!selectedValveSize || !selectedValveType))}
+                    disabled={needsCylinderTypeSelection && !selectedCylinderOrderType}
                     className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-5 h-5" />
                     {needsCylinderTypeSelection && !selectedCylinderOrderType
                       ? 'Select New or Refill'
-                      : needsValveSelection && (!selectedValveSize || !selectedValveType)
-                        ? 'Select Valve Options'
-                        : `Add to Cart - ৳${(qty * salePrice).toLocaleString()}`}
+                      : `Add to Cart - ৳${(qty * salePrice).toLocaleString()}`}
                   </button>
                 )}
 

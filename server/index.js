@@ -122,7 +122,7 @@ const ProfileSchema = new mongoose.Schema({
 }, { toJSON });
 
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
-const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, gas_price: { type: Number, default: null }, bottle_price: { type: Number, default: null }, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
+const ProductSchema = new mongoose.Schema({ category_id: String, name: String, description: String, price: Number, gas_price: { type: Number, default: null }, bottle_price: { type: Number, default: null }, image_url: String, type: String, company_name: String, size: String, valve_size: { type: String, default: '22mm' }, valve_connection: { type: String, default: 'Pin' }, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });
 const AddressSchema = new mongoose.Schema({ user_id: String, label: String, address_line1: String, address_line2: String, city: String, district: String, area: String, postal_code: String, latitude: Number, longitude: Number, is_default: Boolean, ...common }, { toJSON });
 const OrderSchema = new mongoose.Schema({
   user_id: String,
@@ -180,6 +180,24 @@ const NotificationSchema = new mongoose.Schema({
   updated_at: { type: Date, default: Date.now },
 }, { toJSON });
 
+const LpgRefillPredictionSchema = new mongoose.Schema({
+  user_id: { type: String, required: true, index: true },
+  product_id: { type: String, required: true, index: true },
+  last_order_id: { type: String, default: null },
+  last_delivered_at: { type: Date, required: true },
+  predicted_empty_at: { type: Date, required: true, index: true },
+  predicted_interval_days: { type: Number, default: 75 },
+  sample_count: { type: Number, default: 1 },
+  confidence: { type: String, enum: ['baseline', 'learning', 'personalized'], default: 'baseline' },
+  reminder_7d_sent_at: { type: Date, default: null },
+  reminder_2d_sent_at: { type: Date, default: null },
+  overdue_sent_at: { type: Date, default: null },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now },
+}, { toJSON });
+LpgRefillPredictionSchema.index({ user_id: 1, product_id: 1 }, { unique: true });
+
+
 const models = {
   users: mongoose.model('User', UserSchema),
   profiles: mongoose.model('Profile', ProfileSchema),
@@ -199,6 +217,7 @@ const models = {
   delivery_locations: mongoose.model('DeliveryLocation', DeliveryLocationSchema),
   delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
   notifications: mongoose.model('Notification', NotificationSchema),
+  lpg_refill_predictions: mongoose.model('LpgRefillPrediction', LpgRefillPredictionSchema),
 };
 
 function signUser(user) {
@@ -377,6 +396,148 @@ async function notifyDeliveryManAssignment(order) {
   });
 }
 
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+async function getLpgItemsForOrder(orderId) {
+  const items = await models.order_items.find({ order_id: String(orderId) });
+  if (!items.length) return [];
+  const productIds = [...new Set(items.map((item) => String(item.product_id)).filter(Boolean))];
+  const products = await models.products.find({ _id: { $in: productIds } }).catch(() => []);
+  const productMap = new Map(products.map((product) => [String(product.id), product]));
+  const categoryIds = [...new Set(products.map((product) => String(product.category_id || '')).filter(Boolean))];
+  const categories = await models.categories.find({ _id: { $in: categoryIds } }).catch(() => []);
+  const categoryMap = new Map(categories.map((category) => [String(category.id), category]));
+
+  return items.filter((item) => {
+    const product = productMap.get(String(item.product_id));
+    const category = product ? categoryMap.get(String(product.category_id || '')) : null;
+    return Boolean(product && (category?.slug === 'lpg-cylinders' || String(product.unit || '').toLowerCase() === 'cylinder'));
+  });
+}
+
+async function updateLpgRefillPredictions(order) {
+  if (!order?.user_id || !order?.delivered_at) return;
+  const lpgItems = await getLpgItemsForOrder(order.id);
+  if (!lpgItems.length) return;
+
+  for (const item of lpgItems) {
+    const productId = String(item.product_id);
+    const historicalItems = await models.order_items.find({ product_id: productId });
+    const orderIds = [...new Set(historicalItems.map((entry) => String(entry.order_id)).filter(Boolean))];
+    const deliveredOrders = await models.orders.find({
+      _id: { $in: orderIds },
+      user_id: String(order.user_id),
+      status: 'delivered',
+      delivered_at: { $ne: null },
+    }).sort({ delivered_at: 1 });
+
+    const dates = deliveredOrders.map((entry) => new Date(entry.delivered_at)).filter((date) => !Number.isNaN(date.getTime()));
+    const intervals = [];
+    for (let i = 1; i < dates.length; i += 1) {
+      const days = (dates[i].getTime() - dates[i - 1].getTime()) / (24 * 60 * 60 * 1000);
+      if (days >= 14 && days <= 180) intervals.push(days);
+    }
+
+    const recentIntervals = intervals.slice(-3);
+    const learned = median(recentIntervals);
+    const intervalDays = Math.round(clampNumber(learned || 75, 30, 120));
+    const confidence = intervals.length >= 2 ? 'personalized' : intervals.length === 1 ? 'learning' : 'baseline';
+    const deliveredAt = new Date(order.delivered_at);
+    const predictedEmptyAt = new Date(deliveredAt.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+
+    await models.lpg_refill_predictions.findOneAndUpdate(
+      { user_id: String(order.user_id), product_id: productId },
+      {
+        $set: {
+          last_order_id: String(order.id),
+          last_delivered_at: deliveredAt,
+          predicted_empty_at: predictedEmptyAt,
+          predicted_interval_days: intervalDays,
+          sample_count: dates.length,
+          confidence,
+          reminder_7d_sent_at: null,
+          reminder_2d_sent_at: null,
+          overdue_sent_at: null,
+          updated_at: new Date(),
+        },
+        $setOnInsert: { created_at: new Date() },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  }
+}
+
+async function runLpgRefillPredictionAlerts() {
+  const now = new Date();
+  const inSevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const inTwoDays = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+  const predictions = await models.lpg_refill_predictions.find({ predicted_empty_at: { $lte: inSevenDays } }).limit(200);
+
+  for (const prediction of predictions) {
+    // Do not remind if the customer already placed another active/delivered order after this prediction was created.
+    const laterItems = await models.order_items.find({ product_id: prediction.product_id, created_at: { $gt: prediction.last_delivered_at } });
+    if (laterItems.length) {
+      const laterOrderIds = laterItems.map((item) => String(item.order_id));
+      const laterOrder = await models.orders.findOne({
+        _id: { $in: laterOrderIds },
+        user_id: prediction.user_id,
+        status: { $nin: ['cancelled'] },
+        created_at: { $gt: prediction.last_delivered_at },
+      });
+      if (laterOrder) continue;
+    }
+
+    const product = await models.products.findById(prediction.product_id).catch(() => null);
+    const productName = product?.name || 'your LPG cylinder';
+    const emptyDate = new Date(prediction.predicted_empty_at);
+    const formattedDate = emptyDate.toLocaleDateString('en-BD', { day: 'numeric', month: 'short' });
+
+    if (emptyDate <= now && !prediction.overdue_sent_at) {
+      await createNotification({
+        user_id: prediction.user_id,
+        type: 'lpg_refill_due',
+        title: 'Your LPG may be nearly empty',
+        message: `${productName} was expected to run low around ${formattedDate}. Order a refill now to avoid running out of gas.`,
+        urgent: true,
+        buzz: true,
+      });
+      prediction.overdue_sent_at = now;
+    } else if (emptyDate <= inTwoDays && !prediction.reminder_2d_sent_at) {
+      await createNotification({
+        user_id: prediction.user_id,
+        type: 'lpg_refill_soon_2d',
+        title: 'LPG may run out soon',
+        message: `Based on your previous orders, ${productName} may run low by ${formattedDate}. Place your refill order soon.`,
+        urgent: true,
+        buzz: true,
+      });
+      prediction.reminder_2d_sent_at = now;
+    } else if (emptyDate <= inSevenDays && !prediction.reminder_7d_sent_at) {
+      await createNotification({
+        user_id: prediction.user_id,
+        type: 'lpg_refill_soon_7d',
+        title: 'Plan your next LPG refill',
+        message: `Based on your usage history, ${productName} may run low around ${formattedDate}. You can order early from Cylinder Express.`,
+        urgent: false,
+        buzz: false,
+      });
+      prediction.reminder_7d_sent_at = now;
+    }
+    prediction.updated_at = now;
+    await prediction.save();
+  }
+}
+
 async function runOrderAlertChecks() {
   const now = new Date();
   const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
@@ -467,6 +628,9 @@ async function runOrderAlertChecks() {
     order.delivery_delivered_reminder_last_sent_at = now;
     await order.save();
   }
+
+
+  await runLpgRefillPredictionAlerts();
 }
 
 async function sendBulkSmsBdMessage(phone, message) {
@@ -991,6 +1155,9 @@ app.post('/api/tables/:table', async (req, res) => {
 
           if (body?.status && previous?.status !== order.status && ['confirmed', 'delivered'].includes(String(order.status))) {
             await notifyOrderCustomer(order, order.status);
+            if (String(order.status) === 'delivered') {
+              await updateLpgRefillPredictions(order);
+            }
           }
 
           if (body?.status === 'processing') {
@@ -1280,8 +1447,8 @@ async function ensureDefaultCatalog() {
     const {
       company_name = null,
       size = null,
-      valve_size = product.category === 'lpg-cylinders' ? '22mm' : null,
-      valve_connection = product.category === 'lpg-cylinders' ? 'Pin' : null,
+      valve_size = null,
+      valve_connection = null,
       ...insertOnlyProductData
     } = productData;
 
