@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
-  signInAdmin: (email: string, password: string) => Promise<{ error: string | null }>;
+  portalSignIn: (portal: 'admin' | 'delivery', identifier: string, password: string) => Promise<{ error: string | null }>;
   signInWithSocial: (provider: 'google' | 'facebook', accessToken: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => Promise<{ error: string | null }>;
@@ -99,9 +99,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
-  const signInAdmin = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInAdmin({ email, password });
+  const portalSignIn = async (portal: 'admin' | 'delivery', identifier: string, password: string) => {
+    const { data, error } = await supabase.auth.signInToPortal({ portal, identifier, password });
     if (error) return { error: error.message };
+    if (data?.user?.id) await fetchProfile(data.user.id);
     return { error: null };
   };
 
@@ -150,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInAdmin, signInWithSocial, signOut, updateProfile, updatePassword }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, portalSignIn, signInWithSocial, signOut, updateProfile, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

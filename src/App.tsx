@@ -6,7 +6,6 @@ import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
-import AdminLoginPage from './pages/AdminLoginPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -26,12 +25,13 @@ import AdminHeroImages from './pages/admin/AdminHeroImages';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import PortalLoginPage from './pages/PortalLoginPage';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
-import { ADMIN_DASHBOARD_PATH, ADMIN_LOGIN_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
+import { ADMIN_DASHBOARD_PATH, ADMIN_LOGIN_PATH, DELIVERY_DASHBOARD_PATH, DELIVERY_LOGIN_PATH, adminPath, isPrivatePortalPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -61,7 +61,7 @@ function DeliveryRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={DELIVERY_LOGIN_PATH} replace />;
   if (profile?.role !== 'delivery' || profile.is_active === false) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
@@ -104,17 +104,17 @@ function AppRoutes() {
   }
 
   const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
-  const isAdminRoute = isAdminDashboardPath(currentPath);
-  const isDeliveryRoute = isDeliveryDashboardPath(currentPath);
+  const isPrivatePortal = isPrivatePortalPath(currentPath);
 
   return (
     <>
-      {user && !isAdminRoute && <Navbar />}
+      {user && !isPrivatePortal && <Navbar />}
       {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
-        <Route path={ADMIN_LOGIN_PATH} element={user && profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : <AdminLoginPage />} />
+        <Route path={ADMIN_LOGIN_PATH} element={<PortalLoginPage portal="admin" />} />
+        <Route path={DELIVERY_LOGIN_PATH} element={<PortalLoginPage portal="delivery" />} />
         <Route path="/about" element={<StaticPage type="about" />} />
         <Route path="/faq" element={<StaticPage type="faq" />} />
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
@@ -145,7 +145,7 @@ function AppRoutes() {
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
-      {!isAdminRoute && !isDeliveryRoute && <Footer />}
+      {!isPrivatePortal && <Footer />}
     </>
   );
 }

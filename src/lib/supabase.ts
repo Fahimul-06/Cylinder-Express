@@ -165,20 +165,19 @@ export const supabase = {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
       }
     },
-    async signInAdmin({ email, password }: { email: string; password: string }) {
+    async signInToPortal({ portal, identifier, password }: { portal: 'admin' | 'delivery'; identifier: string; password: string }) {
       try {
-        const result = await api<{ session: Session }>('/api/auth/admin/signin', {
+        const data = await api<{ session: Session; user: User }>('/api/auth/portal-signin', {
           method: 'POST',
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ portal, emailOrPhone: identifier, password }),
         });
-        localStorage.setItem(TOKEN_KEY, result.session.access_token);
-        emitAuth('SIGNED_IN', result.session);
-        return { data: { user: result.session.user, session: result.session }, error: null };
+        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        emitAuth('SIGNED_IN', data.session);
+        return { data, error: null };
       } catch (error) {
-        return { data: { user: null, session: null }, error: { message: error instanceof Error ? error.message : 'Admin login failed' } };
+        return { data: null, error: { message: error instanceof Error ? error.message : 'Portal login failed' } };
       }
     },
-
     async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {
       try {
         const data = await api<{ session: Session; user: User }>('/api/auth/social', {
