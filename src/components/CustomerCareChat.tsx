@@ -354,26 +354,43 @@ export default function CustomerCareChat() {
     };
   };
 
-  const submitMessage = (text: string) => {
+  const submitMessage = async (text: string) => {
     const value = text.trim();
     if (!value || typing) return;
     const userMessage: ChatMessage = { id: crypto.randomUUID(), sender: 'user', text: value, createdAt: Date.now() };
+    const previousMessages = messages.slice(-10);
     setMessages((current) => [...current, userMessage]);
     setInput('');
     setTyping(true);
     apiClient('/api/customer-chat/messages', { method: 'POST', body: JSON.stringify({ message: value }) }).catch(() => undefined);
 
-    window.setTimeout(() => {
+    try {
+      const history = previousMessages
+        .filter((message) => message.sender !== 'admin')
+        .map((message) => ({
+          role: message.sender === 'user' ? 'user' : 'assistant',
+          content: message.text,
+        }));
+      const result = await apiClient<{ data: { reply: string; source: 'ai' | 'safety' } }>('/api/customer-chatbot/respond', {
+        method: 'POST',
+        body: JSON.stringify({ message: value, language, history }),
+      });
+      const reply = String(result.data?.reply || '').trim();
+      if (!reply) throw new Error('Empty chatbot response');
+      setMessages((current) => [
+        ...current,
+        { id: crypto.randomUUID(), sender: 'bot', text: reply, createdAt: Date.now() },
+      ]);
+    } catch {
       const response = answerFor(value);
       setMessages((current) => [
         ...current,
         { id: crypto.randomUUID(), sender: 'bot', text: response.text, createdAt: Date.now() },
       ]);
+      if (response.action) window.setTimeout(() => navigate(response.action!), 900);
+    } finally {
       setTyping(false);
-      if (response.action) {
-        window.setTimeout(() => navigate(response.action!), 900);
-      }
-    }, 450);
+    }
   };
 
   const handleSubmit = (event: FormEvent) => {

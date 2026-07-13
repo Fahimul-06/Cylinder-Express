@@ -44,6 +44,10 @@ const BULKSMSBD_API_URL = process.env.BULKSMSBD_API_URL || 'https://bulksmsbd.ne
 const BULKSMSBD_API_KEY = process.env.BULKSMSBD_API_KEY || '';
 const BULKSMSBD_SENDER_ID = process.env.BULKSMSBD_SENDER_ID || process.env.BULKSMSBD_SENDERID || '';
 const SMS_ENABLED = Boolean(BULKSMSBD_API_KEY && BULKSMSBD_SENDER_ID);
+const CHATBOT_API_KEY = process.env.OPENAI_API_KEY || process.env.CHATBOT_API_KEY || '';
+const CHATBOT_API_URL = process.env.CHATBOT_API_URL || 'https://api.openai.com/v1/chat/completions';
+const CHATBOT_MODEL = process.env.CHATBOT_MODEL || 'gpt-4.1-mini';
+const CHATBOT_ENABLED = Boolean(CHATBOT_API_KEY);
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
@@ -734,6 +738,96 @@ async function getAuthenticatedProfile(req) {
   return models.profiles.findOne({ user_id: req.auth.id });
 }
 
+
+
+function chatbotEmergencyReply(message, language = 'en') {
+  const q = String(message || '').toLowerCase();
+  const leak = /gas.{0,12}(leak|smell|odor|gondho)|(?:leak|smell|odor|gondho).{0,12}gas|গ্যাস.{0,12}(লিক|গন্ধ)|(?:লিক|গন্ধ).{0,12}গ্যাস/.test(q);
+  if (!leak) return null;
+  return language === 'bn'
+    ? '⚠️ গ্যাস লিক বা গ্যাসের গন্ধ পেলে এখনই আগুন, ম্যাচ, লাইটার ও সিগারেট বন্ধ করুন। কোনো বৈদ্যুতিক সুইচ, ফ্যান, চার্জার বা যন্ত্র চালু/বন্ধ করবেন না। নিরাপদ হলে চুলার নব ও রেগুলেটর বন্ধ করুন, দরজা-জানালা হাতে খুলুন, সবাইকে বাইরে নিয়ে যান এবং বাইরে থেকে 999 বা Cylinder Express কাস্টমার কেয়ারে কল করুন। নিজে মেরামত করবেন না এবং প্রশিক্ষিত টেকনিশিয়ান পরীক্ষা না করা পর্যন্ত আবার ব্যবহার করবেন না।'
+    : '⚠️ If you smell gas or suspect an LPG leak, extinguish flames, matches, lighters, and cigarettes immediately. Do not operate electrical switches, fans, chargers, or appliances. If safe, close the stove knobs and regulator, open doors and windows manually, move everyone outside, and call 999 or Cylinder Express support from outdoors. Do not repair or reuse the system until a trained technician has inspected it.';
+}
+
+app.post('/api/customer-chatbot/respond', requireAuth, async (req, res) => {
+  try {
+    const profile = await getAuthenticatedProfile(req);
+    if (!profile || profile.role === 'delivery' || profile.is_admin) {
+      return res.status(403).json({ error: 'Customer access required.' });
+    }
+    const message = String(req.body.message || '').trim();
+    const language = req.body.language === 'bn' ? 'bn' : 'en';
+    if (!message) return res.status(400).json({ error: 'Message cannot be empty.' });
+    if (message.length > 2000) return res.status(400).json({ error: 'Message is too long.' });
+
+    const emergency = chatbotEmergencyReply(message, language);
+    if (emergency) return res.json({ data: { reply: emergency, source: 'safety' }, error: null });
+    if (!CHATBOT_ENABLED) return res.status(503).json({ error: 'AI chatbot is not configured.', code: 'CHATBOT_NOT_CONFIGURED' });
+
+    const history = Array.isArray(req.body.history) ? req.body.history.slice(-10) : [];
+    const products = await models.products.find({ is_available: { $ne: false } })
+      .select('name type company_name size price gas_price bottle_price description')
+      .sort({ sort_order: 1 }).limit(40).lean();
+    const catalog = products.map((item) => {
+      const parts = [item.name, item.company_name, item.size, item.type].filter(Boolean).join(' | ');
+      const gas = item.gas_price ?? item.price;
+      const bottle = item.bottle_price;
+      const priceText = bottle != null ? `gas/refill ${gas} BDT, bottle ${bottle} BDT, new total ${Number(gas || 0) + Number(bottle || 0)} BDT` : `price ${item.price} BDT`;
+      return `- ${parts}: ${priceText}${item.description ? `; ${String(item.description).slice(0, 120)}` : ''}`;
+    }).join('\n');
+
+    const system = `You are the Cylinder Express customer-care chatbot for an LPG ordering and service web app in Bangladesh. Reply in ${language === 'bn' ? 'natural Bangla' : 'clear English'}, matching the customer's wording when they mix Bangla and English. Understand spelling mistakes, Banglish, incomplete questions, and different sentence structures.
+
+You may answer broadly about LPG cylinders, refill vs new cylinder, cylinder-size selection, cooking habits, gas saving, stove/burner/regulator/hose/valve issues, safe installation, products, prices from the supplied catalog, ordering, cart, addresses, delivery tracking, services, account/login, and Cylinder Express usage. Ask one concise follow-up only when essential information is missing. Never invent stock, price, delivery time, order status, or company policy. For personal order/account status, tell the customer to open the relevant app page or contact Customer Care.
+
+Safety rules: For suspected gas leaks, fire, dizziness, breathing difficulty, or poisoning, prioritize immediate emergency safety. Never advise testing a leak with fire, opening electrical switches, repairing a cylinder, transferring gas, heating a cylinder, or bypassing a regulator. Say estimates are approximate when recommending cylinder size or duration.
+
+Useful app facts:
+- Refill price is gas price only. New cylinder price is gas price plus bottle price.
+- Customers choose New Cylinder or Refill on the LPG product-detail page.
+- Orders are available from Profile Settings > My Orders.
+- Addresses are available from Profile Settings > Delivery Addresses.
+- Cylinder Usage shows estimated finish date and remaining days.
+- Direct support numbers: 01967517077 and 01409472939.
+
+Current product catalog:
+${catalog || '- Catalog unavailable; do not invent current prices.'}
+
+Keep replies useful and concise, normally under 180 words. Do not claim to be a human.`;
+
+    const messages = [
+      { role: 'system', content: system },
+      ...history.filter((item) => item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string')
+        .map((item) => ({ role: item.role, content: item.content.slice(0, 2000) })),
+      { role: 'user', content: message },
+    ];
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch(CHATBOT_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${CHATBOT_API_KEY}` },
+        body: JSON.stringify({ model: CHATBOT_MODEL, messages, temperature: 0.25, max_tokens: 450 }),
+        signal: controller.signal,
+      });
+    } finally { clearTimeout(timeout); }
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.error('Chatbot provider error:', response.status, detail.slice(0, 500));
+      return res.status(502).json({ error: 'Chatbot provider is temporarily unavailable.' });
+    }
+    const payload = await response.json();
+    const reply = String(payload?.choices?.[0]?.message?.content || '').trim();
+    if (!reply) return res.status(502).json({ error: 'The chatbot returned an empty response.' });
+    return res.json({ data: { reply, source: 'ai' }, error: null });
+  } catch (error) {
+    if (error?.name === 'AbortError') return res.status(504).json({ error: 'Chatbot response timed out.' });
+    return res.status(500).json({ error: error.message || 'Unable to generate chatbot response.' });
+  }
+});
 
 app.get('/api/customer-chat/conversations', requireAuth, async (req, res) => {
   try {
