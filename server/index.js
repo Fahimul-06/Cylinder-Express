@@ -346,7 +346,7 @@ async function signInOrCreateSocialUser(socialProfile) {
   return user;
 }
 
-const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'delivery_chat', 'customer_chat', 'cylinder_usage'];
+const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'account_delete', 'delivery_chat', 'customer_chat', 'cylinder_usage'];
 
 function sanitizePermissions(input = {}) {
   return ADMIN_PERMISSIONS.reduce((acc, key) => {
@@ -935,9 +935,21 @@ app.patch('/api/admin/lpg-usage/:id', requireAuth, async (req, res) => {
     const usage = await models.lpg_usage_profiles.findById(String(req.params.id || ''));
     if (!usage) return res.status(404).json({ error: 'Cylinder usage estimate not found.' });
     const rawDate = String(req.body.predicted_empty_at || '').trim();
-    if (!rawDate) return res.status(400).json({ error: 'Please select an estimated finish date.' });
-    const adjusted = new Date(`${rawDate}T23:59:59.999`);
-    if (Number.isNaN(adjusted.getTime())) return res.status(400).json({ error: 'Invalid estimated finish date.' });
+    const rawDays = req.body.remaining_days;
+    let adjusted;
+    if (rawDays !== undefined && rawDays !== null && rawDays !== '') {
+      const remainingDays = Number(rawDays);
+      if (!Number.isInteger(remainingDays) || remainingDays < 0 || remainingDays > 730) {
+        return res.status(400).json({ error: 'Remaining days must be a whole number between 0 and 730.' });
+      }
+      adjusted = new Date();
+      adjusted.setDate(adjusted.getDate() + remainingDays);
+      adjusted.setHours(23, 59, 59, 999);
+    } else {
+      if (!rawDate) return res.status(400).json({ error: 'Please select an estimated finish date or enter remaining days.' });
+      adjusted = new Date(`${rawDate}T23:59:59.999`);
+      if (Number.isNaN(adjusted.getTime())) return res.status(400).json({ error: 'Invalid estimated finish date.' });
+    }
     usage.admin_adjusted_empty_at = adjusted;
     usage.admin_adjusted_by = req.auth.id;
     usage.admin_adjusted_at = new Date();
@@ -1284,6 +1296,77 @@ app.patch('/api/admin/subadmins/:profileId', requireAuth, requireAdminUserManage
     if (req.body.password) userUpdate.password_hash = await bcrypt.hash(String(req.body.password), 12);
     if (Object.keys(userUpdate).length) await models.users.findByIdAndUpdate(profile.user_id, userUpdate);
     res.json({ data: profile.toJSON(), error: null });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+app.delete('/api/admin/accounts/:profileId', requireAuth, requireAdminPermission('account_delete'), async (req, res) => {
+  try {
+    const password = String(req.body?.password || '');
+    if (!password) return res.status(400).json({ error: 'Your current password is required to delete an account.' });
+
+    const actorUser = await models.users.findById(req.auth.id);
+    if (!actorUser || !(await bcrypt.compare(password, actorUser.password_hash))) {
+      return res.status(401).json({ error: 'Incorrect password. Account was not deleted.' });
+    }
+
+    const target = await models.profiles.findById(req.params.profileId);
+    if (!target) return res.status(404).json({ error: 'Account not found.' });
+    if (String(target.user_id) === String(req.auth.id)) {
+      return res.status(400).json({ error: 'You cannot delete your own account.' });
+    }
+    if (target.role === 'admin' || (target.is_admin && target.role !== 'sub_admin')) {
+      return res.status(403).json({ error: 'The Administration Head account cannot be deleted here.' });
+    }
+
+    const targetUserId = String(target.user_id);
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        if (target.role === 'customer') {
+          const customerOrders = await models.orders.find({ user_id: targetUserId }).select('_id').session(session);
+          const orderIds = customerOrders.map((o) => String(o._id));
+          if (orderIds.length) {
+            await models.order_items.deleteMany({ order_id: { $in: orderIds } }, { session });
+            await models.notifications.deleteMany({ order_id: { $in: orderIds } }, { session });
+          }
+          await Promise.all([
+            models.orders.deleteMany({ user_id: targetUserId }, { session }),
+            models.addresses.deleteMany({ user_id: targetUserId }, { session }),
+            models.service_bookings.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_locations.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_location_points.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_admin_messages.deleteMany({ $or: [{ customer_user_id: targetUserId }, { sender_id: targetUserId }] }, { session }),
+            models.lpg_usage_profiles.deleteMany({ user_id: targetUserId }, { session }),
+            models.notifications.deleteMany({ user_id: targetUserId }, { session }),
+          ]);
+        } else if (target.role === 'delivery') {
+          await models.orders.updateMany({ delivery_man_id: targetUserId, status: { $nin: ['delivered', 'cancelled'] } }, { $set: { delivery_man_id: null, delivery_assigned_at: null, updated_at: new Date() } }, { session });
+          await Promise.all([
+            models.delivery_locations.deleteMany({ user_id: targetUserId }, { session }),
+            models.delivery_location_points.deleteMany({ user_id: targetUserId }, { session }),
+            models.delivery_admin_messages.deleteMany({ $or: [{ delivery_user_id: targetUserId }, { sender_id: targetUserId }] }, { session }),
+            models.notifications.deleteMany({ user_id: targetUserId }, { session }),
+          ]);
+        } else if (target.role === 'sub_admin') {
+          await Promise.all([
+            models.delivery_admin_messages.deleteMany({ sender_id: targetUserId }, { session }),
+            models.customer_admin_messages.deleteMany({ sender_id: targetUserId }, { session }),
+            models.notifications.deleteMany({ user_id: targetUserId }, { session }),
+          ]);
+        }
+
+        await models.profiles.deleteOne({ _id: target._id }, { session });
+        await models.users.deleteOne({ _id: targetUserId }, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    res.json({ data: { deleted: true, role: target.role, name: target.full_name }, error: null });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

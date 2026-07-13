@@ -29,6 +29,7 @@ export default function AdminCylinderUsage() {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
+  const [editDays, setEditDays] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -56,16 +57,33 @@ export default function AdminCylinderUsage() {
   const beginEdit = (item: Usage) => {
     setEditingId(item.id);
     setEditDate(toInputDate(item.predicted_empty_at));
+    setEditDays(String(Math.max(0, item.days_remaining)));
     setMessage('');
   };
 
+  const handleDateChange = (value: string) => {
+    setEditDate(value);
+    if (!value) return;
+    const target = new Date(`${value}T23:59:59.999`);
+    setEditDays(String(Math.max(0, Math.ceil((target.getTime() - Date.now()) / 86400000))));
+  };
+
+  const handleDaysChange = (value: string) => {
+    const clean = value.replace(/[^0-9]/g, '');
+    setEditDays(clean);
+    if (clean === '') return;
+    const target = new Date();
+    target.setDate(target.getDate() + Number(clean));
+    setEditDate(toInputDate(target.toISOString()));
+  };
+
   const saveDate = async (item: Usage) => {
-    if (!editDate) return;
+    if (!editDate && editDays === '') return;
     setSaving(true);
     try {
       await apiClient(`/api/admin/lpg-usage/${item.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ predicted_empty_at: editDate }),
+        body: JSON.stringify({ predicted_empty_at: editDate, remaining_days: Number(editDays) }),
       });
       setEditingId(null);
       setMessage(`Estimated finish date updated for ${item.customer_name}.`);
@@ -84,7 +102,7 @@ export default function AdminCylinderUsage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Customer Cylinder Usage</h1>
-          <p className="text-sm text-gray-500">Review, adjust estimated finish dates, and notify customers.</p>
+          <p className="text-sm text-gray-500">Review and adjust estimated finish dates or remaining days, then notify customers.</p>
         </div>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
@@ -118,10 +136,18 @@ export default function AdminCylinderUsage() {
                   <td className="p-4"><span className="inline-flex items-center gap-2"><Cylinder className="w-4 h-4 text-blue-600" />{item.cylinder_size_kg}kg</span></td>
                   <td className="p-4 min-w-[245px]">
                     {editingId === item.id ? (
-                      <div className="flex items-center gap-2">
-                        <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="border rounded-lg px-2.5 py-2" />
-                        <button disabled={saving} onClick={() => saveDate(item)} className="p-2 rounded-lg bg-green-600 text-white disabled:opacity-50" title="Save"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => setEditingId(null)} className="p-2 rounded-lg bg-gray-100 text-gray-600" title="Cancel"><X className="w-4 h-4" /></button>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="text-xs text-gray-500">Finish date</label>
+                          <input type="date" value={editDate} onChange={(e) => handleDateChange(e.target.value)} className="border rounded-lg px-2.5 py-2" />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="text-xs text-gray-500">Remaining days</label>
+                          <input type="number" min="0" value={editDays} onChange={(e) => handleDaysChange(e.target.value)} className="border rounded-lg px-2.5 py-2 w-24" />
+                          <button disabled={saving} onClick={() => saveDate(item)} className="p-2 rounded-lg bg-green-600 text-white disabled:opacity-50" title="Save"><Check className="w-4 h-4" /></button>
+                          <button onClick={() => setEditingId(null)} className="p-2 rounded-lg bg-gray-100 text-gray-600" title="Cancel"><X className="w-4 h-4" /></button>
+                        </div>
+                        <p className="text-xs text-gray-400">Changing either value automatically updates the other.</p>
                       </div>
                     ) : (
                       <div>

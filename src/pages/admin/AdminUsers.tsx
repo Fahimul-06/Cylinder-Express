@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save, Trash2 } from 'lucide-react';
 import { apiClient, supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_PERMISSION_LABELS, AdminPermissionKey, Order, Profile } from '../../lib/types';
 
 const PERMISSIONS = Object.keys(ADMIN_PERMISSION_LABELS) as AdminPermissionKey[];
@@ -37,6 +38,7 @@ function EmployeeBarcode({ code }: { code: string }) {
 }
 
 export default function AdminUsers() {
+  const { profile: currentProfile } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [expandedDeliveryManId, setExpandedDeliveryManId] = useState<string | null>(null);
@@ -212,6 +214,23 @@ export default function AdminUsers() {
 
   const updateLocalDeliveryProfile = (profileId: string, patch: Partial<Profile>) => {
     setProfiles((prev) => prev.map((profile) => profile.id === profileId ? { ...profile, ...patch } : profile));
+  };
+
+  const canDeleteAccounts = currentProfile?.role !== 'sub_admin' || Boolean(currentProfile?.permissions?.account_delete);
+
+  const deleteAccount = async (profile: Profile) => {
+    if (!canDeleteAccounts) { setError('You do not have permission to delete accounts.'); return; }
+    const label = profile.role === 'delivery' ? 'delivery person' : profile.role === 'sub_admin' ? 'employee' : 'customer';
+    if (!window.confirm(`Permanently delete ${label} ${profile.full_name}? This cannot be undone.`)) return;
+    const password = window.prompt('Enter your current password to confirm deletion:');
+    if (!password) return;
+    setSavingId(profile.id); setError(''); setMessage('');
+    try {
+      await apiClient(`/api/admin/accounts/${profile.id}`, { method: 'DELETE', body: JSON.stringify({ password }) });
+      setMessage(`${profile.full_name} was deleted successfully.`);
+      await loadProfiles();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to delete account.'); }
+    setSavingId(null);
   };
 
   const statCards = [
@@ -439,6 +458,11 @@ export default function AdminUsers() {
                         {profile.is_active === false ? 'Activate' : 'Deactivate'}
                       </button>
                     )}
+                    {profile.role === 'sub_admin' && canDeleteAccounts && (
+                      <button onClick={() => deleteAccount(profile)} disabled={savingId === profile.id} className="px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 bg-red-600 text-white disabled:opacity-50">
+                        <Trash2 className="w-4 h-4" /> Delete Employee
+                      </button>
+                    )}
                   </div>
                   {profile.role === 'sub_admin' && (
                     <div className="space-y-3">
@@ -555,6 +579,7 @@ export default function AdminUsers() {
                           <button onClick={() => setExpandedDeliveryManId(isExpanded ? null : profile.user_id)} className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold flex items-center gap-1">
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} /> {isExpanded ? 'Hide' : 'View'} Orders
                           </button>
+                          {canDeleteAccounts && <button onClick={() => deleteAccount(profile)} disabled={savingId === profile.id} className="mt-2 px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold flex items-center gap-1 disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /> Delete</button>}
                           {isExpanded && (
                             <div className="mt-3 min-w-[260px] space-y-2">
                               {report.orders.length === 0 ? <p className="text-xs text-gray-400">No delivered orders yet.</p> : report.orders.map((order) => (
@@ -590,6 +615,7 @@ export default function AdminUsers() {
                     <th className="px-5 py-3 text-left">Email</th>
                     <th className="px-5 py-3 text-left">Joined</th>
                     <th className="px-5 py-3 text-left">Photo</th>
+                    {canDeleteAccounts && <th className="px-5 py-3 text-left">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -602,10 +628,11 @@ export default function AdminUsers() {
                       <td className="px-5 py-3">
                         {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-8 h-8 rounded-lg object-cover" /> : <ImageIcon className="w-4 h-4 text-gray-300" />}
                       </td>
+                      {canDeleteAccounts && <td className="px-5 py-3"><button onClick={() => deleteAccount(profile)} disabled={savingId === profile.id} className="px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold flex items-center gap-1 disabled:opacity-50"><Trash2 className="w-3.5 h-3.5" /> Delete</button></td>}
                     </tr>
                   ))}
                   {registeredUsers.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">No registered customers found.</td></tr>
+                    <tr><td colSpan={canDeleteAccounts ? 6 : 5} className="px-5 py-8 text-center text-gray-400">No registered customers found.</td></tr>
                   )}
                 </tbody>
               </table>
