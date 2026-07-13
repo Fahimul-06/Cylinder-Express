@@ -28,7 +28,7 @@ export default function CustomerCareChat() {
     welcome: 'আসসালামু আলাইকুম! আমি Cylinder Express সহকারী। অর্ডার, ডেলিভারি, রিফিল, সার্ভিস বা অ্যাকাউন্ট বিষয়ে কীভাবে সাহায্য করতে পারি?',
     placeholder: 'আপনার বার্তা লিখুন...',
     send: 'পাঠান',
-    quick: ['এলপিজি অর্ডার করব', 'আমার অর্ডার কোথায়?', 'রিফিল ও নতুন সিলিন্ডার', 'সার্ভিস বুকিং', 'কাস্টমার কেয়ারে কল'],
+    quick: ['গ্যাস লিক হলে কী করব?', 'গ্যাস কীভাবে সাশ্রয় করব?', 'সিলিন্ডার দ্রুত শেষ হয় কেন?', 'রেগুলেটর ও পাইপ নিরাপত্তা', 'এলপিজি পণ্য দেখুন'],
     human: 'সরাসরি সহায়তার জন্য 01967517077 অথবা 01409472939 নম্বরে কল করুন।',
   } : {
     title: 'Customer Care',
@@ -36,7 +36,7 @@ export default function CustomerCareChat() {
     welcome: 'Hello! I am the Cylinder Express assistant. How can I help with an order, delivery, refill, service, or account?',
     placeholder: 'Type your message...',
     send: 'Send',
-    quick: ['Order LPG cylinder', 'Where is my order?', 'Refill vs new cylinder', 'Book a service', 'Call customer care'],
+    quick: ['What should I do if gas leaks?', 'How can I save gas?', 'Why did my cylinder finish quickly?', 'Regulator and hose safety', 'View LPG products'],
     human: 'For direct support, call 01967517077 or 01409472939.',
   }, [language]);
 
@@ -66,6 +66,57 @@ export default function CustomerCareChat() {
     const q = normalize(raw);
     const bn = language === 'bn';
 
+    // Emergency guidance must be checked before broad words such as "gas" or "cylinder".
+    if (/leak|leaking|smell gas|gas smell|গ্যাস লিক|লিকেজ|গ্যাসের গন্ধ|গন্ধ পাচ্ছি|গন্ধ পাই/.test(q)) {
+      return {
+        text: bn
+          ? '⚠️ গ্যাস লিক বা গ্যাসের গন্ধ পেলে:\n1. আগুন, ম্যাচ, লাইটার ও সিগারেট সঙ্গে সঙ্গে বন্ধ করুন।\n2. কোনো বৈদ্যুতিক সুইচ, ফ্যান, ফোন চার্জার বা যন্ত্র চালু/বন্ধ করবেন না।\n3. নিরাপদ হলে চুলার নব ও সিলিন্ডারের রেগুলেটর বন্ধ করুন।\n4. দরজা-জানালা হাতে খুলে বাতাস চলাচল করান।\n5. সবাইকে বাইরে নিয়ে যান এবং বাইরে গিয়ে 999 বা Cylinder Express সহায়তায় কল করুন।\n6. নিজে মেরামত করবেন না। প্রশিক্ষিত টেকনিশিয়ান পরীক্ষা না করা পর্যন্ত পুনরায় ব্যবহার করবেন না।'
+          : '⚠️ If you smell gas or suspect an LPG leak:\n1. Extinguish flames, matches, lighters, and cigarettes immediately.\n2. Do not turn any electrical switch, fan, charger, or appliance on or off.\n3. If it is safe, close the stove knobs and cylinder regulator.\n4. Open doors and windows manually for ventilation.\n5. Move everyone outside, then call 999 or Cylinder Express support from outdoors.\n6. Do not attempt repairs. Do not reuse the system until a trained technician has checked it.',
+      };
+    }
+    if (/save gas|gas saving|reduce gas|economy|সাশ্রয়|গ্যাস বাঁচ|কম গ্যাস|গ্যাস কম খরচ/.test(q)) {
+      return {
+        text: bn
+          ? 'গ্যাস সাশ্রয়ের উপায়:\n• হাঁড়ির মাপ অনুযায়ী বার্নার ব্যবহার করুন এবং শিখা পাত্রের তলার বাইরে যেতে দেবেন না।\n• রান্নার সময় ঢাকনা ব্যবহার করুন; ডাল/মাংসে প্রেসার কুকার ব্যবহার করলে সময় কমে।\n• চাল, ডাল বা শক্ত খাবার আগে ভিজিয়ে রাখুন।\n• প্রয়োজনীয় উপকরণ আগে প্রস্তুত করে তারপর চুলা জ্বালান।\n• নীল শিখা নিশ্চিত করুন; হলুদ/কমলা শিখা হলে বার্নার পরিষ্কার বা সার্ভিস করান।\n• রান্না শেষে চুলার নব ও রেগুলেটর বন্ধ করুন।'
+          : 'Ways to save LPG:\n• Match the burner to the pot and keep the flame under the pot base.\n• Cook with lids; use a pressure cooker for foods that take longer.\n• Soak rice, lentils, or other hard foods before cooking.\n• Prepare ingredients before lighting the stove.\n• Keep the flame blue; a yellow/orange flame may require burner cleaning or service.\n• Close both the stove knob and regulator after cooking.',
+      };
+    }
+    if (/finish quickly|finished fast|fast finished|runs out fast|too much gas|দ্রুত শেষ|তাড়াতাড়ি শেষ|বেশি গ্যাস|কেন শেষ/.test(q)) {
+      return {
+        text: bn
+          ? 'সিলিন্ডার দ্রুত শেষ হওয়ার সাধারণ কারণ:\n• পরিবারের সদস্য বা রান্নার সময় বেড়েছে\n• অতিরিক্ত বড় শিখা ব্যবহার করা\n• বার্নার আটকে থাকা বা হলুদ শিখা\n• পাইপ, রেগুলেটর, ভালভ বা সংযোগে ছোট লিক\n• চুলার নব/রেগুলেটর পুরোপুরি বন্ধ না করা\n• সিলিন্ডারের ওজন বা ধারণক্ষমতা আগেরটির চেয়ে কম হওয়া\n\nগ্যাসের গন্ধ, সাঁই সাঁই শব্দ বা সাবান-পানিতে বুদবুদ দেখা গেলে ব্যবহার বন্ধ করে টেকনিশিয়ান ডাকুন। আগুন দিয়ে কখনো লিক পরীক্ষা করবেন না।'
+          : 'Common reasons a cylinder runs out unusually quickly:\n• More people or longer cooking time\n• Using an unnecessarily high flame\n• A blocked burner or yellow flame\n• A small leak at the hose, regulator, valve, or connection\n• Stove knobs or regulator not fully closed\n• A smaller cylinder capacity than the previous one\n\nIf you smell gas, hear hissing, or see bubbles during a soap-water check, stop using it and call a technician. Never test for leaks with a flame.',
+      };
+    }
+    if (/regulator|hose|pipe|valve|রেগুলেটর|হোস|পাইপ|ভালভ/.test(q)) {
+      return {
+        text: bn
+          ? 'রেগুলেটর ও পাইপ নিরাপত্তা:\n• অনুমোদিত মানের রেগুলেটর ও LPG হোস ব্যবহার করুন।\n• পাইপে ফাটল, শক্ত হয়ে যাওয়া, ঢিলা সংযোগ বা পোড়া দাগ আছে কি না নিয়মিত দেখুন।\n• পাইপ গরম চুলা, ধারালো প্রান্ত ও সরাসরি আগুন থেকে দূরে রাখুন।\n• সংযোগে সাবান-পানি লাগিয়ে বুদবুদ হচ্ছে কি না দেখা যায়; আগুন ব্যবহার করবেন না।\n• সমস্যা থাকলে নিজে খুলে মেরামত না করে সার্ভিস বুক করুন।'
+          : 'Regulator and hose safety:\n• Use approved LPG regulators and hoses.\n• Regularly check for cracks, stiffness, loose connections, or burn marks.\n• Keep the hose away from the hot stove, sharp edges, and direct flame.\n• A soap-water bubble check can identify a connection leak; never use a flame.\n• Book a trained service technician instead of repairing it yourself.',
+      };
+    }
+    if (/yellow flame|orange flame|black pot|soot|নীল শিখা|হলুদ শিখা|কমলা শিখা|কালো দাগ|কালি/.test(q)) {
+      return {
+        text: bn
+          ? 'স্বাভাবিক LPG শিখা সাধারণত নীল হয়। হলুদ/কমলা শিখা, ধোঁয়া বা হাঁড়িতে কালো দাগ হলে বার্নারের ছিদ্র ময়লা হতে পারে, বাতাস-গ্যাস মিশ্রণ ঠিক নাও থাকতে পারে, অথবা চুলার সার্ভিস প্রয়োজন হতে পারে। চুলা বন্ধ ও ঠান্ডা করে বার্নার পরিষ্কার করুন; সমস্যা থাকলে টেকনিশিয়ান বুক করুন।'
+          : 'A normal LPG flame is generally blue. Yellow/orange flame, smoke, or soot on pots can indicate blocked burner ports, poor air-gas mixing, or a stove that needs service. Turn the stove off, let it cool, clean the burner, and book a technician if the problem continues.',
+      };
+    }
+    if (/cooking|cook|pressure cooker|burner|stove|রান্না|প্রেসার কুকার|বার্নার|চুলা/.test(q) && !/service|install|repair|সার্ভিস|ইনস্টল|মেরামত/.test(q)) {
+      return {
+        text: bn
+          ? 'LPG রান্নায় পাত্র স্থিরভাবে বসান, হাতল আগুন থেকে দূরে রাখুন, রান্না চলাকালে চুলা একা ফেলে যাবেন না, দাহ্য কাপড়/কাগজ দূরে রাখুন এবং রান্নাঘরে বাতাস চলাচল নিশ্চিত করুন। রান্না শেষে প্রথমে চুলার নব, তারপর রেগুলেটর বন্ধ করুন।'
+          : 'For LPG cooking, keep cookware stable, turn handles away from the flame, never leave cooking unattended, keep cloth and paper away, and maintain ventilation. After cooking, close the stove knob and then the regulator.',
+      };
+    }
+    if (/product|accessory|regulator|hose|pipe|stove|burner|lighter|পণ্য|প্রোডাক্ট|এক্সেসরিজ|রেগুলেটর|পাইপ|চুলা|বার্নার/.test(q)) {
+      return {
+        text: bn
+          ? 'Cylinder Express-এ LPG সিলিন্ডার, রিফিল, নতুন সিলিন্ডার, রেগুলেটর, LPG পাইপ/হোস, গ্যাস স্টোভ, বার্নার এবং সংশ্লিষ্ট পণ্য পাওয়া যায়। Products পেজে বর্তমান পণ্য, মূল্য ও স্টক দেখুন।'
+          : 'Cylinder Express offers LPG refills, new cylinders, regulators, LPG hoses/pipes, gas stoves, burners, and related products. Open Products to see current items, prices, and availability.',
+        action: '/products',
+      };
+    }
     if (/order|buy|cylinder|gas|এলপিজি|সিলিন্ডার|অর্ডার|গ্যাস/.test(q) && !/where|track|কোথায়|ট্র্যাক/.test(q)) {
       return {
         text: bn
@@ -89,11 +140,11 @@ export default function CustomerCareChat() {
           : 'Refill charges only the gas price. New Cylinder shows and charges gas price plus bottle price.',
       };
     }
-    if (/service|install|stove|repair|সার্ভিস|ইনস্টল|চুলা|মেরামত/.test(q)) {
+    if (/service|install|repair|সার্ভিস|ইনস্টল|মেরামত/.test(q)) {
       return {
         text: bn
-          ? 'Products & Services পেজ থেকে ইনস্টলেশন, গ্যাস স্টোভ এবং অন্যান্য সার্ভিস খুলে বুক করতে পারবেন।'
-          : 'Open Products & Services to book installation, gas-stove, and other available services.',
+          ? 'Products & Services পেজ থেকে সিলিন্ডার ইনস্টলেশন, গ্যাস স্টোভ ইনস্টলেশন, লিক পরীক্ষা এবং অন্যান্য সার্ভিস বুক করতে পারবেন। জরুরি লিক থাকলে আগে নিরাপদ স্থানে যান।'
+          : 'Open Products & Services to book cylinder installation, stove installation, leak inspection, and other services. For an active leak, move to safety first.',
         action: '/products',
       };
     }
@@ -120,7 +171,7 @@ export default function CustomerCareChat() {
           : 'For login problems, use Forgot Password on the login page. For other account issues, call customer care.',
       };
     }
-    if (/call|human|agent|support|phone|কল|মানুষ|এজেন্ট|সহায়তা|ফোন/.test(q)) {
+    if (/call|human|agent|support|phone|emergency|কল|মানুষ|এজেন্ট|সহায়তা|ফোন|জরুরি/.test(q)) {
       return { text: copy.human };
     }
     if (/hello|hi|salam|আসসালাম|হ্যালো|হাই/.test(q)) {
@@ -128,8 +179,8 @@ export default function CustomerCareChat() {
     }
     return {
       text: bn
-        ? 'আমি অর্ডার, ডেলিভারি ট্র্যাকিং, রিফিল/নতুন সিলিন্ডার, ঠিকানা, সিলিন্ডার ব্যবহার, সার্ভিস ও অ্যাকাউন্ট বিষয়ে সাহায্য করতে পারি। নিচের একটি অপশনও বেছে নিতে পারেন।'
-        : 'I can help with ordering, delivery tracking, refill/new-cylinder pricing, addresses, cylinder usage, services, and accounts. You can also choose a quick option below.',
+        ? 'আমি LPG নিরাপত্তা, গ্যাস লিক, গ্যাস সাশ্রয়, দ্রুত সিলিন্ডার শেষ হওয়া, রান্না, শিখার সমস্যা, রেগুলেটর, পাইপ, স্টোভ, পণ্য, অর্ডার, ডেলিভারি ও সার্ভিস বিষয়ে সাহায্য করতে পারি। আপনার প্রশ্নটি বিস্তারিত লিখুন।'
+        : 'I can help with LPG safety, gas leaks, saving gas, unusually fast usage, cooking, flame problems, regulators, hoses, stoves, products, orders, delivery, and services. Please describe your question in detail.',
     };
   };
 
@@ -187,7 +238,7 @@ export default function CustomerCareChat() {
                   message.sender === 'user'
                     ? 'bg-blue-600 text-white rounded-br-md'
                     : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'
-                }`}>
+                } whitespace-pre-line`}>
                   {message.sender === 'bot' && <Bot className="w-4 h-4 text-blue-600 mb-1" />}
                   {message.text}
                 </div>
