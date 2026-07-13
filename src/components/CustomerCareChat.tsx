@@ -415,7 +415,7 @@ export default function CustomerCareChat() {
                       : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'
                 } whitespace-pre-line`}>
                   {message.sender === 'bot' && <Bot className="w-4 h-4 text-blue-600 mb-1" />}
-                  {message.sender === 'admin' && <div className="text-[10px] font-bold text-emerald-700 mb-1">Customer Care Admin</div>}
+                  {message.sender === 'admin' && <div className="text-[10px] font-bold text-emerald-700 mb-1">Customer Care</div>}
                   {message.text}
                 </div>
               </div>
