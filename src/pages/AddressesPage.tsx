@@ -27,6 +27,7 @@ export default function AddressesPage() {
   const [form, setForm] = useState(emptyForm);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [detectedCoords, setDetectedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [detectedPlaceName, setDetectedPlaceName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,24 +54,38 @@ export default function AddressesPage() {
         const { latitude, longitude } = pos.coords;
         setDetectedCoords({ lat: latitude, lng: longitude });
 
-        // Reverse geocode using free Nominatim API
+        setDetectedPlaceName('');
+
+        // Reverse geocode coordinates into a human-readable place name.
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
             { headers: { 'Accept-Language': 'en' } }
           );
+          if (!res.ok) throw new Error('Unable to resolve place name');
           const data = await res.json();
           const addr = data.address || {};
+          const road = addr.road || addr.street || addr.pedestrian || '';
+          const neighbourhood = addr.neighbourhood || addr.quarter || addr.suburb || '';
+          const area = addr.suburb || addr.city_district || addr.town || addr.village || addr.neighbourhood || '';
+          const city = addr.city || addr.town || addr.municipality || addr.county || 'Dhaka';
+          const district = addr.state_district || addr.state || addr.region || 'Dhaka';
+          const placeName = data.display_name || [road, neighbourhood, area, city, district]
+            .filter(Boolean)
+            .filter((value, index, values) => values.indexOf(value) === index)
+            .join(', ');
+
+          setDetectedPlaceName(placeName || 'Current device location');
           setForm(prev => ({
             ...prev,
-            address_line1: addr.road || addr.street || addr.neighbourhood || '',
-            area: addr.suburb || addr.city_district || addr.town || '',
-            city: addr.city || addr.state || 'Dhaka',
-            district: addr.state || addr.region || 'Dhaka',
-            postal_code: addr.postcode || '',
+            address_line1: road || neighbourhood || area || city || prev.address_line1,
+            area: area || prev.area,
+            city: city || prev.city,
+            district: district || prev.district,
+            postal_code: addr.postcode || prev.postal_code,
           }));
         } catch {
-          // If reverse geocode fails, still save coordinates
+          setDetectedPlaceName('Current device location detected');
         }
         setDetectingLocation(false);
       },
@@ -126,6 +141,7 @@ export default function AddressesPage() {
     setEditingId(null);
     setForm(emptyForm);
     setDetectedCoords(null);
+    setDetectedPlaceName('');
     setSaving(false);
   };
 
@@ -141,6 +157,7 @@ export default function AddressesPage() {
       postal_code: addr.postal_code || '',
     });
     setDetectedCoords(addr.latitude && addr.longitude ? { lat: addr.latitude, lng: addr.longitude } : null);
+    setDetectedPlaceName([addr.address_line1, addr.area, addr.city, addr.district].filter(Boolean).join(', '));
     setShowForm(true);
   };
 
@@ -177,7 +194,7 @@ export default function AddressesPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Delivery Addresses</h1>
           <button
-            onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm); setDetectedCoords(null); setError(null); }}
+            onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm); setDetectedCoords(null); setDetectedPlaceName(''); setError(null); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all shadow-md shadow-blue-600/20"
           >
             <Plus className="w-4 h-4" /> Add New
@@ -221,9 +238,12 @@ export default function AddressesPage() {
                 </button>
 
                 {detectedCoords && (
-                  <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 p-3 rounded-xl">
-                    <Check className="w-4 h-4" />
-                    Location detected: {detectedCoords.lat.toFixed(4)}, {detectedCoords.lng.toFixed(4)}
+                  <div className="flex items-start gap-2 text-green-700 text-sm bg-green-50 p-3 rounded-xl">
+                    <Check className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">Location detected</p>
+                      <p className="text-green-600 mt-0.5">{detectedPlaceName || 'Finding the place name...'}</p>
+                    </div>
                   </div>
                 )}
 
@@ -364,7 +384,7 @@ export default function AddressesPage() {
                         </p>
                         {addr.latitude && addr.longitude && (
                           <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-                            <Navigation className="w-3 h-3" /> {addr.latitude.toFixed(4)}, {addr.longitude.toFixed(4)}
+                            <Navigation className="w-3 h-3" /> Device location saved
                           </p>
                         )}
                       </div>
@@ -405,7 +425,7 @@ export default function AddressesPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No saved addresses</h3>
             <p className="text-gray-500 text-sm mb-6">Add a delivery address to get started</p>
             <button
-              onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm); setDetectedCoords(null); }}
+              onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm); setDetectedCoords(null); setDetectedPlaceName(''); }}
               className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all"
             >
               Add Your First Address
