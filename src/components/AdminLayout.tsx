@@ -21,12 +21,12 @@ export default function AdminLayout() {
     { path: adminPath('orders'), label: t('admin.orders'), icon: ShoppingBag, permission: 'orders' as AdminPermissionKey },
     { path: adminPath('products'), label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
     { path: adminPath('offers'), label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
-    { path: adminPath('hero'), label: 'Hero Photos', icon: ImageIcon, permission: 'offers' as AdminPermissionKey },
+    { path: adminPath('hero'), label: 'Hero Photos', icon: ImageIcon, permission: 'hero' as AdminPermissionKey },
     { path: adminPath('locations'), label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
     { path: adminPath('users'), label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
-    { path: adminPath('delivery-chat'), label: 'Delivery Messages', icon: MessageCircle, permission: 'dashboard' as AdminPermissionKey },
-    { path: adminPath('customer-chat'), label: 'Customer Messages', icon: MessageCircle, permission: 'dashboard' as AdminPermissionKey },
-    { path: adminPath('cylinder-usage'), label: 'Cylinder Usage', icon: Cylinder, permission: 'dashboard' as AdminPermissionKey },
+    { path: adminPath('delivery-chat'), label: 'Delivery Messages', icon: MessageCircle, permission: 'delivery_chat' as AdminPermissionKey },
+    { path: adminPath('customer-chat'), label: 'Customer Messages', icon: MessageCircle, permission: 'customer_chat' as AdminPermissionKey },
+    { path: adminPath('cylinder-usage'), label: 'Cylinder Usage', icon: Cylinder, permission: 'cylinder_usage' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>

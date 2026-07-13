@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin } from 'lucide-react';
+import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save } from 'lucide-react';
 import { apiClient, supabase } from '../../lib/supabase';
 import { ADMIN_PERMISSION_LABELS, AdminPermissionKey, Order, Profile } from '../../lib/types';
 
@@ -14,6 +14,26 @@ interface CreateResponse {
   data: Profile;
   sms?: { sent?: boolean; skipped?: boolean; error?: string; reason?: string; number?: string; provider_response?: string };
   error?: string | null;
+}
+
+function EmployeeBarcode({ code }: { code: string }) {
+  const patterns: Record<string, string> = {
+    '0':'nnnwwnwnn','1':'wnnwnnnnw','2':'nnwwnnnnw','3':'wnwwnnnnn','4':'nnnwwnnnw',
+    '5':'wnnwwnnnn','6':'nnwwwnnnn','7':'nnnwnnwnw','8':'wnnwnnwnn','9':'nnwwnnwnn','*':'nwnnwnwnn'
+  };
+  const encoded = `*${code}*`;
+  let x = 8;
+  const bars: JSX.Element[] = [];
+  encoded.split('').forEach((char, charIndex) => {
+    const pattern = patterns[char] || patterns['0'];
+    pattern.split('').forEach((width, index) => {
+      const w = width === 'w' ? 4 : 2;
+      if (index % 2 === 0) bars.push(<rect key={`${charIndex}-${index}`} x={x} y="4" width={w} height="48" fill="black" />);
+      x += w;
+    });
+    x += 2;
+  });
+  return <svg viewBox={`0 0 ${x + 8} 70`} className="w-full h-20 bg-white rounded-lg" role="img" aria-label={`Employee barcode ${code}`}>{bars}<text x={(x + 8) / 2} y="66" textAnchor="middle" fontSize="11" fontFamily="monospace">{code}</text></svg>;
 }
 
 export default function AdminUsers() {
@@ -63,6 +83,8 @@ export default function AdminUsers() {
       profile.phone,
       profile.email || '',
       profile.role || '',
+      profile.employee_code || '',
+      profile.employee_position || '',
     ].join(' ').toLowerCase().includes(q));
   }, [profiles, search]);
 
@@ -99,7 +121,7 @@ export default function AdminUsers() {
         body: JSON.stringify(form),
       });
       setMessage(result.sms?.sent
-        ? `Employee created and login credentials were sent by SMS to ${result.sms.number || form.phone}.`
+        ? `Employee created. Code: ${result.data.employee_code}. Login credentials were sent by SMS to ${result.sms.number || form.phone}.`
         : `Employee created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
       setForm({ full_name: '', employee_position: '', phone: '', password: '', permissions: { ...emptyPermissions } });
@@ -172,10 +194,15 @@ export default function AdminUsers() {
         method: 'PATCH',
         body: JSON.stringify({
           permanent_address: profile.permanent_address || '',
+          full_name: profile.full_name,
+          phone: profile.phone,
           permanent_plus_code: profile.permanent_plus_code || '',
+          password: (document.getElementById(`delivery-password-${profile.id}`) as HTMLInputElement | null)?.value || undefined,
         }),
       });
-      setMessage('Delivery man permanent location updated.');
+      const passwordInput = document.getElementById(`delivery-password-${profile.id}`) as HTMLInputElement | null;
+      if (passwordInput) passwordInput.value = '';
+      setMessage('Delivery man details updated.');
       await loadProfiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update delivery man location.');
@@ -415,6 +442,20 @@ export default function AdminUsers() {
                   </div>
                   {profile.role === 'sub_admin' && (
                     <div className="space-y-3">
+                      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-2"><Barcode className="w-4 h-4 text-blue-700" /><p className="text-xs font-bold text-blue-900">Employee Login Barcode</p></div>
+                          {profile.employee_code ? <EmployeeBarcode code={profile.employee_code} /> : <p className="text-xs text-amber-700">Legacy employee: save changes or recreate to generate a code.</p>}
+                          <p className="mt-2 text-center font-mono text-xl font-black tracking-[0.35em] text-blue-900">{profile.employee_code || '------'}</p>
+                          <p className="text-[11px] text-center text-gray-500 mt-1">Login with this 6-digit code and password.</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 content-start">
+                          <input value={profile.full_name} onChange={(e) => setProfiles((prev) => prev.map((item) => item.id === profile.id ? { ...item, full_name: e.target.value } : item))} placeholder="Employee name" className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                          <input value={profile.phone} onChange={(e) => setProfiles((prev) => prev.map((item) => item.id === profile.id ? { ...item, phone: e.target.value } : item))} placeholder="Phone" className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm" />
+                          <input id={`employee-password-${profile.id}`} type="text" placeholder="New password (optional)" className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm sm:col-span-2" />
+                          <button onClick={() => { const el = document.getElementById(`employee-password-${profile.id}`) as HTMLInputElement | null; updateSubAdmin(profile, { full_name: profile.full_name, phone: profile.phone, employee_position: profile.employee_position || null, ...(el?.value ? { password: el.value } : {}) } as Partial<Profile>); if (el) el.value = ''; }} disabled={savingId === profile.id} className="sm:col-span-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold flex justify-center items-center gap-2"><Save className="w-4 h-4" /> Save Employee Details</button>
+                        </div>
+                      </div>
                       <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                         <input
                           value={profile.employee_position || ''}
@@ -481,10 +522,10 @@ export default function AdminUsers() {
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
                             {profile.avatar_url ? <img src={profile.avatar_url} alt="" className="w-9 h-9 rounded-lg object-cover" /> : <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center"><Truck className="w-4 h-4 text-green-600" /></div>}
-                            <div><p className="font-semibold text-gray-900">{profile.full_name}</p><p className="text-xs text-gray-400">Joined {new Date(profile.created_at).toLocaleDateString('en-BD')}</p></div>
+                            <div className="min-w-[180px]"><input value={profile.full_name} onChange={(e) => updateLocalDeliveryProfile(profile.id, { full_name: e.target.value })} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm font-semibold" /><p className="text-xs text-gray-400 mt-1">Joined {new Date(profile.created_at).toLocaleDateString('en-BD')}</p></div>
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-gray-600">{profile.phone}</td>
+                        <td className="px-5 py-3 min-w-[170px]"><input value={profile.phone} onChange={(e) => updateLocalDeliveryProfile(profile.id, { phone: e.target.value })} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm" /><input id={`delivery-password-${profile.id}`} type="text" placeholder="New password (optional)" className="w-full mt-2 px-2 py-1.5 border border-gray-200 rounded-lg text-xs" /></td>
                         <td className="px-5 py-3 min-w-[280px]">
                           <input
                             value={profile.permanent_address || ''}
@@ -504,7 +545,7 @@ export default function AdminUsers() {
                             disabled={savingId === profile.id}
                             className="mt-2 px-3 py-2 rounded-lg bg-green-50 text-green-700 text-xs font-semibold disabled:opacity-60"
                           >
-                            Save Plus Code
+                            Save All Details
                           </button>
                         </td>
                         <td className="px-5 py-3 font-bold text-gray-900">{report.orders.length}</td>

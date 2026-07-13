@@ -9,6 +9,7 @@ export interface Profile {
   role?: 'customer' | 'admin' | 'sub_admin' | 'delivery';
   permissions?: Record<string, boolean>;
   employee_position?: string | null;
+  employee_code?: string | null;
   is_active?: boolean;
   permanent_address?: string | null;
   permanent_latitude?: number | null;
@@ -167,7 +168,7 @@ export type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' |
 export type TypeFilter = 'all' | 'new' | 'refill' | 'service';
 
 
-export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'locations' | 'users';
+export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'hero' | 'locations' | 'users' | 'delivery_chat' | 'customer_chat' | 'cylinder_usage';
 
 export interface DeliveryLocation {
   id: string;
@@ -196,8 +197,12 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
   orders: 'Orders',
   products: 'Products',
   offers: 'Offers',
+  hero: 'Hero Photos',
   locations: 'Live Locations',
   users: 'Users & Employees',
+  delivery_chat: 'Delivery Messages',
+  customer_chat: 'Customer Messages',
+  cylinder_usage: 'Cylinder Usage',
 };
 
 export function profileHasPermission(profile: Profile | null | undefined, permission: AdminPermissionKey) {

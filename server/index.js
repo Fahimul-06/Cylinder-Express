@@ -114,6 +114,7 @@ const ProfileSchema = new mongoose.Schema({
   role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   employee_position: { type: String, default: null, trim: true },
+  employee_code: { type: String, default: null, trim: true, index: true, sparse: true, unique: true },
   is_active: { type: Boolean, default: true },
   permanent_address: { type: String, default: null },
   permanent_latitude: { type: Number, default: null },
@@ -345,7 +346,7 @@ async function signInOrCreateSocialUser(socialProfile) {
   return user;
 }
 
-const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'locations', 'users'];
+const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'delivery_chat', 'customer_chat', 'cylinder_usage'];
 
 function sanitizePermissions(input = {}) {
   return ADMIN_PERMISSIONS.reduce((acc, key) => {
@@ -1095,12 +1096,25 @@ app.post('/api/auth/signup', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+async function generateUniqueEmployeeCode() {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    if (!(await models.profiles.exists({ employee_code: code }))) return code;
+  }
+  throw new Error('Could not generate a unique employee code.');
+}
+
 app.post('/api/auth/signin', async (req, res) => {
   try {
     const { emailOrPhone, password } = req.body;
-    const value = String(emailOrPhone || '').toLowerCase();
+    const value = String(emailOrPhone || '').trim().toLowerCase();
     const phoneValues = phoneLookupValues(emailOrPhone);
-    const user = await models.users.findOne({ $or: [{ email: value }, { phone: { $in: phoneValues } }] });
+    let user = null;
+    if (/^\d{6}$/.test(value)) {
+      const employeeProfile = await models.profiles.findOne({ employee_code: value, role: 'sub_admin' });
+      if (employeeProfile) user = await models.users.findById(employeeProfile.user_id);
+    }
+    if (!user) user = await models.users.findOne({ $or: [{ email: value }, { phone: { $in: phoneValues } }] });
     if (!user || !(await bcrypt.compare(password || '', user.password_hash))) return res.status(401).json({ error: 'Invalid login credentials' });
     const profile = await models.profiles.findOne({ user_id: user.id });
     if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the Administration Head.' });
@@ -1155,6 +1169,7 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
       return res.status(409).json({ error: 'A user with this phone already exists.' });
     }
 
+    const employeeCode = await generateUniqueEmployeeCode();
     const user = await models.users.create({ email, phone: normalizedPhone, password_hash: await bcrypt.hash(password, 12) });
     const profile = await models.profiles.create({
       user_id: user.id,
@@ -1165,10 +1180,11 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
       role: 'sub_admin',
       permissions: sanitizePermissions(permissions),
       employee_position: String(employee_position).trim(),
+      employee_code: employeeCode,
       is_active: true,
     });
 
-    const smsMessage = `Cylinder Express employee account created. Username: ${normalizedPhone}. Password: ${password}. Login and change your password with OTP.`;
+    const smsMessage = `Cylinder Express employee account created. Employee Code: ${employeeCode}. Password: ${password}. You can login with the 6-digit code and password.`;
     let sms = { sent: false, skipped: true, reason: SMS_ENABLED ? 'SMS provider failed' : 'SMS environment variables missing' };
     try {
       sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
@@ -1242,7 +1258,10 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     update.updated_at = new Date();
     const profile = await models.profiles.findOneAndUpdate({ _id: req.params.profileId, role: 'delivery' }, update, { new: true });
     if (!profile) return res.status(404).json({ error: 'Delivery man profile not found.' });
-    if (req.body.phone !== undefined) await models.users.findByIdAndUpdate(profile.user_id, { phone: req.body.phone });
+    const userUpdate = {};
+    if (req.body.phone !== undefined) userUpdate.phone = req.body.phone;
+    if (req.body.password) userUpdate.password_hash = await bcrypt.hash(String(req.body.password), 12);
+    if (Object.keys(userUpdate).length) await models.users.findByIdAndUpdate(profile.user_id, userUpdate);
     res.json({ data: profile.toJSON(), error: null });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1260,7 +1279,10 @@ app.patch('/api/admin/subadmins/:profileId', requireAuth, requireAdminUserManage
     update.updated_at = new Date();
     const profile = await models.profiles.findByIdAndUpdate(req.params.profileId, update, { new: true });
     if (!profile) return res.status(404).json({ error: 'Employee profile not found.' });
-    if (req.body.phone !== undefined) await models.users.findByIdAndUpdate(profile.user_id, { phone: req.body.phone });
+    const userUpdate = {};
+    if (req.body.phone !== undefined) userUpdate.phone = req.body.phone;
+    if (req.body.password) userUpdate.password_hash = await bcrypt.hash(String(req.body.password), 12);
+    if (Object.keys(userUpdate).length) await models.users.findByIdAndUpdate(profile.user_id, userUpdate);
     res.json({ data: profile.toJSON(), error: null });
   } catch (error) {
     res.status(500).json({ error: error.message });

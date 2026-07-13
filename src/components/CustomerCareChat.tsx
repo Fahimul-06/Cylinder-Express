@@ -162,7 +162,6 @@ export default function CustomerCareChat() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
-  const [remoteIds, setRemoteIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -178,7 +177,6 @@ export default function CustomerCareChat() {
           }));
           return additions.length ? [...current, ...additions].sort((a,b)=>a.createdAt-b.createdAt) : current;
         });
-        setRemoteIds(new Set(adminMessages.map((item) => item.id)));
         await apiClient('/api/customer-chat/read', { method: 'POST', body: JSON.stringify({}) });
       } catch { /* Chatbot still works if live support is temporarily unavailable. */ }
     };

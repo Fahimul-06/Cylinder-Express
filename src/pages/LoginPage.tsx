@@ -438,14 +438,14 @@ export default function LoginPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-700">Email or Phone</label>
+                    <label className="mb-2 block text-sm font-bold text-slate-700">Email, Phone or Employee Code</label>
                     <div className="relative">
                       <UserRound className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                       <input
                         type="text"
                         value={emailOrPhone}
                         onChange={e => { setEmailOrPhone(e.target.value); setError(''); }}
-                        placeholder="Enter your email or phone"
+                        placeholder="Email, phone or 6-digit employee code"
                         required
                         className="w-full rounded-xl border border-slate-200 bg-white/90 py-3.5 pl-12 pr-4 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
                       />
