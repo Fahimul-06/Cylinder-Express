@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
+import AdminLoginPage from './pages/AdminLoginPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -30,7 +31,7 @@ import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
-import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
+import { ADMIN_DASHBOARD_PATH, ADMIN_LOGIN_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -77,7 +78,7 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to={ADMIN_LOGIN_PATH} replace />;
   if (!profile?.is_admin || profile.is_active === false) return <Navigate to="/home" replace />;
   if (permission && !profileHasPermission(profile, permission)) {
     const fallback = (['dashboard', 'orders', 'products', 'offers', 'locations', 'users'] as AdminPermissionKey[])
@@ -113,6 +114,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+        <Route path={ADMIN_LOGIN_PATH} element={user && profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : <AdminLoginPage />} />
         <Route path="/about" element={<StaticPage type="about" />} />
         <Route path="/faq" element={<StaticPage type="faq" />} />
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />

@@ -5,6 +5,11 @@ function normalizePrivateRoute(value: unknown, fallback: string) {
   return withSlash.replace(/\/+/g, '/').replace(/\/$/, '') || fallback;
 }
 
+export const ADMIN_LOGIN_PATH = normalizePrivateRoute(
+  import.meta.env.VITE_ADMIN_LOGIN_PATH,
+  '/cx-owner-login-72939'
+);
+
 export const ADMIN_DASHBOARD_PATH = normalizePrivateRoute(
   import.meta.env.VITE_ADMIN_DASHBOARD_PATH,
   '/cx-owner-control-72939'

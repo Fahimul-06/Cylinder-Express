@@ -165,6 +165,20 @@ export const supabase = {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
       }
     },
+    async signInAdmin({ email, password }: { email: string; password: string }) {
+      try {
+        const result = await api<{ session: Session }>('/api/auth/admin/signin', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        localStorage.setItem(TOKEN_KEY, result.session.access_token);
+        emitAuth('SIGNED_IN', result.session);
+        return { data: { user: result.session.user, session: result.session }, error: null };
+      } catch (error) {
+        return { data: { user: null, session: null }, error: { message: error instanceof Error ? error.message : 'Admin login failed' } };
+      }
+    },
+
     async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {
       try {
         const data = await api<{ session: Session; user: User }>('/api/auth/social', {

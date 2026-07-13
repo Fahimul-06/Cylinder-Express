@@ -44,6 +44,10 @@ const BULKSMSBD_API_URL = process.env.BULKSMSBD_API_URL || 'https://bulksmsbd.ne
 const BULKSMSBD_API_KEY = process.env.BULKSMSBD_API_KEY || '';
 const BULKSMSBD_SENDER_ID = process.env.BULKSMSBD_SENDER_ID || process.env.BULKSMSBD_SENDERID || '';
 const SMS_ENABLED = Boolean(BULKSMSBD_API_KEY && BULKSMSBD_SENDER_ID);
+const PRIMARY_ADMIN_EMAIL = String(process.env.PRIMARY_ADMIN_EMAIL || 'cyexpress.help@gmail.com').trim().toLowerCase();
+const PRIMARY_ADMIN_PASSWORD = String(process.env.PRIMARY_ADMIN_PASSWORD || 'CylinderExpress1234@');
+const PRIMARY_ADMIN_NAME = String(process.env.PRIMARY_ADMIN_NAME || 'Cylinder Express Admin');
+const PRIMARY_ADMIN_PHONE = String(process.env.PRIMARY_ADMIN_PHONE || '01409472939');
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
@@ -293,9 +297,9 @@ async function signInOrCreateSocialUser(socialProfile) {
       phone: socialPhone,
       email: socialProfile.email || null,
       avatar_url: socialProfile.avatar || null,
-      is_admin: existingProfiles === 0,
-      role: existingProfiles === 0 ? 'admin' : 'customer',
-      permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+      is_admin: false,
+      role: 'customer',
+      permissions: {},
       is_active: true,
     });
   } else {
@@ -329,6 +333,41 @@ function hasAdminPermission(profile, permission) {
   return Boolean(profile.permissions?.[permission]);
 }
 
+
+async function ensurePrimaryAdmin() {
+  let user = await models.users.findOne({ email: PRIMARY_ADMIN_EMAIL });
+  const passwordHash = await bcrypt.hash(PRIMARY_ADMIN_PASSWORD, 12);
+  if (!user) {
+    user = await models.users.create({
+      email: PRIMARY_ADMIN_EMAIL,
+      phone: PRIMARY_ADMIN_PHONE,
+      password_hash: passwordHash,
+    });
+  } else {
+    user.email = PRIMARY_ADMIN_EMAIL;
+    user.password_hash = passwordHash;
+    if (!user.phone) user.phone = PRIMARY_ADMIN_PHONE;
+    await user.save();
+  }
+
+  await models.profiles.findOneAndUpdate(
+    { user_id: user.id },
+    {
+      $set: {
+        full_name: PRIMARY_ADMIN_NAME,
+        email: PRIMARY_ADMIN_EMAIL,
+        phone: PRIMARY_ADMIN_PHONE,
+        is_admin: true,
+        role: 'admin',
+        permissions: sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))),
+        is_active: true,
+        updated_at: new Date(),
+      },
+      $setOnInsert: { created_at: new Date() },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+}
 
 async function getOrderAdmins() {
   const admins = await models.profiles.find({ is_admin: true, is_active: { $ne: false } });
@@ -829,9 +868,9 @@ app.post('/api/auth/signup', async (req, res) => {
       full_name,
       phone,
       email,
-      is_admin: existingProfiles === 0,
-      role: existingProfiles === 0 ? 'admin' : 'customer',
-      permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+      is_admin: false,
+      role: 'customer',
+      permissions: {},
       is_active: true,
     });
     const session = signUser(user);
@@ -848,6 +887,21 @@ app.post('/api/auth/signin', async (req, res) => {
     if (!user || !(await bcrypt.compare(password || '', user.password_hash))) return res.status(401).json({ error: 'Invalid login credentials' });
     const profile = await models.profiles.findOne({ user_id: user.id });
     if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the administrator.' });
+    if (profile?.is_admin) return res.status(403).json({ error: 'Admin accounts must use the private admin login page.' });
+    const session = signUser(user);
+    res.json({ session, user: session.user });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/auth/admin/signin', async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    const user = await models.users.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid admin credentials' });
+    const profile = await models.profiles.findOne({ user_id: user.id });
+    if (!profile?.is_admin || !['admin', 'sub_admin'].includes(profile.role)) return res.status(403).json({ error: 'This account does not have administrator access.' });
+    if (profile.is_active === false) return res.status(403).json({ error: 'This administrator account is inactive.' });
     const session = signUser(user);
     res.json({ session, user: session.user });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1510,6 +1564,7 @@ async function ensureDefaultCatalog() {
 }
 
 mongoose.connect(MONGODB_URI).then(async () => {
+  await ensurePrimaryAdmin();
   await ensureDefaultCatalog();
   await backfillProfileRolesAndPermissions();
   await backfillOrderUserIds();

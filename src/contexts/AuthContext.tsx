@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
+  signInAdmin: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithSocial: (provider: 'google' | 'facebook', accessToken: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => Promise<{ error: string | null }>;
@@ -98,6 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
+  const signInAdmin = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInAdmin({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
   const signInWithSocial = async (provider: 'google' | 'facebook', accessToken: string) => {
     const { error } = await supabase.auth.signInWithSocial({ provider, accessToken });
     if (error) return { error: error.message };
@@ -143,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInWithSocial, signOut, updateProfile, updatePassword }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInAdmin, signInWithSocial, signOut, updateProfile, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );
