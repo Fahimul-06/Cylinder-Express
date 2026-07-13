@@ -7,7 +7,7 @@ function normalizePrivateRoute(value: unknown, fallback: string) {
 
 export const ADMIN_LOGIN_PATH = normalizePrivateRoute(
   import.meta.env.VITE_ADMIN_LOGIN_PATH,
-  '/cx-admin-gateway-a94f7c21'
+  '/cx-owner-access-41827'
 );
 
 export const ADMIN_DASHBOARD_PATH = normalizePrivateRoute(
@@ -17,7 +17,7 @@ export const ADMIN_DASHBOARD_PATH = normalizePrivateRoute(
 
 export const DELIVERY_LOGIN_PATH = normalizePrivateRoute(
   import.meta.env.VITE_DELIVERY_LOGIN_PATH,
-  '/cx-delivery-gateway-d73b9e40'
+  '/cx-rider-access-58314'
 );
 
 export const DELIVERY_DASHBOARD_PATH = normalizePrivateRoute(
@@ -36,11 +36,4 @@ export function isAdminDashboardPath(pathname: string) {
 
 export function isDeliveryDashboardPath(pathname: string) {
   return pathname === DELIVERY_DASHBOARD_PATH || pathname.startsWith(`${DELIVERY_DASHBOARD_PATH}/`);
-}
-
-export function isPrivatePortalPath(pathname: string) {
-  return pathname === ADMIN_LOGIN_PATH
-    || pathname === DELIVERY_LOGIN_PATH
-    || isAdminDashboardPath(pathname)
-    || isDeliveryDashboardPath(pathname);
 }

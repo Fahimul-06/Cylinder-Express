@@ -4,9 +4,8 @@ import { API_BASE_URL, supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, Lock, Eye, EyeOff, Save,
-  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard
+  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag
 } from 'lucide-react';
-import { ADMIN_DASHBOARD_PATH } from '../lib/secureRoutes';
 
 
 
@@ -335,21 +334,6 @@ export default function ProfileDetailsPage() {
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
           {profile?.is_admin && (
             <>
-              <button
-                onClick={() => navigate(ADMIN_DASHBOARD_PATH)}
-                className="w-full flex items-center justify-between p-4 hover:bg-blue-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center">
-                    <LayoutDashboard className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="text-left">
-                    <span className="text-sm font-semibold text-blue-700">Admin Dashboard</span>
-                    <p className="text-xs text-blue-500">Manage orders, products & offers</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-blue-400" />
-              </button>
               <div className="border-t border-gray-50" />
             </>
           )}

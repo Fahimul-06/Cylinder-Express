@@ -8,8 +8,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
-  signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
-  portalSignIn: (portal: 'admin' | 'delivery', identifier: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (emailOrPhone: string, password: string, audience?: 'customer' | 'admin' | 'delivery') => Promise<{ error: string | null }>;
   signInWithSocial: (provider: 'google' | 'facebook', accessToken: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => Promise<{ error: string | null }>;
@@ -81,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
-  const signIn = async (emailOrPhone: string, password: string) => {
+  const signIn = async (emailOrPhone: string, password: string, audience: 'customer' | 'admin' | 'delivery' = 'customer') => {
     const isEmail = emailOrPhone.includes('@');
     let email = emailOrPhone;
     if (!isEmail) {
@@ -94,15 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email = `${emailOrPhone}@cylinderexpress.bd`;
       }
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password, audience });
     if (error) return { error: error.message };
-    return { error: null };
-  };
-
-  const portalSignIn = async (portal: 'admin' | 'delivery', identifier: string, password: string) => {
-    const { data, error } = await supabase.auth.signInToPortal({ portal, identifier, password });
-    if (error) return { error: error.message };
-    if (data?.user?.id) await fetchProfile(data.user.id);
     return { error: null };
   };
 
@@ -151,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, portalSignIn, signInWithSocial, signOut, updateProfile, updatePassword }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInWithSocial, signOut, updateProfile, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

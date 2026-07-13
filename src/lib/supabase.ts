@@ -152,30 +152,17 @@ export const supabase = {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Sign up failed' } };
       }
     },
-    async signInWithPassword({ email, password }: { email: string; password: string }) {
+    async signInWithPassword({ email, password, audience = 'customer' }: { email: string; password: string; audience?: 'customer' | 'admin' | 'delivery' }) {
       try {
         const data = await api<{ session: Session; user: User }>('/api/auth/signin', {
           method: 'POST',
-          body: JSON.stringify({ emailOrPhone: email, password }),
+          body: JSON.stringify({ emailOrPhone: email, password, audience }),
         });
         localStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
-      }
-    },
-    async signInToPortal({ portal, identifier, password }: { portal: 'admin' | 'delivery'; identifier: string; password: string }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/portal-signin', {
-          method: 'POST',
-          body: JSON.stringify({ portal, emailOrPhone: identifier, password }),
-        });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('SIGNED_IN', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Portal login failed' } };
       }
     },
     async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {

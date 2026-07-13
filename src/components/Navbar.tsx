@@ -4,12 +4,11 @@ import { useCart } from '../contexts/CartContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, User, LogOut, MapPin, Package,
-  Menu, X, ClipboardList, Sparkles, Shield
+  Menu, X, ClipboardList, Sparkles
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
 import NotificationBell from './NotificationBell';
-import { ADMIN_DASHBOARD_PATH } from '../lib/secureRoutes';
 
 export default function Navbar() {
   const { user, profile, signOut } = useAuth();
@@ -28,7 +27,6 @@ export default function Navbar() {
     { path: '/cart', label: t('nav.cart'), icon: ShoppingCart, badge: totalItems },
     { path: '/orders', label: t('nav.orders'), icon: ClipboardList, badge: 0 },
     { path: '/addresses', label: t('nav.addresses'), icon: MapPin, badge: 0 },
-    ...(profile?.is_admin ? [{ path: ADMIN_DASHBOARD_PATH, label: t('nav.admin'), icon: Shield, badge: 0 }] : []),
   ];
 
   const isActive = (path: string) => location.pathname === path;

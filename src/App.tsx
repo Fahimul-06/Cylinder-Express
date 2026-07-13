@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
+import StaffLoginPage from './pages/StaffLoginPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -25,13 +26,12 @@ import AdminHeroImages from './pages/admin/AdminHeroImages';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
-import PortalLoginPage from './pages/PortalLoginPage';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
-import { ADMIN_DASHBOARD_PATH, ADMIN_LOGIN_PATH, DELIVERY_DASHBOARD_PATH, DELIVERY_LOGIN_PATH, adminPath, isPrivatePortalPath } from './lib/secureRoutes';
+import { ADMIN_DASHBOARD_PATH, ADMIN_LOGIN_PATH, DELIVERY_DASHBOARD_PATH, DELIVERY_LOGIN_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -104,17 +104,18 @@ function AppRoutes() {
   }
 
   const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
-  const isPrivatePortal = isPrivatePortalPath(currentPath);
+  const isAdminRoute = isAdminDashboardPath(currentPath);
+  const isDeliveryRoute = isDeliveryDashboardPath(currentPath);
 
   return (
     <>
-      {user && !isPrivatePortal && <Navbar />}
+      {user && !isAdminRoute && <Navbar />}
       {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
         <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
-        <Route path={ADMIN_LOGIN_PATH} element={<PortalLoginPage portal="admin" />} />
-        <Route path={DELIVERY_LOGIN_PATH} element={<PortalLoginPage portal="delivery" />} />
+        <Route path={ADMIN_LOGIN_PATH} element={<StaffLoginPage portal="admin" />} />
+        <Route path={DELIVERY_LOGIN_PATH} element={<StaffLoginPage portal="delivery" />} />
         <Route path="/about" element={<StaticPage type="about" />} />
         <Route path="/faq" element={<StaticPage type="faq" />} />
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
@@ -145,7 +146,7 @@ function AppRoutes() {
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
-      {!isPrivatePortal && <Footer />}
+      {!isAdminRoute && !isDeliveryRoute && <Footer />}
     </>
   );
 }
