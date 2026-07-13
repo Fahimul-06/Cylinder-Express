@@ -2,7 +2,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, ShoppingBag, Package, Tag, Image as ImageIcon, ArrowLeft,
-  ChevronRight, MapPin, Users, MessageCircle
+  ChevronRight, MapPin, Users, MessageCircle, Cylinder
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
@@ -25,6 +25,8 @@ export default function AdminLayout() {
     { path: adminPath('locations'), label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
     { path: adminPath('users'), label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
     { path: adminPath('delivery-chat'), label: 'Delivery Messages', icon: MessageCircle, permission: 'dashboard' as AdminPermissionKey },
+    { path: adminPath('customer-chat'), label: 'Customer Messages', icon: MessageCircle, permission: 'dashboard' as AdminPermissionKey },
+    { path: adminPath('cylinder-usage'), label: 'Cylinder Usage', icon: Cylinder, permission: 'dashboard' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>

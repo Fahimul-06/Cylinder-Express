@@ -195,6 +195,19 @@ const DeliveryAdminMessageSchema = new mongoose.Schema({
 }, { toJSON });
 DeliveryAdminMessageSchema.index({ delivery_user_id: 1, created_at: 1 });
 
+
+const CustomerAdminMessageSchema = new mongoose.Schema({
+  customer_user_id: { type: String, required: true, index: true },
+  sender_id: { type: String, required: true, index: true },
+  sender_role: { type: String, enum: ['customer', 'admin'], required: true },
+  message: { type: String, required: true, maxlength: 2000 },
+  read_by_admin: { type: Boolean, default: false, index: true },
+  read_by_customer: { type: Boolean, default: false, index: true },
+  created_at: { type: Date, default: Date.now, index: true },
+  updated_at: { type: Date, default: Date.now },
+}, { toJSON });
+CustomerAdminMessageSchema.index({ customer_user_id: 1, created_at: 1 });
+
 const NotificationSchema = new mongoose.Schema({
   user_id: { type: String, index: true },
   role_target: { type: String, default: null, index: true },
@@ -229,6 +242,7 @@ const models = {
   delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
   notifications: mongoose.model('Notification', NotificationSchema),
   delivery_admin_messages: mongoose.model('DeliveryAdminMessage', DeliveryAdminMessageSchema),
+  customer_admin_messages: mongoose.model('CustomerAdminMessage', CustomerAdminMessageSchema),
   lpg_usage_profiles: mongoose.model('LpgUsageProfile', LpgUsageProfileSchema),
 };
 
@@ -711,6 +725,82 @@ async function getAuthenticatedProfile(req) {
   return models.profiles.findOne({ user_id: req.auth.id });
 }
 
+
+app.get('/api/customer-chat/conversations', requireAuth, async (req, res) => {
+  try {
+    const profile = await getAuthenticatedProfile(req);
+    if (!profile?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    const customerIds = await models.customer_admin_messages.distinct('customer_user_id');
+    const rows = await Promise.all(customerIds.map(async (customerId) => {
+      const [customer, latest, unread] = await Promise.all([
+        models.profiles.findOne({ user_id: customerId }).lean(),
+        models.customer_admin_messages.findOne({ customer_user_id: customerId }).sort({ created_at: -1 }).lean(),
+        models.customer_admin_messages.countDocuments({ customer_user_id: customerId, sender_role: 'customer', read_by_admin: false }),
+      ]);
+      return {
+        customer_user_id: String(customerId),
+        full_name: customer?.full_name || 'Customer',
+        phone: customer?.phone || '',
+        avatar_url: customer?.avatar_url || null,
+        last_message: latest?.message || '',
+        last_message_at: latest?.created_at || customer?.created_at,
+        unread_count: unread,
+      };
+    }));
+    rows.sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0));
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: rows, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/customer-chat/messages', requireAuth, async (req, res) => {
+  try {
+    const profile = await getAuthenticatedProfile(req);
+    let customerUserId;
+    if (profile?.is_admin) customerUserId = String(req.query.customer_user_id || '');
+    else if (profile?.role !== 'delivery') customerUserId = req.auth.id;
+    else return res.status(403).json({ error: 'Customer or admin access required.' });
+    if (!customerUserId) return res.status(400).json({ error: 'Customer is required.' });
+    const messages = await models.customer_admin_messages.find({ customer_user_id: customerUserId }).sort({ created_at: 1 }).limit(300).lean();
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: messages.map(m => ({ ...m, id: String(m._id) })), error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/customer-chat/messages', requireAuth, async (req, res) => {
+  try {
+    const profile = await getAuthenticatedProfile(req);
+    const text = String(req.body.message || '').trim();
+    if (!text) return res.status(400).json({ error: 'Message cannot be empty.' });
+    if (text.length > 2000) return res.status(400).json({ error: 'Message is too long.' });
+    let customerUserId; let senderRole;
+    if (profile?.is_admin) { customerUserId = String(req.body.customer_user_id || ''); senderRole = 'admin'; }
+    else if (profile?.role !== 'delivery') { customerUserId = req.auth.id; senderRole = 'customer'; }
+    else return res.status(403).json({ error: 'Customer or admin access required.' });
+    if (!customerUserId) return res.status(400).json({ error: 'Customer is required.' });
+    const customer = await models.profiles.findOne({ user_id: customerUserId, role: { $ne: 'delivery' }, is_admin: { $ne: true } });
+    if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    const doc = await models.customer_admin_messages.create({
+      customer_user_id: customerUserId, sender_id: req.auth.id, sender_role: senderRole, message: text,
+      read_by_admin: senderRole === 'admin', read_by_customer: senderRole === 'customer',
+    });
+    res.status(201).json({ data: { ...doc.toJSON(), id: String(doc._id) }, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/customer-chat/read', requireAuth, async (req, res) => {
+  try {
+    const profile = await getAuthenticatedProfile(req);
+    let customerUserId; let update;
+    if (profile?.is_admin) { customerUserId = String(req.body.customer_user_id || ''); update = { read_by_admin: true, updated_at: new Date() }; }
+    else if (profile?.role !== 'delivery') { customerUserId = req.auth.id; update = { read_by_customer: true, updated_at: new Date() }; }
+    else return res.status(403).json({ error: 'Customer or admin access required.' });
+    if (!customerUserId) return res.status(400).json({ error: 'Customer is required.' });
+    await models.customer_admin_messages.updateMany({ customer_user_id: customerUserId }, { $set: update });
+    res.json({ success: true, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.get('/api/delivery-chat/conversations', requireAuth, async (req, res) => {
   try {
     const profile = await getAuthenticatedProfile(req);
@@ -813,6 +903,39 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
   }
 });
 
+
+
+app.get('/api/admin/lpg-usage', requireAuth, async (req, res) => {
+  try {
+    const admin = await getAuthenticatedProfile(req);
+    if (!admin?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    await rebuildLpgUsageProfiles();
+    const now = new Date();
+    const profiles = await models.lpg_usage_profiles.find({ predicted_empty_at: { $ne: null } }).sort({ predicted_empty_at: 1 }).lean();
+    const data = await Promise.all(profiles.map(async (usage) => {
+      const customer = await models.profiles.findOne({ user_id: usage.user_id }).lean();
+      const daysRemaining = Math.ceil((new Date(usage.predicted_empty_at).getTime() - now.getTime()) / 86400000);
+      return { ...usage, id: String(usage._id), customer_name: customer?.full_name || 'Customer', customer_phone: customer?.phone || '', days_remaining: daysRemaining };
+    }));
+    res.set('Cache-Control', 'no-store');
+    res.json({ data, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/admin/lpg-usage/notify', requireAuth, async (req, res) => {
+  try {
+    const admin = await getAuthenticatedProfile(req);
+    if (!admin?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    const usage = await models.lpg_usage_profiles.findById(String(req.body.usage_id || ''));
+    if (!usage) return res.status(404).json({ error: 'Cylinder usage estimate not found.' });
+    const predicted = new Date(usage.predicted_empty_at);
+    const days = Math.max(0, Math.ceil((predicted.getTime() - Date.now()) / 86400000));
+    const title = 'Your LPG cylinder may be nearly empty';
+    const message = String(req.body.message || '').trim() || `Your ${usage.cylinder_size_kg}kg LPG cylinder may finish around ${predicted.toLocaleDateString('en-GB')}${days ? ` (about ${days} days remaining)` : ''}. Please order a refill soon.`;
+    const notification = await models.notifications.create({ user_id: usage.user_id, type: 'lpg_usage_reminder', title, message, urgent: days <= 3, buzz: true });
+    res.status(201).json({ data: { ...notification.toJSON(), id: String(notification._id) }, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
 
 app.get('/api/lpg-usage', requireAuth, async (req, res) => {
   try {

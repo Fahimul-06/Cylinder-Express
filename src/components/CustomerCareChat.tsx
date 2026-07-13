@@ -2,13 +2,16 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Headphones, MessageCircle, Phone, Send, ShoppingCart, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { apiClient } from '../lib/supabase';
 
 type ChatMessage = {
   id: string;
-  sender: 'bot' | 'user';
+  sender: 'bot' | 'user' | 'admin';
   text: string;
   createdAt: number;
 };
+
+type RemoteChatMessage = { id: string; sender_role: 'customer' | 'admin'; message: string; created_at: string };
 
 const STORAGE_KEY = 'cylinder-express-customer-care-chat';
 
@@ -159,6 +162,30 @@ export default function CustomerCareChat() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [remoteIds, setRemoteIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAdminReplies = async () => {
+      try {
+        const result = await apiClient<{ data: RemoteChatMessage[] }>('/api/customer-chat/messages');
+        if (cancelled) return;
+        const adminMessages = (result.data || []).filter((item) => item.sender_role === 'admin');
+        setMessages((current) => {
+          const existing = new Set(current.map((item) => item.id));
+          const additions = adminMessages.filter((item) => !existing.has(`admin-${item.id}`)).map((item) => ({
+            id: `admin-${item.id}`, sender: 'admin' as const, text: item.message, createdAt: new Date(item.created_at).getTime(),
+          }));
+          return additions.length ? [...current, ...additions].sort((a,b)=>a.createdAt-b.createdAt) : current;
+        });
+        setRemoteIds(new Set(adminMessages.map((item) => item.id)));
+        await apiClient('/api/customer-chat/read', { method: 'POST', body: JSON.stringify({}) });
+      } catch { /* Chatbot still works if live support is temporarily unavailable. */ }
+    };
+    loadAdminReplies();
+    const timer = window.setInterval(loadAdminReplies, 2500);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, []);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   const copy = useMemo(() => language === 'bn' ? {
@@ -336,6 +363,7 @@ export default function CustomerCareChat() {
     setMessages((current) => [...current, userMessage]);
     setInput('');
     setTyping(true);
+    apiClient('/api/customer-chat/messages', { method: 'POST', body: JSON.stringify({ message: value }) }).catch(() => undefined);
 
     window.setTimeout(() => {
       const response = answerFor(value);
@@ -382,9 +410,12 @@ export default function CustomerCareChat() {
                 <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-sm ${
                   message.sender === 'user'
                     ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'
+                    : message.sender === 'admin'
+                      ? 'bg-emerald-50 text-gray-800 border border-emerald-200 rounded-bl-md'
+                      : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'
                 } whitespace-pre-line`}>
                   {message.sender === 'bot' && <Bot className="w-4 h-4 text-blue-600 mb-1" />}
+                  {message.sender === 'admin' && <div className="text-[10px] font-bold text-emerald-700 mb-1">Customer Care Admin</div>}
                   {message.text}
                 </div>
               </div>

@@ -27,6 +27,8 @@ import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import DeliveryAdminChatPage from './pages/DeliveryAdminChatPage';
 import AdminDeliveryChat from './pages/admin/AdminDeliveryChat';
+import AdminCustomerChat from './pages/admin/AdminCustomerChat';
+import AdminCylinderUsage from './pages/admin/AdminCylinderUsage';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
@@ -145,6 +147,8 @@ function AppRoutes() {
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
           <Route path="delivery-chat" element={<AdminDeliveryChat />} />
+          <Route path="customer-chat" element={<AdminCustomerChat />} />
+          <Route path="cylinder-usage" element={<AdminCylinderUsage />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
