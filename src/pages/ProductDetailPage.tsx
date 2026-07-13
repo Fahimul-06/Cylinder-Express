@@ -73,6 +73,11 @@ export default function ProductDetailPage() {
       setSelectedCylinderOrderType('');
 
       if (data) {
+        if (isLpgCylinder(data as Product)) {
+          setSelectedValveSize(data.valve_size || '22mm');
+          setSelectedValveType(data.valve_connection || 'Pin');
+        }
+
         const [{ data: related }, { data: offerData }] = await Promise.all([
           supabase
             .from('products')
@@ -358,7 +363,7 @@ export default function ProductDetailPage() {
                   <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 space-y-4">
                     <div>
                       <h3 className="font-bold text-blue-950">Select cylinder options</h3>
-                      <p className="text-xs text-blue-700 mt-1">Choose New/Refill, valve type, and valve size before adding this cylinder to cart.</p>
+                      <p className="text-xs text-blue-700 mt-1">Choose New/Refill before adding this cylinder to cart. Valve defaults to Pin and 22mm when the admin has not specified them.</p>
                     </div>
 
                     <div>

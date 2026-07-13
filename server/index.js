@@ -1280,8 +1280,8 @@ async function ensureDefaultCatalog() {
     const {
       company_name = null,
       size = null,
-      valve_size = null,
-      valve_connection = null,
+      valve_size = product.category === 'lpg-cylinders' ? '22mm' : null,
+      valve_connection = product.category === 'lpg-cylinders' ? 'Pin' : null,
       ...insertOnlyProductData
     } = productData;
 

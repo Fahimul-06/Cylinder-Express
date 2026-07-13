@@ -180,8 +180,8 @@ export default function AdminProducts() {
       type: form.type,
       company_name: isLpgCylinderForm ? form.company_name || null : null,
       size: form.size || null,
-      valve_size: null,
-      valve_connection: null,
+      valve_size: isLpgCylinderForm ? '22mm' : null,
+      valve_connection: isLpgCylinderForm ? 'Pin' : null,
       unit: form.unit || (isLpgCylinderForm ? 'cylinder' : 'piece'),
       is_bestseller: form.is_bestseller,
       is_available: form.is_available,
@@ -406,7 +406,7 @@ export default function AdminProducts() {
                     </div>
                     <div className="sm:col-span-2 rounded-xl bg-white border border-blue-100 p-3">
                       <p className="text-sm font-semibold text-blue-900">Valve selection is not uploaded separately.</p>
-                      <p className="text-xs text-blue-700 mt-1">Available customer choices: Paul / Pin and 22mm / 20mm. These options appear automatically on the cylinder product page.</p>
+                      <p className="text-xs text-blue-700 mt-1">Available customer choices: Paul / Pin and 22mm / 20mm. If no valve details are provided, the defaults are Pin and 22mm.</p>
                     </div>
                   </div>
                 </div>
