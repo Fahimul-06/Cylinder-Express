@@ -192,6 +192,8 @@ const DeliveryAdminMessageSchema = new mongoose.Schema({
   delivery_user_id: { type: String, required: true, index: true },
   sender_id: { type: String, required: true, index: true },
   sender_role: { type: String, enum: ['delivery', 'admin'], required: true },
+  sender_name: { type: String, default: null, trim: true },
+  sender_position: { type: String, default: null, trim: true },
   message: { type: String, required: true, maxlength: 2000 },
   read_by_admin: { type: Boolean, default: false, index: true },
   read_by_delivery: { type: Boolean, default: false, index: true },
@@ -205,6 +207,8 @@ const CustomerAdminMessageSchema = new mongoose.Schema({
   customer_user_id: { type: String, required: true, index: true },
   sender_id: { type: String, required: true, index: true },
   sender_role: { type: String, enum: ['customer', 'admin'], required: true },
+  sender_name: { type: String, default: null, trim: true },
+  sender_position: { type: String, default: null, trim: true },
   message: { type: String, required: true, maxlength: 2000 },
   read_by_admin: { type: Boolean, default: false, index: true },
   read_by_customer: { type: Boolean, default: false, index: true },
@@ -785,8 +789,15 @@ app.post('/api/customer-chat/messages', requireAuth, async (req, res) => {
     if (!customerUserId) return res.status(400).json({ error: 'Customer is required.' });
     const customer = await models.profiles.findOne({ user_id: customerUserId, role: { $ne: 'delivery' }, is_admin: { $ne: true } });
     if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+    const senderName = senderRole === 'admin'
+      ? (profile?.full_name || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
+      : (profile?.full_name || 'Customer');
+    const senderPosition = senderRole === 'admin'
+      ? (profile?.employee_position || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
+      : null;
     const doc = await models.customer_admin_messages.create({
-      customer_user_id: customerUserId, sender_id: req.auth.id, sender_role: senderRole, message: text,
+      customer_user_id: customerUserId, sender_id: req.auth.id, sender_role: senderRole,
+      sender_name: senderName, sender_position: senderPosition, message: text,
       read_by_admin: senderRole === 'admin', read_by_customer: senderRole === 'customer',
     });
     res.status(201).json({ data: { ...doc.toJSON(), id: String(doc._id) }, error: null });
@@ -861,10 +872,18 @@ app.post('/api/delivery-chat/messages', requireAuth, async (req, res) => {
     if (!deliveryUserId) return res.status(400).json({ error: 'Delivery person is required.' });
     const delivery = await models.profiles.findOne({ user_id: deliveryUserId, role: 'delivery' });
     if (!delivery) return res.status(404).json({ error: 'Delivery person not found.' });
+    const senderName = senderRole === 'admin'
+      ? (profile?.full_name || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
+      : (profile?.full_name || 'Delivery Person');
+    const senderPosition = senderRole === 'admin'
+      ? (profile?.employee_position || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
+      : null;
     const doc = await models.delivery_admin_messages.create({
       delivery_user_id: deliveryUserId,
       sender_id: req.auth.id,
       sender_role: senderRole,
+      sender_name: senderName,
+      sender_position: senderPosition,
       message: text,
       read_by_admin: senderRole === 'admin',
       read_by_delivery: senderRole === 'delivery',

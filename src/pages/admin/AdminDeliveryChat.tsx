@@ -4,7 +4,7 @@ import { apiClient } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 type Conversation = { delivery_user_id: string; full_name: string; phone: string; avatar_url?: string | null; last_message: string; last_message_at: string; unread_count: number };
-type ChatMessage = { id: string; sender_id: string; sender_role: 'delivery' | 'admin'; message: string; created_at: string };
+type ChatMessage = { id: string; sender_id: string; sender_role: 'delivery' | 'admin'; message: string; created_at: string; sender_name?: string | null; sender_position?: string | null };
 
 export default function AdminDeliveryChat() {
   const { user } = useAuth();
@@ -62,7 +62,7 @@ export default function AdminDeliveryChat() {
       <section className="flex flex-col min-w-0 min-h-0">
         {selected ? <>
           <header className="p-4 border-b flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center"><Truck className="w-5 h-5 text-blue-600" /></div><div><p className="font-bold">{selected.full_name}</p><p className="text-xs text-gray-500">{selected.phone} · live messaging</p></div></header>
-          <main className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-3">{messages.map(m => { const mine = m.sender_id === user?.id || m.sender_role === 'admin'; return <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white border rounded-bl-md'}`}><p className="text-sm whitespace-pre-wrap break-words">{m.message}</p><p className={`text-[10px] mt-1 ${mine ? 'text-blue-100' : 'text-gray-400'}`}>{new Date(m.created_at).toLocaleString()}</p></div></div>; })}<div ref={bottomRef} /></main>
+          <main className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-3">{messages.map(m => { const mine = m.sender_id === user?.id || m.sender_role === 'admin'; return <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[80%] px-4 py-2.5 rounded-2xl ${mine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white border rounded-bl-md'}`}>{m.sender_role==='admin'&&<p className={`text-[11px] font-semibold mb-1 ${mine?'text-blue-100':'text-blue-600'}`}>{m.sender_name||'Administration Head'}{m.sender_position?` · ${m.sender_position}`:''}</p>}<p className="text-sm whitespace-pre-wrap break-words">{m.message}</p><p className={`text-[10px] mt-1 ${mine ? 'text-blue-100' : 'text-gray-400'}`}>{new Date(m.created_at).toLocaleString()}</p></div></div>; })}<div ref={bottomRef} /></main>
           <form onSubmit={send} className="p-3 border-t flex gap-2"><input value={text} onChange={e => setText(e.target.value)} maxLength={2000} placeholder="Write a message..." className="flex-1 border rounded-xl px-4 py-3 text-sm" /><button disabled={!text.trim()} className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center disabled:opacity-40"><Send className="w-5 h-5" /></button></form>
         </> : <div className="flex-1 flex flex-col items-center justify-center text-gray-400"><MessageCircle className="w-12 h-12 mb-3" /><p>Select a delivery person to start chatting.</p></div>}
       </section>
