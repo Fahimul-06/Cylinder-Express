@@ -81,6 +81,78 @@ const hasConcept = (text: string, concepts: string[]) => {
   });
 };
 
+
+const bengaliDigitToEnglish = (value: string) => value.replace(/[০-৯]/g, (digit) => String('০১২৩৪৫৬৭৮৯'.indexOf(digit)));
+
+const numberWords: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  ek: 1, dui: 2, tin: 3, char: 4, pach: 5, choy: 6, sat: 7, at: 8, noy: 9, dosh: 10,
+  এক: 1, দুই: 2, তিন: 3, চার: 4, পাঁচ: 5, ছয়: 6, সাত: 7, আট: 8, নয়: 9, দশ: 10,
+};
+
+const readNearbyNumber = (text: string, keywords: string[]) => {
+  const digitText = bengaliDigitToEnglish(text);
+  const escaped = keywords.map((keyword) => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const before = new RegExp(`(?:${escaped})\\s*(?:is|are|=|:|-)?\\s*(\\d{1,2}|${Object.keys(numberWords).join('|')})`, 'i');
+  const after = new RegExp(`(\\d{1,2}|${Object.keys(numberWords).join('|')})\\s*(?:${escaped})`, 'i');
+  const match = digitText.match(before) || digitText.match(after);
+  if (!match) return null;
+  const token = match[1].toLowerCase();
+  const value = /^\d+$/.test(token) ? Number(token) : numberWords[token];
+  return Number.isFinite(value) ? value : null;
+};
+
+const getCylinderAdvice = (raw: string, bn: boolean) => {
+  const q = canonicalize(raw);
+  const family = readNearbyNumber(q, ['family members', 'family member', 'members', 'member', 'people', 'person', 'জন', 'সদস্য', 'পরিবারে']);
+  const meals = readNearbyNumber(q, ['times daily', 'times a day', 'times', 'meals', 'meal', 'বার রান্না', 'বেলা', 'বার']);
+  const items = readNearbyNumber(q, ['items', 'item', 'dishes', 'dish', 'পদ', 'আইটেম']);
+  const heavy = /heavy|long cooking|beef|meat|dal|pressure|বেশি রান্না|দীর্ঘ|গরুর মাংস|মাংস|ডাল|ভাজা/.test(q);
+
+  const known = [family, meals, items].filter((value): value is number => value !== null);
+  if (!known.length) {
+    return bn
+      ? 'সঠিক সিলিন্ডার সাইজ সাজেস্ট করতে ৩টি তথ্য লিখুন: পরিবারের সদস্য কতজন, দিনে কয়বার রান্না করেন, এবং প্রতি বেলায় আনুমানিক কয়টি পদ রান্না হয়। যেমন: “আমরা ৫ জন, দিনে ৩ বার, প্রতি বেলায় ৩টি পদ রান্না করি।”'
+      : 'To recommend a suitable cylinder size, tell me three things: family members, how many times you cook per day, and roughly how many dishes you cook each time. Example: “We are 5 people, cook 3 times daily, about 3 dishes each time.”';
+  }
+
+  const f = Math.min(Math.max(family ?? 4, 1), 20);
+  const m = Math.min(Math.max(meals ?? 2, 1), 6);
+  const i = Math.min(Math.max(items ?? 2, 1), 10);
+  let monthlyKg = f * 0.8 + m * 1.4 + i * 0.75;
+  if (heavy) monthlyKg *= 1.2;
+  monthlyKg = Math.max(4, Math.round(monthlyKg));
+
+  let size = '12kg';
+  let noteEn = 'A 12kg or 12.5kg cylinder is usually the practical choice.';
+  let noteBn = 'সাধারণভাবে ১২ কেজি বা ১২.৫ কেজি সিলিন্ডার ব্যবহারিক হবে।';
+  if (monthlyKg <= 7) {
+    size = '5kg–6kg';
+    noteEn = 'A 5kg–6kg cylinder may be enough, especially for light or occasional cooking.';
+    noteBn = 'হালকা বা কম রান্না হলে ৫–৬ কেজি সিলিন্ডার যথেষ্ট হতে পারে।';
+  } else if (monthlyKg <= 15) {
+    size = '12kg–12.5kg';
+  } else if (monthlyKg <= 27) {
+    size = '22kg';
+    noteEn = 'A 22kg cylinder is likely more convenient than replacing a 12kg cylinder frequently.';
+    noteBn = '১২ কেজি বারবার বদলানোর চেয়ে ২২ কেজি সিলিন্ডার বেশি সুবিধাজনক হতে পারে।';
+  } else if (monthlyKg <= 38) {
+    size = '30kg–35kg';
+    noteEn = 'A 30kg–35kg cylinder may suit this higher cooking demand.';
+    noteBn = 'এই বেশি রান্নার চাহিদার জন্য ৩০–৩৫ কেজি সিলিন্ডার উপযুক্ত হতে পারে।';
+  } else {
+    size = '45kg or two-cylinder setup';
+    noteEn = 'Consider a 45kg cylinder or a safe two-cylinder setup installed by a trained technician.';
+    noteBn = '৪৫ কেজি সিলিন্ডার অথবা প্রশিক্ষিত টেকনিশিয়ান দিয়ে নিরাপদ দুই-সিলিন্ডার সেটআপ বিবেচনা করুন।';
+  }
+
+  const detailsEn = `${f} family member${f === 1 ? '' : 's'}, ${m} cooking time${m === 1 ? '' : 's'} per day, and about ${i} dish${i === 1 ? '' : 'es'} each time`;
+  const detailsBn = `পরিবারে ${f} জন, দিনে ${m} বার রান্না এবং প্রতি বেলায় প্রায় ${i}টি পদ`;
+  return bn
+    ? `আপনার তথ্য অনুযায়ী (${detailsBn}), আনুমানিক মাসিক LPG ব্যবহার প্রায় ${monthlyKg} কেজি হতে পারে। প্রস্তাবিত সাইজ: ${size}। ${noteBn} এটি একটি আনুমানিক হিসাব—বার্নার, রান্নার সময়, খাবারের ধরন এবং লিক থাকলে ব্যবহার বদলাতে পারে।`
+    : `Based on ${detailsEn}, estimated LPG use may be around ${monthlyKg}kg per month. Recommended size: ${size}. ${noteEn} This is an estimate; burner efficiency, cooking duration, food type, and any leak can change actual usage.`;
+};
+
 export default function CustomerCareChat() {
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -95,7 +167,7 @@ export default function CustomerCareChat() {
     welcome: 'আসসালামু আলাইকুম! আমি Cylinder Express সহকারী। অর্ডার, ডেলিভারি, রিফিল, সার্ভিস বা অ্যাকাউন্ট বিষয়ে কীভাবে সাহায্য করতে পারি?',
     placeholder: 'আপনার বার্তা লিখুন...',
     send: 'পাঠান',
-    quick: ['গ্যাস লিক হলে কী করব?', 'গ্যাস কীভাবে সাশ্রয় করব?', 'সিলিন্ডার দ্রুত শেষ হয় কেন?', 'রেগুলেটর ও পাইপ নিরাপত্তা', 'এলপিজি পণ্য দেখুন'],
+    quick: ['আমাদের পরিবারে ৫ জন, কোন সাইজ ভালো?', 'দিনে ৩ বার রান্না করি, কোন সিলিন্ডার নেব?', 'গ্যাস লিক হলে কী করব?', 'গ্যাস কীভাবে সাশ্রয় করব?', 'এলপিজি পণ্য দেখুন'],
     human: 'সরাসরি সহায়তার জন্য 01967517077 অথবা 01409472939 নম্বরে কল করুন।',
   } : {
     title: 'Customer Care',
@@ -103,7 +175,7 @@ export default function CustomerCareChat() {
     welcome: 'Hello! I am the Cylinder Express assistant. How can I help with an order, delivery, refill, service, or account?',
     placeholder: 'Type your message...',
     send: 'Send',
-    quick: ['What should I do if gas leaks?', 'How can I save gas?', 'Why did my cylinder finish quickly?', 'Regulator and hose safety', 'View LPG products'],
+    quick: ['We are a family of 5. Which size is best?', 'I cook 3 times daily. What cylinder size?', 'What should I do if gas leaks?', 'How can I save gas?', 'View LPG products'],
     human: 'For direct support, call 01967517077 or 01409472939.',
   }, [language]);
 
@@ -132,6 +204,12 @@ export default function CustomerCareChat() {
   const answerFor = (raw: string) => {
     const q = canonicalize(raw);
     const bn = language === 'bn';
+
+    const asksForCylinderSize = /which size|what size|size cylinder|cylinder size|best cylinder|suitable cylinder|recommend cylinder|family member|family members|how many kg|কোন সাইজ|কত কেজি|সাইজ সিলিন্ডার|কোন সিলিন্ডার|পরিবারে|সদস্য|কয়বার রান্না|কতবার রান্না/.test(q)
+      || hasConcept(q, ['which cylinder size', 'best size for family', 'how many kg cylinder', 'cylinder recommendation', 'family cooking cylinder', 'কোন সাইজ ভালো', 'কত কেজি সিলিন্ডার', 'পরিবারের জন্য সিলিন্ডার', 'দিনে কয়বার রান্না']);
+    if (asksForCylinderSize) {
+      return { text: getCylinderAdvice(raw, bn) };
+    }
 
     // Emergency guidance must be checked before broad words such as "gas" or "cylinder".
     if (/leak|leaking|smell gas|gas smell|গ্যাস লিক|লিকেজ|গ্যাসের গন্ধ|গন্ধ পাচ্ছি|গন্ধ পাই/.test(q) || hasConcept(q, ['gas leak', 'smell gas', 'gas smell', 'গ্যাস বের হচ্ছে', 'সিলিন্ডার লিক', 'গ্যাসের গন্ধ'])) {
@@ -246,8 +324,8 @@ export default function CustomerCareChat() {
     }
     return {
       text: bn
-        ? 'আমি LPG নিরাপত্তা, গ্যাস লিক, গ্যাস সাশ্রয়, দ্রুত সিলিন্ডার শেষ হওয়া, রান্না, শিখার সমস্যা, রেগুলেটর, পাইপ, স্টোভ, পণ্য, অর্ডার, ডেলিভারি ও সার্ভিস বিষয়ে সাহায্য করতে পারি। আপনার প্রশ্নটি বিস্তারিত লিখুন।'
-        : 'I can help with LPG safety, gas leaks, saving gas, unusually fast usage, cooking, flame problems, regulators, hoses, stoves, products, orders, delivery, and services. Please describe your question in detail.',
+        ? 'আমি পরিবারের সদস্য ও রান্নার পরিমাণ অনুযায়ী সিলিন্ডার সাইজ, LPG নিরাপত্তা, গ্যাস লিক, গ্যাস সাশ্রয়, দ্রুত সিলিন্ডার শেষ হওয়া, রান্না, শিখার সমস্যা, রেগুলেটর, পাইপ, স্টোভ, পণ্য, অর্ডার, ডেলিভারি ও সার্ভিস বিষয়ে সাহায্য করতে পারি। আপনার প্রশ্নটি বিস্তারিত লিখুন।'
+        : 'I can help with cylinder-size recommendations, LPG safety, gas leaks, saving gas, unusually fast usage, cooking, flame problems, regulators, hoses, stoves, products, orders, delivery, and services. Please describe your question in detail.',
     };
   };
 
