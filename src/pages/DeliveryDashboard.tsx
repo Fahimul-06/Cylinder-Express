@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Order, Address, Profile, LocationPoint } from '../lib/types';
-import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2, History, Wallet } from 'lucide-react';
+import { LogOut, MapPin, Navigation, RefreshCw, Route, Truck, User, Phone, PackageCheck, Headphones, CheckCircle2, History, Wallet, MessageCircle } from 'lucide-react';
 import NotificationBell from '../components/NotificationBell';
 import LanguageToggle from '../components/LanguageToggle';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNavigate } from 'react-router-dom';
+import { DELIVERY_DASHBOARD_PATH } from '../lib/secureRoutes';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const ACTIVE_ORDER_STATUSES = ['pending', 'confirmed', 'processing'];
@@ -52,6 +54,7 @@ function loadGoogleMaps(): Promise<void> {
 
 export default function DeliveryDashboard() {
   const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const { t } = useLanguage();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any | null>(null);
@@ -503,6 +506,7 @@ export default function DeliveryDashboard() {
           )}
         </section>
       </main>
-    </div>
+      <button onClick={() => navigate(`${DELIVERY_DASHBOARD_PATH}/chat`)} className="fixed bottom-5 right-5 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg px-4 py-3 flex items-center gap-2" title="Message admin"><MessageCircle className="w-5 h-5" /><span className="hidden sm:inline text-sm font-semibold">Admin Chat</span></button>
+</div>
   );
 }

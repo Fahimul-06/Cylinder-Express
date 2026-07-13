@@ -25,6 +25,8 @@ import AdminHeroImages from './pages/admin/AdminHeroImages';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
+import DeliveryAdminChatPage from './pages/DeliveryAdminChatPage';
+import AdminDeliveryChat from './pages/admin/AdminDeliveryChat';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
@@ -132,6 +134,7 @@ function AppRoutes() {
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path={DELIVERY_DASHBOARD_PATH} element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
+        <Route path={`${DELIVERY_DASHBOARD_PATH}/chat`} element={<DeliveryRoute><DeliveryAdminChatPage /></DeliveryRoute>} />
         {/* Admin routes */}
         <Route path={ADMIN_DASHBOARD_PATH} element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route index element={<AdminRoute permission="dashboard"><AdminDashboard /></AdminRoute>} />
@@ -141,6 +144,7 @@ function AppRoutes() {
           <Route path="hero" element={<AdminRoute permission="offers"><AdminHeroImages /></AdminRoute>} />
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
+          <Route path="delivery-chat" element={<AdminDeliveryChat />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
