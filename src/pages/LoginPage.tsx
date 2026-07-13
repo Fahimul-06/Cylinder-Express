@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Phone, Lock, Eye, EyeOff, X, CheckCircle, ShieldCheck, Gauge, Headphones, UserRound } from 'lucide-react';
+import { Phone, Lock, Eye, EyeOff, X, CheckCircle, ShieldCheck, Gauge, Headphones, UserRound, KeyRound } from 'lucide-react';
 
 
 function loadExternalScript(src: string, id: string): Promise<void> {
@@ -45,7 +45,7 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
     const res = await fetch(`${apiBaseUrl}/functions/v1/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned }),
+      body: JSON.stringify({ phone: cleaned, purpose: 'password-reset' }),
     });
     const data = await res.json();
     setLoading(false);
@@ -452,9 +452,11 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => setShowForgot(true)}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 transition-colors hover:text-blue-800 hover:underline"
+                        aria-label="Forgot password"
                       >
-                        Forgot?
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Forgot Password?
                       </button>
                     </div>
                     <div className="relative">

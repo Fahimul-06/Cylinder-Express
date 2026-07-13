@@ -1260,8 +1260,14 @@ async function sendBulkSmsBdOtp(phone, otp) {
 }
 
 app.post('/functions/v1/send-otp', async (req, res) => {
-  const { phone } = req.body;
+  const { phone, purpose } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone number is required.' });
+
+  const normalizedPhone = normalizeCustomerPhone(phone);
+  if (purpose === 'password-reset') {
+    const account = await models.users.findOne({ phone: { $in: phoneLookupCandidates(normalizedPhone) } });
+    if (!account) return res.status(404).json({ error: 'No account found with this phone number.' });
+  }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   await models.otp_verifications.deleteMany({ phone, used: false });
