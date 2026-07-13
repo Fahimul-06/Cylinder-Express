@@ -242,33 +242,36 @@ export default function HomePage() {
               <h2 className="text-lg font-bold text-gray-900">Services</h2>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {services.map(p => (
               <button
                 key={p.id}
                 onClick={() => navigate(`/product/${p.id}`)}
                 className="overflow-hidden bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group text-left"
               >
-                <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
-                  <img
-                    src={p.image_url || 'https://images.pexels.com/photos/8486972/pexels-photo-8486972.jpeg?auto=compress&cs=tinysrgb&w=800'}
-                    alt={p.name}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-                  <span className="absolute bottom-3 right-3 rounded-full bg-white/95 px-3 py-1 text-sm font-bold text-blue-600 shadow-sm">
+                <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                  {p.image_url ? (
+                    <img
+                      src={p.image_url}
+                      alt={p.name}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-blue-50 flex items-center justify-center">
+                      <Wrench className="w-9 h-9 text-blue-600" />
+                    </div>
+                  )}
+                  <span className="absolute bottom-2 right-2 rounded-full bg-white/95 px-2 py-1 text-xs font-bold text-blue-600 shadow-sm">
                     ৳{p.price.toLocaleString()}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 p-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 line-clamp-1">{p.name}</h3>
-                    <p className="mt-1 text-sm text-gray-500 line-clamp-2">{p.description}</p>
-                  </div>
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white">
-                    <ChevronRight className="h-5 w-5" />
-                  </div>
+                <div className="p-3">
+                  <h3 className="font-semibold text-sm sm:text-base text-gray-900 line-clamp-1">{p.name}</h3>
+                  <p className="mt-1 text-xs text-gray-500 line-clamp-2 min-h-[2rem]">{p.description || 'Professional service at your doorstep'}</p>
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
+                    Book Now <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
                 </div>
               </button>
             ))}
