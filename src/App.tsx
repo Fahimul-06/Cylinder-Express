@@ -28,6 +28,7 @@ import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
+import CustomerCareChat from './components/CustomerCareChat';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
 import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
@@ -143,6 +144,7 @@ function AppRoutes() {
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
+      {user && profile?.role !== 'delivery' && !isAdminRoute && !isDeliveryRoute && <CustomerCareChat />}
       {!isAdminRoute && !isDeliveryRoute && <Footer />}
     </>
   );
