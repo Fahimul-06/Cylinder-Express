@@ -3,8 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  ShoppingCart, User, LogOut, MapPin, Package,
-  Menu, X, ClipboardList, Sparkles, Shield
+  ShoppingCart, User, LogOut, Package,
+  Menu, X, Sparkles, Shield
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
@@ -26,8 +26,6 @@ export default function Navbar() {
     { path: '/offers', label: t('nav.offers'), icon: Sparkles, badge: 0 },
     { path: '/products', label: t('nav.products'), icon: Package, badge: 0 },
     { path: '/cart', label: t('nav.cart'), icon: ShoppingCart, badge: totalItems },
-    { path: '/orders', label: t('nav.orders'), icon: ClipboardList, badge: 0 },
-    { path: '/addresses', label: t('nav.addresses'), icon: MapPin, badge: 0 },
     ...(profile?.is_admin ? [{ path: ADMIN_DASHBOARD_PATH, label: t('nav.admin'), icon: Shield, badge: 0 }] : []),
   ];
 

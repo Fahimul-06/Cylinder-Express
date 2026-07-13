@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { UserRound, Flame, ChevronRight, Settings } from 'lucide-react';
+import { UserRound, Flame, ChevronRight, Settings, ShoppingBag, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfilePage() {
@@ -20,6 +20,20 @@ export default function ProfilePage() {
       icon: Flame,
       path: '/cylinder-usage',
       iconClass: 'bg-orange-100 text-orange-600',
+    },
+    {
+      title: 'My Orders',
+      description: 'View product orders, service bookings and delivery progress.',
+      icon: ShoppingBag,
+      path: '/orders',
+      iconClass: 'bg-violet-100 text-violet-600',
+    },
+    {
+      title: 'Delivery Addresses',
+      description: 'Add, edit and manage your saved delivery addresses.',
+      icon: MapPin,
+      path: '/addresses',
+      iconClass: 'bg-emerald-100 text-emerald-600',
     },
   ];
 
