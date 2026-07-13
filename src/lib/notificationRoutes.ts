@@ -39,6 +39,10 @@ export function getNotificationTargetPath(notification: AppNotificationItem, pro
     return profile?.is_admin ? adminPath('offers') : '/offers';
   }
 
+  if (type.includes('lpg_refill_prediction')) {
+    return '/products?category=lpg-cylinders';
+  }
+
   if (type.includes('product') || text.includes('product')) {
     return profile?.is_admin ? adminPath('products') : '/products';
   }

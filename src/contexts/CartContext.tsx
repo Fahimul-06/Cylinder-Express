@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { CartItem, Offer, Product } from '../lib/types';
 import { useAuth } from './AuthContext';
+import { isLpgCylinder } from '../lib/deliveryCharges';
 
 export interface CartItemOptions {
   valve_size?: string | null;
@@ -65,12 +66,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [promoError, setPromoError] = useState('');
 
   const addItem = (product: Product, quantity = 1, options?: CartItemOptions) => {
-    const cartKey = buildCartItemKey(product.id, options);
+    const isCylinder = isLpgCylinder(product);
+    const normalizedOptions: CartItemOptions | undefined = isCylinder
+      ? {
+          ...options,
+          valve_size: options?.valve_size || product.valve_size || '22mm',
+          valve_connection: options?.valve_connection || product.valve_connection || 'Pin',
+        }
+      : options;
+    const cartKey = buildCartItemKey(product.id, normalizedOptions);
     const productForCart: Product = {
       ...product,
-      valve_size: options?.valve_size ?? product.valve_size ?? null,
-      valve_connection: options?.valve_connection ?? product.valve_connection ?? null,
-      type: options?.order_type ?? product.type,
+      valve_size: normalizedOptions?.valve_size ?? product.valve_size ?? null,
+      valve_connection: normalizedOptions?.valve_connection ?? product.valve_connection ?? null,
+      type: normalizedOptions?.order_type ?? product.type,
     };
 
     setItems(prev => {
@@ -86,9 +95,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         cart_key: cartKey,
         product: productForCart,
         quantity,
-        selected_valve_size: options?.valve_size ?? null,
-        selected_valve_connection: options?.valve_connection ?? null,
-        selected_order_type: options?.order_type ?? null,
+        selected_valve_size: normalizedOptions?.valve_size ?? null,
+        selected_valve_connection: normalizedOptions?.valve_connection ?? null,
+        selected_order_type: normalizedOptions?.order_type ?? null,
       }];
     });
   };
