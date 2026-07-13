@@ -14,8 +14,8 @@ import CheckoutPage from './pages/CheckoutPage';
 import AddressesPage from './pages/AddressesPage';
 import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
-import ProfileSettingsPage from './pages/ProfileSettingsPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
+import ProfileDetailsPage from './pages/ProfileDetailsPage';
+import CylinderUsagePage from './pages/CylinderUsagePage';
 import OffersPage from './pages/OffersPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminOrders from './pages/admin/AdminOrders';
@@ -125,9 +125,9 @@ function AppRoutes() {
         <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
         <Route path="/addresses" element={<ProtectedRoute><AddressesPage /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
-        <Route path="/profile-settings" element={<ProtectedRoute><ProfileSettingsPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
+        <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsPage /></ProtectedRoute>} />
+        <Route path="/cylinder-usage" element={<ProtectedRoute><CylinderUsagePage /></ProtectedRoute>} />
         <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path={DELIVERY_DASHBOARD_PATH} element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />

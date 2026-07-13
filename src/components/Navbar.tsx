@@ -72,7 +72,7 @@ export default function Navbar() {
               <LanguageToggle />
               <NotificationBell compact />
               <button
-                onClick={() => navigate('/profile-settings')}
+                onClick={() => navigate('/profile')}
                 className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors"
               >
                 <User className="w-4 h-4 text-gray-500" />
@@ -120,7 +120,7 @@ export default function Navbar() {
               <div className="pt-2 border-t border-gray-100 space-y-2">
                 <div className="px-4 flex items-center gap-2"><LanguageToggle compact /><NotificationBell compact /></div>
                 <button
-                  onClick={() => { navigate('/profile-settings'); setMenuOpen(false); }}
+                  onClick={() => { navigate('/profile'); setMenuOpen(false); }}
                   className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
                 >
                   <User className="w-4 h-4 text-gray-500" />
