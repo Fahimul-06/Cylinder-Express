@@ -344,7 +344,7 @@ export default function ProfileDetailsPage() {
                     <LayoutDashboard className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="text-left">
-                    <span className="text-sm font-semibold text-blue-700">Admin Dashboard</span>
+                    <span className="text-sm font-semibold text-blue-700">Administration Head Dashboard</span>
                     <p className="text-xs text-blue-500">Manage orders, products & offers</p>
                   </div>
                 </div>

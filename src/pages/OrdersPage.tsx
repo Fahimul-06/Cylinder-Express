@@ -361,7 +361,7 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
     }
     if (isSharing) {
       if (isLockedByAdmin) {
-        setError('Admin confirmed this order. Live location cannot be stopped until delivery is completed or cancelled.');
+        setError('Administration Head confirmed this order. Live location cannot be stopped until delivery is completed or cancelled.');
         return;
       }
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
@@ -391,14 +391,14 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
             </p>
             <p className="text-xs text-gray-500">
               {isLockedByAdmin
-                ? 'Admin confirmed this order. Tracking stays on until delivery is completed.'
+                ? 'Administration Head confirmed this order. Tracking stays on until delivery is completed.'
                 : 'Live location starts automatically after placing an order.'}
             </p>
           </div>
         </div>
         <button
           onClick={toggleSharing}
-          title={isLockedByAdmin ? 'Locked after admin confirmation' : undefined}
+          title={isLockedByAdmin ? 'Locked after Administration Head confirmation' : undefined}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${isSharing ? 'bg-blue-600' : 'bg-gray-200'} ${isLockedByAdmin ? 'cursor-not-allowed opacity-80' : ''}`}
         >
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isSharing ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -412,7 +412,7 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
       )}
       {isLockedByAdmin && (
         <div className="mt-2 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
-          Location sharing is locked because admin confirmed this order.
+          Location sharing is locked because the Administration Head confirmed this order.
         </div>
       )}
       {error && (

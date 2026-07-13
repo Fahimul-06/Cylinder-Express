@@ -29,6 +29,7 @@ export default function AdminUsers() {
     full_name: '',
     phone: '',
     password: '',
+    employee_position: '',
     permissions: { ...emptyPermissions },
   });
   const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '' });
@@ -84,8 +85,8 @@ export default function AdminUsers() {
   const createSubAdmin = async () => {
     setError('');
     setMessage('');
-    if (!form.full_name.trim() || !form.phone.trim() || !form.password.trim()) {
-      setError('Name, phone and password are required.');
+    if (!form.full_name.trim() || !form.employee_position.trim() || !form.phone.trim() || !form.password.trim()) {
+      setError('Employee name, position, phone and password are required.');
       return;
     }
     if (form.password.length < 6) {
@@ -98,13 +99,13 @@ export default function AdminUsers() {
         body: JSON.stringify(form),
       });
       setMessage(result.sms?.sent
-        ? `Sub-admin created and login credentials were sent by SMS to ${result.sms.number || form.phone}.`
-        : `Sub-admin created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
+        ? `Employee created and login credentials were sent by SMS to ${result.sms.number || form.phone}.`
+        : `Employee created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
-      setForm({ full_name: '', phone: '', password: '', permissions: { ...emptyPermissions } });
+      setForm({ full_name: '', employee_position: '', phone: '', password: '', permissions: { ...emptyPermissions } });
       await loadProfiles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create sub-admin.');
+      setError(err instanceof Error ? err.message : 'Failed to create employee.');
     }
   };
 
@@ -144,10 +145,10 @@ export default function AdminUsers() {
         method: 'PATCH',
         body: JSON.stringify(patch),
       });
-      setMessage('Sub-admin updated successfully.');
+      setMessage('Employee updated successfully.');
       await loadProfiles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update sub-admin.');
+      setError(err instanceof Error ? err.message : 'Failed to update employee.');
     }
     setSavingId(null);
   };
@@ -188,8 +189,8 @@ export default function AdminUsers() {
 
   const statCards = [
     { label: 'Registered Users', value: profiles.filter((p) => !p.is_admin && p.role !== 'delivery').length, icon: Users },
-    { label: 'Admin Accounts', value: profiles.filter((p) => p.is_admin).length, icon: ShieldCheck },
-    { label: 'Sub-admins', value: profiles.filter((p) => p.role === 'sub_admin').length, icon: UserPlus },
+    { label: 'Administration Head & Employee Accounts', value: profiles.filter((p) => p.is_admin).length, icon: ShieldCheck },
+    { label: 'Employees', value: profiles.filter((p) => p.role === 'sub_admin').length, icon: UserPlus },
     { label: 'Delivery Men', value: profiles.filter((p) => p.role === 'delivery').length, icon: Truck },
   ];
 
@@ -197,8 +198,8 @@ export default function AdminUsers() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users & Sub-admins</h1>
-          <p className="text-sm text-gray-500 mt-1">View registered customers and manage feature-wise admin access.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Users & Employees</h1>
+          <p className="text-sm text-gray-500 mt-1">View registered customers and manage feature-wise employee access.</p>
         </div>
         <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -249,13 +250,19 @@ export default function AdminUsers() {
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-5">
           <UserPlus className="w-5 h-5 text-blue-600" />
-          <h2 className="font-bold text-gray-900">Create Sub-admin</h2>
+          <h2 className="font-bold text-gray-900">Create Employee</h2>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <input
             value={form.full_name}
             onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))}
             placeholder="Full name"
+            className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+          />
+          <input
+            value={form.employee_position}
+            onChange={(e) => setForm((prev) => ({ ...prev, employee_position: e.target.value }))}
+            placeholder="Employee position (e.g. Operations Officer)"
             className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20"
           />
           <div className="relative">
@@ -351,7 +358,7 @@ export default function AdminUsers() {
             />
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-3">Save delivery man base location by Plus Code only. Latitude and longitude are not shown or saved from the admin dashboard.</p>
+        <p className="text-xs text-gray-500 mt-3">Save delivery man base location by Plus Code only. Latitude and longitude are not shown or saved from the Administration Head dashboard.</p>
         <button
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
@@ -366,7 +373,7 @@ export default function AdminUsers() {
         <>
           <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">Admin & Sub-admin Accounts</h2>
+              <h2 className="font-bold text-gray-900">Administration Head & Employee Accounts</h2>
             </div>
             <div className="divide-y divide-gray-50">
               {admins.map((profile) => (
@@ -385,7 +392,7 @@ export default function AdminUsers() {
                         <p className="text-xs text-gray-500">{profile.phone} {profile.email ? `• ${profile.email}` : ''}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold uppercase">
-                            {profile.role === 'sub_admin' ? 'Sub-admin' : 'Admin'}
+                            {profile.role === 'sub_admin' ? `Employee${profile.employee_position ? ` • ${profile.employee_position}` : ''}` : 'Administration Head'}
                           </span>
                           {profile.is_active === false ? (
                             <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[11px] font-bold">Inactive</span>
@@ -407,7 +414,23 @@ export default function AdminUsers() {
                     )}
                   </div>
                   {profile.role === 'sub_admin' && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                        <input
+                          value={profile.employee_position || ''}
+                          onChange={(e) => setProfiles((prev) => prev.map((item) => item.id === profile.id ? { ...item, employee_position: e.target.value } : item))}
+                          placeholder="Employee position"
+                          className="flex-1 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20"
+                        />
+                        <button
+                          onClick={() => updateSubAdmin(profile, { employee_position: profile.employee_position || null })}
+                          disabled={savingId === profile.id || !profile.employee_position?.trim()}
+                          className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-50"
+                        >
+                          Save Position
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
                       {PERMISSIONS.map((permission) => (
                         <button
                           key={permission}
@@ -422,11 +445,12 @@ export default function AdminUsers() {
                           {profile.permissions?.[permission] ? '✓ ' : '+ '}{ADMIN_PERMISSION_LABELS[permission]}
                         </button>
                       ))}
+                      </div>
                     </div>
                   )}
                 </div>
               ))}
-              {admins.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No admin accounts found.</div>}
+              {admins.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No Administration Head or employee accounts found.</div>}
             </div>
           </section>
 
@@ -474,7 +498,7 @@ export default function AdminUsers() {
                             placeholder="Plus Code, e.g. Q9XX+XX Dhaka"
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
                           />
-                          <p className="mt-1 text-[11px] text-gray-400">Admin saves Plus Code only. Latitude/longitude is hidden.</p>
+                          <p className="mt-1 text-[11px] text-gray-400">Administration Head saves Plus Code only. Latitude/longitude is hidden.</p>
                           <button
                             onClick={() => updateDeliveryManBase(profile)}
                             disabled={savingId === profile.id}

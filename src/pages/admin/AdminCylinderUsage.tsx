@@ -130,7 +130,7 @@ export default function AdminCylinderUsage() {
                           {new Date(item.predicted_empty_at).toLocaleDateString()}
                           <button onClick={() => beginEdit(item)} className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50" title="Change estimated date"><Pencil className="w-4 h-4" /></button>
                         </div>
-                        {item.is_admin_adjusted && <p className="text-xs text-amber-600 mt-1">Adjusted by admin</p>}
+                        {item.is_admin_adjusted && <p className="text-xs text-amber-600 mt-1">Adjusted by Administration Head</p>}
                       </div>
                     )}
                   </td>

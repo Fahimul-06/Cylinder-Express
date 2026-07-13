@@ -8,6 +8,7 @@ export interface Profile {
   is_admin: boolean;
   role?: 'customer' | 'admin' | 'sub_admin' | 'delivery';
   permissions?: Record<string, boolean>;
+  employee_position?: string | null;
   is_active?: boolean;
   permanent_address?: string | null;
   permanent_latitude?: number | null;
@@ -196,7 +197,7 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
   products: 'Products',
   offers: 'Offers',
   locations: 'Live Locations',
-  users: 'Users & Sub-admins',
+  users: 'Users & Employees',
 };
 
 export function profileHasPermission(profile: Profile | null | undefined, permission: AdminPermissionKey) {

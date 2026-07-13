@@ -506,7 +506,7 @@ export default function DeliveryDashboard() {
           )}
         </section>
       </main>
-      <button onClick={() => navigate(`${DELIVERY_DASHBOARD_PATH}/chat`)} className="fixed bottom-5 right-5 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg px-4 py-3 flex items-center gap-2" title="Message admin"><MessageCircle className="w-5 h-5" /><span className="hidden sm:inline text-sm font-semibold">Admin Chat</span></button>
+      <button onClick={() => navigate(`${DELIVERY_DASHBOARD_PATH}/chat`)} className="fixed bottom-5 right-5 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg px-4 py-3 flex items-center gap-2" title="Message Administration Head"><MessageCircle className="w-5 h-5" /><span className="hidden sm:inline text-sm font-semibold">Administration Head Chat</span></button>
 </div>
   );
 }

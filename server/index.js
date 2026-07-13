@@ -113,6 +113,7 @@ const ProfileSchema = new mongoose.Schema({
   is_admin: { type: Boolean, default: false },
   role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
+  employee_position: { type: String, default: null, trim: true },
   is_active: { type: Boolean, default: true },
   permanent_address: { type: String, default: null },
   permanent_latitude: { type: Number, default: null },
@@ -336,7 +337,7 @@ async function signInOrCreateSocialUser(socialProfile) {
   }
 
   if (profile?.is_active === false) {
-    const error = new Error('This account is inactive. Please contact the administrator.');
+    const error = new Error('This account is inactive. Please contact the Administration Head.');
     error.statusCode = 403;
     throw error;
   }
@@ -732,7 +733,7 @@ async function getAuthenticatedProfile(req) {
 app.get('/api/customer-chat/conversations', requireAuth, async (req, res) => {
   try {
     const profile = await getAuthenticatedProfile(req);
-    if (!profile?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    if (!profile?.is_admin) return res.status(403).json({ error: 'Administration Head or authorized employee access required.' });
     const customerIds = await models.customer_admin_messages.distinct('customer_user_id');
     const rows = await Promise.all(customerIds.map(async (customerId) => {
       const [customer, latest, unread] = await Promise.all([
@@ -807,7 +808,7 @@ app.post('/api/customer-chat/read', requireAuth, async (req, res) => {
 app.get('/api/delivery-chat/conversations', requireAuth, async (req, res) => {
   try {
     const profile = await getAuthenticatedProfile(req);
-    if (!profile?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    if (!profile?.is_admin) return res.status(403).json({ error: 'Administration Head or authorized employee access required.' });
     const deliveryProfiles = await models.profiles.find({ role: 'delivery', is_active: { $ne: false } }).lean();
     const rows = await Promise.all(deliveryProfiles.map(async (delivery) => {
       const deliveryId = String(delivery.user_id);
@@ -911,7 +912,7 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
 app.get('/api/admin/lpg-usage', requireAuth, async (req, res) => {
   try {
     const admin = await getAuthenticatedProfile(req);
-    if (!admin?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    if (!admin?.is_admin) return res.status(403).json({ error: 'Administration Head or authorized employee access required.' });
     await rebuildLpgUsageProfiles();
     const now = new Date();
     const profiles = await models.lpg_usage_profiles.find({ predicted_empty_at: { $ne: null } }).sort({ predicted_empty_at: 1 }).lean();
@@ -929,7 +930,7 @@ app.get('/api/admin/lpg-usage', requireAuth, async (req, res) => {
 app.patch('/api/admin/lpg-usage/:id', requireAuth, async (req, res) => {
   try {
     const admin = await getAuthenticatedProfile(req);
-    if (!admin?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    if (!admin?.is_admin) return res.status(403).json({ error: 'Administration Head or authorized employee access required.' });
     const usage = await models.lpg_usage_profiles.findById(String(req.params.id || ''));
     if (!usage) return res.status(404).json({ error: 'Cylinder usage estimate not found.' });
     const rawDate = String(req.body.predicted_empty_at || '').trim();
@@ -951,7 +952,7 @@ app.patch('/api/admin/lpg-usage/:id', requireAuth, async (req, res) => {
 app.post('/api/admin/lpg-usage/notify', requireAuth, async (req, res) => {
   try {
     const admin = await getAuthenticatedProfile(req);
-    if (!admin?.is_admin) return res.status(403).json({ error: 'Admin access required.' });
+    if (!admin?.is_admin) return res.status(403).json({ error: 'Administration Head or authorized employee access required.' });
     const usage = await models.lpg_usage_profiles.findById(String(req.body.usage_id || ''));
     if (!usage) return res.status(404).json({ error: 'Cylinder usage estimate not found.' });
     const predicted = new Date(usage.admin_adjusted_empty_at || usage.predicted_empty_at);
@@ -1102,7 +1103,7 @@ app.post('/api/auth/signin', async (req, res) => {
     const user = await models.users.findOne({ $or: [{ email: value }, { phone: { $in: phoneValues } }] });
     if (!user || !(await bcrypt.compare(password || '', user.password_hash))) return res.status(401).json({ error: 'Invalid login credentials' });
     const profile = await models.profiles.findOne({ user_id: user.id });
-    if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the administrator.' });
+    if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact the Administration Head.' });
     const session = signUser(user);
     res.json({ session, user: session.user });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1145,8 +1146,8 @@ app.post('/api/rpc/get_email_by_phone', async (req, res) => {
 
 app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
-    const { full_name, phone, password, permissions = {} } = req.body;
-    if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
+    const { full_name, employee_position, phone, password, permissions = {} } = req.body;
+    if (!full_name || !employee_position || !phone || !password) return res.status(400).json({ error: 'Employee name, position, phone and password are required.' });
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const normalizedPhone = normalizePhoneForSms(phone);
     const email = `${normalizedPhone}@subadmin.cylinderexpress.bd`;
@@ -1163,16 +1164,17 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
       is_admin: true,
       role: 'sub_admin',
       permissions: sanitizePermissions(permissions),
+      employee_position: String(employee_position).trim(),
       is_active: true,
     });
 
-    const smsMessage = `Cylinder Express admin account created. Username: ${normalizedPhone}. Password: ${password}. Login and change your password with OTP.`;
+    const smsMessage = `Cylinder Express employee account created. Username: ${normalizedPhone}. Password: ${password}. Login and change your password with OTP.`;
     let sms = { sent: false, skipped: true, reason: SMS_ENABLED ? 'SMS provider failed' : 'SMS environment variables missing' };
     try {
       sms = await sendBulkSmsBdMessage(normalizedPhone, smsMessage);
     } catch (smsError) {
       sms = { sent: false, skipped: false, error: smsError.message };
-      console.error('Sub-admin credential SMS failed:', smsError.message);
+      console.error('Employee credential SMS failed:', smsError.message);
     }
 
     res.json({ data: profile.toJSON(), sms, error: null });
@@ -1253,10 +1255,11 @@ app.patch('/api/admin/subadmins/:profileId', requireAuth, requireAdminUserManage
     if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
     if (req.body.phone !== undefined) update.phone = req.body.phone;
     if (req.body.permissions !== undefined) update.permissions = sanitizePermissions(req.body.permissions);
+    if (req.body.employee_position !== undefined) update.employee_position = req.body.employee_position ? String(req.body.employee_position).trim() : null;
     if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
     update.updated_at = new Date();
     const profile = await models.profiles.findByIdAndUpdate(req.params.profileId, update, { new: true });
-    if (!profile) return res.status(404).json({ error: 'Sub-admin profile not found.' });
+    if (!profile) return res.status(404).json({ error: 'Employee profile not found.' });
     if (req.body.phone !== undefined) await models.users.findByIdAndUpdate(profile.user_id, { phone: req.body.phone });
     res.json({ data: profile.toJSON(), error: null });
   } catch (error) {
