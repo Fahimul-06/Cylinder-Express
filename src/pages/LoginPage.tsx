@@ -42,17 +42,23 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
       return;
     }
     setLoading(true);
-    const res = await fetch(`${apiBaseUrl}/functions/v1/send-otp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: cleaned, purpose: 'password-reset' }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok || data.error) {
-      setError(data.error || 'Failed to send OTP. Please try again.');
-    } else {
+    try {
+      const res = await fetch(`${apiBaseUrl}/functions/v1/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleaned, purpose: 'password-reset' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        setError(data.error || 'Failed to send OTP. Please try again.');
+        return;
+      }
+      setPhone(cleaned);
       setStep('otp');
+    } catch {
+      setError('Could not connect to the SMS service. Please check your internet connection and try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
