@@ -12,7 +12,74 @@ type ChatMessage = {
 
 const STORAGE_KEY = 'cylinder-express-customer-care-chat';
 
-const normalize = (value: string) => value.toLowerCase().trim();
+const normalize = (value: string) => value
+  .toLowerCase()
+  .normalize('NFKC')
+  .replace(/[’'`]/g, '')
+  .replace(/[^a-z0-9\u0980-\u09ff]+/g, ' ')
+  .replace(/(.)\1{2,}/g, '$1$1')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const canonicalize = (value: string) => {
+  let text = normalize(value);
+  const aliases: Array<[RegExp, string]> = [
+    [/\b(gass|gaz)\b/g, 'gas'],
+    [/\b(leek|leke|lik|liek|leakage)\b/g, 'leak'],
+    [/\b(cylender|cilinder|silinder|sylinder|cylinderer)\b/g, 'cylinder'],
+    [/\b(regulater|regulatorer)\b/g, 'regulator'],
+    [/\b(hoose|hos|hoss)\b/g, 'hose'],
+    [/\b(paip|pipee)\b/g, 'pipe'],
+    [/\b(chula|chulha)\b/g, 'stove'],
+    [/\b(barnar|barner)\b/g, 'burner'],
+    [/\b(gondho|gondha|smel)\b/g, 'smell'],
+    [/\b(shesh|sesh|ses|finishd|finshed)\b/g, 'finish'],
+    [/\b(taratari|tara tari|quick|quickly)\b/g, 'fast'],
+    [/\b(bachabo|bachate|savee)\b/g, 'save'],
+    [/\b(khoroch|khoroc|khoroچ)\b/g, 'use'],
+    [/\b(kalo|kali)\b/g, 'black'],
+    [/\b(holud)\b/g, 'yellow'],
+    [/\b(agun)\b/g, 'flame'],
+    [/\b(order korbo|kinbo)\b/g, 'order'],
+  ];
+  aliases.forEach(([pattern, replacement]) => {
+    text = text.replace(pattern, replacement);
+  });
+  return text.replace(/\s+/g, ' ').trim();
+};
+
+const editDistance = (a: string, b: string) => {
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = previous[0];
+    previous[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const saved = previous[j];
+      previous[j] = Math.min(
+        previous[j] + 1,
+        previous[j - 1] + 1,
+        diagonal + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      diagonal = saved;
+    }
+  }
+  return previous[b.length];
+};
+
+const hasConcept = (text: string, concepts: string[]) => {
+  const words = text.split(' ').filter(Boolean);
+  return concepts.some((concept) => {
+    const normalizedConcept = canonicalize(concept);
+    if (text.includes(normalizedConcept)) return true;
+    const conceptWords = normalizedConcept.split(' ').filter(Boolean);
+    return conceptWords.every((conceptWord) => words.some((word) => {
+      if (word === conceptWord) return true;
+      if (conceptWord.length < 4 || word.length < 4) return false;
+      const tolerance = Math.max(word.length, conceptWord.length) >= 8 ? 2 : 1;
+      return editDistance(word, conceptWord) <= tolerance;
+    }));
+  });
+};
 
 export default function CustomerCareChat() {
   const navigate = useNavigate();
@@ -63,46 +130,46 @@ export default function CustomerCareChat() {
   }, [messages, open, typing]);
 
   const answerFor = (raw: string) => {
-    const q = normalize(raw);
+    const q = canonicalize(raw);
     const bn = language === 'bn';
 
     // Emergency guidance must be checked before broad words such as "gas" or "cylinder".
-    if (/leak|leaking|smell gas|gas smell|গ্যাস লিক|লিকেজ|গ্যাসের গন্ধ|গন্ধ পাচ্ছি|গন্ধ পাই/.test(q)) {
+    if (/leak|leaking|smell gas|gas smell|গ্যাস লিক|লিকেজ|গ্যাসের গন্ধ|গন্ধ পাচ্ছি|গন্ধ পাই/.test(q) || hasConcept(q, ['gas leak', 'smell gas', 'gas smell', 'গ্যাস বের হচ্ছে', 'সিলিন্ডার লিক', 'গ্যাসের গন্ধ'])) {
       return {
         text: bn
           ? '⚠️ গ্যাস লিক বা গ্যাসের গন্ধ পেলে:\n1. আগুন, ম্যাচ, লাইটার ও সিগারেট সঙ্গে সঙ্গে বন্ধ করুন।\n2. কোনো বৈদ্যুতিক সুইচ, ফ্যান, ফোন চার্জার বা যন্ত্র চালু/বন্ধ করবেন না।\n3. নিরাপদ হলে চুলার নব ও সিলিন্ডারের রেগুলেটর বন্ধ করুন।\n4. দরজা-জানালা হাতে খুলে বাতাস চলাচল করান।\n5. সবাইকে বাইরে নিয়ে যান এবং বাইরে গিয়ে 999 বা Cylinder Express সহায়তায় কল করুন।\n6. নিজে মেরামত করবেন না। প্রশিক্ষিত টেকনিশিয়ান পরীক্ষা না করা পর্যন্ত পুনরায় ব্যবহার করবেন না।'
           : '⚠️ If you smell gas or suspect an LPG leak:\n1. Extinguish flames, matches, lighters, and cigarettes immediately.\n2. Do not turn any electrical switch, fan, charger, or appliance on or off.\n3. If it is safe, close the stove knobs and cylinder regulator.\n4. Open doors and windows manually for ventilation.\n5. Move everyone outside, then call 999 or Cylinder Express support from outdoors.\n6. Do not attempt repairs. Do not reuse the system until a trained technician has checked it.',
       };
     }
-    if (/save gas|gas saving|reduce gas|economy|সাশ্রয়|গ্যাস বাঁচ|কম গ্যাস|গ্যাস কম খরচ/.test(q)) {
+    if (/save gas|gas saving|reduce gas|economy|সাশ্রয়|গ্যাস বাঁচ|কম গ্যাস|গ্যাস কম খরচ/.test(q) || hasConcept(q, ['save gas', 'use less gas', 'reduce gas use', 'gas bill', 'গ্যাস সাশ্রয়', 'গ্যাস কম ব্যবহার', 'গ্যাস বাঁচাবো'])) {
       return {
         text: bn
           ? 'গ্যাস সাশ্রয়ের উপায়:\n• হাঁড়ির মাপ অনুযায়ী বার্নার ব্যবহার করুন এবং শিখা পাত্রের তলার বাইরে যেতে দেবেন না।\n• রান্নার সময় ঢাকনা ব্যবহার করুন; ডাল/মাংসে প্রেসার কুকার ব্যবহার করলে সময় কমে।\n• চাল, ডাল বা শক্ত খাবার আগে ভিজিয়ে রাখুন।\n• প্রয়োজনীয় উপকরণ আগে প্রস্তুত করে তারপর চুলা জ্বালান।\n• নীল শিখা নিশ্চিত করুন; হলুদ/কমলা শিখা হলে বার্নার পরিষ্কার বা সার্ভিস করান।\n• রান্না শেষে চুলার নব ও রেগুলেটর বন্ধ করুন।'
           : 'Ways to save LPG:\n• Match the burner to the pot and keep the flame under the pot base.\n• Cook with lids; use a pressure cooker for foods that take longer.\n• Soak rice, lentils, or other hard foods before cooking.\n• Prepare ingredients before lighting the stove.\n• Keep the flame blue; a yellow/orange flame may require burner cleaning or service.\n• Close both the stove knob and regulator after cooking.',
       };
     }
-    if (/finish quickly|finished fast|fast finished|runs out fast|too much gas|দ্রুত শেষ|তাড়াতাড়ি শেষ|বেশি গ্যাস|কেন শেষ/.test(q)) {
+    if (/finish quickly|finished fast|fast finished|runs out fast|too much gas|দ্রুত শেষ|তাড়াতাড়ি শেষ|বেশি গ্যাস|কেন শেষ/.test(q) || hasConcept(q, ['cylinder finish fast', 'gas finish fast', 'runs out quickly', 'too much gas use', 'সিলিন্ডার দ্রুত শেষ', 'গ্যাস তাড়াতাড়ি শেষ', 'সিলিন্ডার কম দিন চলে'])) {
       return {
         text: bn
           ? 'সিলিন্ডার দ্রুত শেষ হওয়ার সাধারণ কারণ:\n• পরিবারের সদস্য বা রান্নার সময় বেড়েছে\n• অতিরিক্ত বড় শিখা ব্যবহার করা\n• বার্নার আটকে থাকা বা হলুদ শিখা\n• পাইপ, রেগুলেটর, ভালভ বা সংযোগে ছোট লিক\n• চুলার নব/রেগুলেটর পুরোপুরি বন্ধ না করা\n• সিলিন্ডারের ওজন বা ধারণক্ষমতা আগেরটির চেয়ে কম হওয়া\n\nগ্যাসের গন্ধ, সাঁই সাঁই শব্দ বা সাবান-পানিতে বুদবুদ দেখা গেলে ব্যবহার বন্ধ করে টেকনিশিয়ান ডাকুন। আগুন দিয়ে কখনো লিক পরীক্ষা করবেন না।'
           : 'Common reasons a cylinder runs out unusually quickly:\n• More people or longer cooking time\n• Using an unnecessarily high flame\n• A blocked burner or yellow flame\n• A small leak at the hose, regulator, valve, or connection\n• Stove knobs or regulator not fully closed\n• A smaller cylinder capacity than the previous one\n\nIf you smell gas, hear hissing, or see bubbles during a soap-water check, stop using it and call a technician. Never test for leaks with a flame.',
       };
     }
-    if (/regulator|hose|pipe|valve|রেগুলেটর|হোস|পাইপ|ভালভ/.test(q)) {
+    if (/regulator|hose|pipe|valve|রেগুলেটর|হোস|পাইপ|ভালভ/.test(q) || hasConcept(q, ['regulator problem', 'hose safety', 'pipe problem', 'valve problem', 'রেগুলেটর সমস্যা', 'পাইপ লিক', 'ভালভ সমস্যা'])) {
       return {
         text: bn
           ? 'রেগুলেটর ও পাইপ নিরাপত্তা:\n• অনুমোদিত মানের রেগুলেটর ও LPG হোস ব্যবহার করুন।\n• পাইপে ফাটল, শক্ত হয়ে যাওয়া, ঢিলা সংযোগ বা পোড়া দাগ আছে কি না নিয়মিত দেখুন।\n• পাইপ গরম চুলা, ধারালো প্রান্ত ও সরাসরি আগুন থেকে দূরে রাখুন।\n• সংযোগে সাবান-পানি লাগিয়ে বুদবুদ হচ্ছে কি না দেখা যায়; আগুন ব্যবহার করবেন না।\n• সমস্যা থাকলে নিজে খুলে মেরামত না করে সার্ভিস বুক করুন।'
           : 'Regulator and hose safety:\n• Use approved LPG regulators and hoses.\n• Regularly check for cracks, stiffness, loose connections, or burn marks.\n• Keep the hose away from the hot stove, sharp edges, and direct flame.\n• A soap-water bubble check can identify a connection leak; never use a flame.\n• Book a trained service technician instead of repairing it yourself.',
       };
     }
-    if (/yellow flame|orange flame|black pot|soot|নীল শিখা|হলুদ শিখা|কমলা শিখা|কালো দাগ|কালি/.test(q)) {
+    if (/yellow flame|orange flame|black pot|soot|নীল শিখা|হলুদ শিখা|কমলা শিখা|কালো দাগ|কালি/.test(q) || hasConcept(q, ['yellow flame', 'orange fire', 'black pot', 'pot soot', 'হলুদ আগুন', 'হাঁড়ি কালো', 'চুলায় কালি'])) {
       return {
         text: bn
           ? 'স্বাভাবিক LPG শিখা সাধারণত নীল হয়। হলুদ/কমলা শিখা, ধোঁয়া বা হাঁড়িতে কালো দাগ হলে বার্নারের ছিদ্র ময়লা হতে পারে, বাতাস-গ্যাস মিশ্রণ ঠিক নাও থাকতে পারে, অথবা চুলার সার্ভিস প্রয়োজন হতে পারে। চুলা বন্ধ ও ঠান্ডা করে বার্নার পরিষ্কার করুন; সমস্যা থাকলে টেকনিশিয়ান বুক করুন।'
           : 'A normal LPG flame is generally blue. Yellow/orange flame, smoke, or soot on pots can indicate blocked burner ports, poor air-gas mixing, or a stove that needs service. Turn the stove off, let it cool, clean the burner, and book a technician if the problem continues.',
       };
     }
-    if (/cooking|cook|pressure cooker|burner|stove|রান্না|প্রেসার কুকার|বার্নার|চুলা/.test(q) && !/service|install|repair|সার্ভিস|ইনস্টল|মেরামত/.test(q)) {
+    if ((/cooking|cook|pressure cooker|burner|stove|রান্না|প্রেসার কুকার|বার্নার|চুলা/.test(q) || hasConcept(q, ['cooking safely', 'stove use', 'burner use', 'রান্নার নিয়ম', 'চুলা ব্যবহার'])) && !/service|install|repair|সার্ভিস|ইনস্টল|মেরামত/.test(q)) {
       return {
         text: bn
           ? 'LPG রান্নায় পাত্র স্থিরভাবে বসান, হাতল আগুন থেকে দূরে রাখুন, রান্না চলাকালে চুলা একা ফেলে যাবেন না, দাহ্য কাপড়/কাগজ দূরে রাখুন এবং রান্নাঘরে বাতাস চলাচল নিশ্চিত করুন। রান্না শেষে প্রথমে চুলার নব, তারপর রেগুলেটর বন্ধ করুন।'
