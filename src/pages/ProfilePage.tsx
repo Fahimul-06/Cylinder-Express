@@ -1,12 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE_URL, supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, Lock, Eye, EyeOff, Save,
-  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard
+  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard, Flame, CalendarDays, Gauge
 } from 'lucide-react';
 import { ADMIN_DASHBOARD_PATH } from '../lib/secureRoutes';
+
+type LpgUsage = {
+  id: string;
+  cylinder_size_kg: number;
+  sample_count: number;
+  average_interval_days: number;
+  confidence: 'low' | 'medium' | 'high';
+  last_order_at: string;
+  predicted_empty_at: string;
+  used_percent: number;
+  remaining_percent: number;
+  days_remaining: number;
+};
 
 export default function ProfilePage() {
   const { profile, updateProfile, updatePassword, signOut } = useAuth();
@@ -33,6 +46,33 @@ export default function ProfilePage() {
   const [pwError, setPwError] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
+  const [lpgUsage, setLpgUsage] = useState<LpgUsage[]>([]);
+  const [usageLoading, setUsageLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const loadUsage = async () => {
+      try {
+        const token = localStorage.getItem('cylinder_express_auth_token');
+        const response = await fetch(`${API_BASE_URL}/api/lpg-usage`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (active && response.ok) setLpgUsage(Array.isArray(payload.data) ? payload.data : []);
+      } catch {
+        if (active) setLpgUsage([]);
+      } finally {
+        if (active) setUsageLoading(false);
+      }
+    };
+    loadUsage();
+    return () => { active = false; };
+  }, []);
+
+  const formatUsageDate = (value: string) => new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  }).format(new Date(value));
+
 
   const handleProfileSave = async () => {
     if (!form.full_name.trim()) {
@@ -167,6 +207,77 @@ export default function ProfilePage() {
               {profile?.email && <p className="text-sm text-gray-500">{profile?.email}</p>}
             </div>
           </div>
+        </div>
+
+        {/* LPG Cylinder Usage */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-500" />
+              <h3 className="font-bold text-gray-900">Cylinder Usage</h3>
+            </div>
+            <span className="text-xs text-gray-400">Estimated from delivered orders</span>
+          </div>
+
+          {usageLoading ? (
+            <div className="py-8 text-center text-sm text-gray-500">Calculating cylinder usage...</div>
+          ) : lpgUsage.length === 0 ? (
+            <div className="rounded-xl bg-gray-50 p-5 text-center">
+              <p className="font-semibold text-gray-800">No LPG usage estimate yet</p>
+              <p className="mt-1 text-sm text-gray-500">The estimate will appear after your first LPG cylinder is delivered.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {lpgUsage.map((usage) => (
+                <div key={usage.id} className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-white p-4">
+                  <div className="grid grid-cols-[92px_1fr] gap-4 items-center">
+                    <div className="relative mx-auto h-36 w-20">
+                      <div className="absolute left-1/2 top-0 h-4 w-9 -translate-x-1/2 rounded-t-md bg-gray-500" />
+                      <div className="absolute left-1/2 top-3 h-3 w-12 -translate-x-1/2 rounded-md bg-gray-600" />
+                      <div className="absolute inset-x-0 bottom-0 top-5 overflow-hidden rounded-[22px] border-4 border-gray-700 bg-white shadow-inner">
+                        <div
+                          className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-orange-600 to-orange-400 transition-all duration-700"
+                          style={{ height: `${usage.remaining_percent}%` }}
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-lg font-extrabold text-gray-900 drop-shadow-sm">{usage.cylinder_size_kg}kg</span>
+                          <span className="text-[11px] font-semibold text-gray-700">{usage.remaining_percent}% left</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                        <Gauge className="h-4 w-4 text-orange-500" />
+                        Estimated usage: {usage.used_percent}%
+                      </div>
+                      <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-orange-100">
+                        <div className="h-full rounded-full bg-orange-500" style={{ width: `${usage.used_percent}%` }} />
+                      </div>
+
+                      <div className="mt-4 rounded-xl bg-white/80 p-3 border border-orange-100">
+                        <div className="flex items-start gap-2">
+                          <CalendarDays className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Estimated next order date</p>
+                            <p className="font-bold text-gray-900">{formatUsageDate(usage.predicted_empty_at)}</p>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {usage.days_remaining > 0 ? `Approximately ${usage.days_remaining} days remaining` : 'Cylinder may be nearly empty now'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-[11px] text-gray-500">
+                        Prediction confidence: <span className="font-semibold capitalize">{usage.confidence}</span> · Based on {usage.sample_count} delivered order{usage.sample_count === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-gray-400">Actual cylinder usage may vary depending on household size and cooking habits.</p>
+            </div>
+          )}
         </div>
 
         {/* Edit Profile */}

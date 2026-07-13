@@ -710,6 +710,40 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
   }
 });
 
+
+app.get('/api/lpg-usage', requireAuth, async (req, res) => {
+  try {
+    await rebuildLpgUsageProfiles();
+    const now = new Date();
+    const profiles = await models.lpg_usage_profiles
+      .find({ user_id: req.auth.id, predicted_empty_at: { $ne: null } })
+      .sort({ last_order_at: -1 })
+      .lean();
+
+    const data = profiles.map((profile) => {
+      const startedAt = profile.last_order_at ? new Date(profile.last_order_at) : now;
+      const predictedAt = new Date(profile.predicted_empty_at);
+      const totalMs = Math.max(1, predictedAt.getTime() - startedAt.getTime());
+      const elapsedMs = Math.max(0, now.getTime() - startedAt.getTime());
+      const usedPercent = Math.max(0, Math.min(100, Math.round((elapsedMs / totalMs) * 100)));
+      const remainingPercent = Math.max(0, 100 - usedPercent);
+      const daysRemaining = Math.max(0, Math.ceil((predictedAt.getTime() - now.getTime()) / 86400000));
+      return {
+        ...profile,
+        id: String(profile._id),
+        used_percent: usedPercent,
+        remaining_percent: remainingPercent,
+        days_remaining: daysRemaining,
+      };
+    });
+
+    res.set('Cache-Control', 'no-store');
+    res.json({ data, error: null });
+  } catch (error) {
+    res.status(500).json({ data: null, error: error.message });
+  }
+});
+
 app.post('/api/notifications/read', requireAuth, async (req, res) => {
   try {
     const ids = Array.isArray(req.body.ids) ? req.body.ids : [];
