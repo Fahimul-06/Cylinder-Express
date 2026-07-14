@@ -1429,10 +1429,18 @@ app.post('/api/admin/subadmins', requireAuth, requireAdminUserManagement, async 
 
 app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, async (req, res) => {
   try {
-    const { full_name, phone, password, permanent_address, permanent_plus_code } = req.body;
+    const { full_name, phone, password, permanent_address, permanent_plus_code, permanent_latitude, permanent_longitude } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
-    if (!String(permanent_address || '').trim() && !String(permanent_plus_code || '').trim()) {
-      return res.status(400).json({ error: 'A delivery base address or Plus Code is required.' });
+    const hasLat = permanent_latitude !== undefined && permanent_latitude !== null && String(permanent_latitude).trim() !== '';
+    const hasLng = permanent_longitude !== undefined && permanent_longitude !== null && String(permanent_longitude).trim() !== '';
+    if (hasLat !== hasLng) return res.status(400).json({ error: 'Both latitude and longitude are required.' });
+    if (!String(permanent_address || '').trim() && !String(permanent_plus_code || '').trim() && !hasLat) {
+      return res.status(400).json({ error: 'A delivery base address, Plus Code, or coordinates are required.' });
+    }
+    const manualLat = hasLat ? Number(permanent_latitude) : null;
+    const manualLng = hasLng ? Number(permanent_longitude) : null;
+    if (hasLat && (!Number.isFinite(manualLat) || manualLat < -90 || manualLat > 90 || !Number.isFinite(manualLng) || manualLng < -180 || manualLng > 180)) {
+      return res.status(400).json({ error: 'Latitude must be between -90 and 90, and longitude between -180 and 180.' });
     }
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const normalizedPhone = normalizePhoneForSms(phone);
@@ -1441,7 +1449,7 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
       return res.status(409).json({ error: 'A user with this phone already exists.' });
     }
 
-    const basePoint = await geocodeDeliveryBase(permanent_address, permanent_plus_code);
+    const basePoint = hasLat ? { latitude: manualLat, longitude: manualLng, formattedAddress: permanent_address || permanent_plus_code || `Base point (${manualLat}, ${manualLng})` } : await geocodeDeliveryBase(permanent_address, permanent_plus_code);
     const user = await models.users.create({ email, phone: normalizedPhone, password_hash: await bcrypt.hash(password, 12) });
     const profile = await models.profiles.create({
       user_id: user.id,
@@ -1480,16 +1488,26 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
     if (req.body.phone !== undefined) update.phone = req.body.phone;
     if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
-    const baseChanged = req.body.permanent_address !== undefined || req.body.permanent_plus_code !== undefined;
+    const baseChanged = req.body.permanent_address !== undefined || req.body.permanent_plus_code !== undefined || req.body.permanent_latitude !== undefined || req.body.permanent_longitude !== undefined;
     if (baseChanged) {
       const existing = await models.profiles.findOne({ _id: req.params.profileId, role: 'delivery' }).lean();
       if (!existing) return res.status(404).json({ error: 'Delivery man profile not found.' });
       const nextAddress = req.body.permanent_address !== undefined ? req.body.permanent_address : existing.permanent_address;
       const nextPlusCode = req.body.permanent_plus_code !== undefined ? req.body.permanent_plus_code : existing.permanent_plus_code;
-      if (!String(nextAddress || '').trim() && !String(nextPlusCode || '').trim()) {
-        return res.status(400).json({ error: 'A delivery base address or Plus Code is required.' });
+      const nextLatRaw = req.body.permanent_latitude !== undefined ? req.body.permanent_latitude : existing.permanent_latitude;
+      const nextLngRaw = req.body.permanent_longitude !== undefined ? req.body.permanent_longitude : existing.permanent_longitude;
+      const hasLat = nextLatRaw !== undefined && nextLatRaw !== null && String(nextLatRaw).trim() !== '';
+      const hasLng = nextLngRaw !== undefined && nextLngRaw !== null && String(nextLngRaw).trim() !== '';
+      if (hasLat !== hasLng) return res.status(400).json({ error: 'Both latitude and longitude are required.' });
+      if (!String(nextAddress || '').trim() && !String(nextPlusCode || '').trim() && !hasLat) {
+        return res.status(400).json({ error: 'A delivery base address, Plus Code, or coordinates are required.' });
       }
-      const basePoint = await geocodeDeliveryBase(nextAddress, nextPlusCode);
+      const manualLat = hasLat ? Number(nextLatRaw) : null;
+      const manualLng = hasLng ? Number(nextLngRaw) : null;
+      if (hasLat && (!Number.isFinite(manualLat) || manualLat < -90 || manualLat > 90 || !Number.isFinite(manualLng) || manualLng < -180 || manualLng > 180)) {
+        return res.status(400).json({ error: 'Latitude must be between -90 and 90, and longitude between -180 and 180.' });
+      }
+      const basePoint = hasLat ? { latitude: manualLat, longitude: manualLng, formattedAddress: nextAddress || nextPlusCode || `Base point (${manualLat}, ${manualLng})` } : await geocodeDeliveryBase(nextAddress, nextPlusCode);
       update.permanent_address = basePoint?.formattedAddress || nextAddress || null;
       update.permanent_plus_code = nextPlusCode ? String(nextPlusCode).trim() : null;
       update.permanent_latitude = basePoint?.latitude ?? null;

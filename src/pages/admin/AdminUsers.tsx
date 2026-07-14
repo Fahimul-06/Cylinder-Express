@@ -54,7 +54,7 @@ export default function AdminUsers() {
     employee_position: '',
     permissions: { ...emptyPermissions },
   });
-  const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '' });
+  const [deliveryForm, setDeliveryForm] = useState({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '', permanent_latitude: '', permanent_longitude: '' });
 
   const loadProfiles = async () => {
     setLoading(true);
@@ -144,8 +144,13 @@ export default function AdminUsers() {
       setError('Delivery man password must be at least 6 characters.');
       return;
     }
-    if (!deliveryForm.permanent_address.trim() && !deliveryForm.permanent_plus_code.trim()) {
-      setError('Enter a delivery base address or Plus Code.');
+    const hasManualCoordinates = deliveryForm.permanent_latitude.trim() !== '' || deliveryForm.permanent_longitude.trim() !== '';
+    if (hasManualCoordinates && (deliveryForm.permanent_latitude.trim() === '' || deliveryForm.permanent_longitude.trim() === '')) {
+      setError('Enter both latitude and longitude.');
+      return;
+    }
+    if (!deliveryForm.permanent_address.trim() && !deliveryForm.permanent_plus_code.trim() && !hasManualCoordinates) {
+      setError('Enter a delivery base address, Plus Code, or latitude and longitude.');
       return;
     }
     try {
@@ -157,7 +162,7 @@ export default function AdminUsers() {
         ? `Delivery man account created and login credentials were sent by SMS to ${result.sms.number || deliveryForm.phone}.`
         : `Delivery man account created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
-      setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '' });
+      setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '', permanent_latitude: '', permanent_longitude: '' });
       await loadProfiles();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create delivery man.');
@@ -203,6 +208,8 @@ export default function AdminUsers() {
           full_name: profile.full_name,
           phone: profile.phone,
           permanent_plus_code: profile.permanent_plus_code || '',
+          permanent_latitude: profile.permanent_latitude,
+          permanent_longitude: profile.permanent_longitude,
           password: (document.getElementById(`delivery-password-${profile.id}`) as HTMLInputElement | null)?.value || undefined,
         }),
       });
@@ -407,8 +414,10 @@ export default function AdminUsers() {
               className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20"
             />
           </div>
+          <input type="number" step="any" min="-90" max="90" value={deliveryForm.permanent_latitude} onChange={(e) => setDeliveryForm((prev) => ({ ...prev, permanent_latitude: e.target.value }))} placeholder="Base latitude, e.g. 23.8103" className="lg:col-span-3 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20" />
+          <input type="number" step="any" min="-180" max="180" value={deliveryForm.permanent_longitude} onChange={(e) => setDeliveryForm((prev) => ({ ...prev, permanent_longitude: e.target.value }))} placeholder="Base longitude, e.g. 90.4125" className="lg:col-span-3 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-600/20" />
         </div>
-        <p className="text-xs text-gray-500 mt-3">Enter a base address or Plus Code. The backend converts it into a map point and saves the readable address; coordinates remain internal.</p>
+        <p className="text-xs text-gray-500 mt-3">Enter an address, Plus Code, or both latitude and longitude. Manual coordinates take priority and appear exactly on the Live Locations map.</p>
         <button
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
@@ -567,7 +576,11 @@ export default function AdminUsers() {
                             placeholder="Plus Code, e.g. Q9XX+XX Dhaka"
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-green-600/20"
                           />
-                          <p className="mt-1 text-[11px] text-gray-400">Administration Head saves Plus Code only. Latitude/longitude is hidden.</p>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <input type="number" step="any" min="-90" max="90" value={profile.permanent_latitude ?? ''} onChange={(e) => updateLocalDeliveryProfile(profile.id, { permanent_latitude: e.target.value === '' ? null : Number(e.target.value) })} placeholder="Latitude" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs" />
+                            <input type="number" step="any" min="-180" max="180" value={profile.permanent_longitude ?? ''} onChange={(e) => updateLocalDeliveryProfile(profile.id, { permanent_longitude: e.target.value === '' ? null : Number(e.target.value) })} placeholder="Longitude" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs" />
+                          </div>
+                          <p className="mt-1 text-[11px] text-gray-400">Manual coordinates take priority over address and Plus Code.</p>
                           <button
                             onClick={() => updateDeliveryManBase(profile)}
                             disabled={savingId === profile.id}
