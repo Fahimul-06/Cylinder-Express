@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save, Trash2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
 import { apiClient, supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_PERMISSION_LABELS, AdminPermissionKey, Order, Profile } from '../../lib/types';
@@ -39,6 +40,11 @@ function EmployeeBarcode({ code }: { code: string }) {
 
 export default function AdminUsers() {
   const { profile: currentProfile } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isCreateEmployeePage = location.pathname.endsWith('/users/create-employee');
+  const isRegisterDeliveryPage = location.pathname.endsWith('/users/register-delivery');
+  const isUsersMenuPage = !isCreateEmployeePage && !isRegisterDeliveryPage;
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [expandedDeliveryManId, setExpandedDeliveryManId] = useState<string | null>(null);
@@ -254,11 +260,18 @@ export default function AdminUsers() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users & Employees</h1>
-          <p className="text-sm text-gray-500 mt-1">View registered customers and manage feature-wise employee access.</p>
+        <div className="flex items-start gap-3">
+          {!isUsersMenuPage && (
+            <button onClick={() => navigate('../users')} className="mt-0.5 p-2 rounded-xl border border-gray-200 hover:bg-gray-50" aria-label="Back to Users & Employees">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{isCreateEmployeePage ? 'Create Employee' : isRegisterDeliveryPage ? 'Register Delivery Man & Base Point' : 'Users & Employees'}</h1>
+            <p className="text-sm text-gray-500 mt-1">{isCreateEmployeePage ? 'Create an employee account and assign separate permissions.' : isRegisterDeliveryPage ? 'Register a delivery person and set the exact delivery base point.' : 'View registered customers and manage employee and delivery accounts.'}</p>
+          </div>
         </div>
-        <div className="relative w-full lg:w-80">
+        {isUsersMenuPage && <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={search}
@@ -266,7 +279,7 @@ export default function AdminUsers() {
             placeholder="Search name, phone, email, role..."
             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
           />
-        </div>
+        </div>}
       </div>
 
       {(message || error) && (
@@ -275,7 +288,32 @@ export default function AdminUsers() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {isUsersMenuPage && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button onClick={() => navigate('create-employee')} className="group bg-white border border-gray-100 rounded-2xl p-6 text-left hover:border-blue-300 hover:shadow-md transition-all">
+            <div className="flex items-center justify-between">
+              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center">
+                <UserPlus className="w-7 h-7 text-blue-600" />
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-600" />
+            </div>
+            <h2 className="font-bold text-gray-900 mt-5">Create Employee</h2>
+            <p className="text-sm text-gray-500 mt-1">Create an employee code, barcode and separate access permissions.</p>
+          </button>
+          <button onClick={() => navigate('register-delivery')} className="group bg-white border border-gray-100 rounded-2xl p-6 text-left hover:border-green-300 hover:shadow-md transition-all">
+            <div className="flex items-center justify-between">
+              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center">
+                <Truck className="w-7 h-7 text-green-600" />
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-green-600" />
+            </div>
+            <h2 className="font-bold text-gray-900 mt-5">Register Delivery Man & Base Point</h2>
+            <p className="text-sm text-gray-500 mt-1">Create a delivery account and assign its exact map base point.</p>
+          </button>
+        </div>
+      )}
+
+      {isUsersMenuPage && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-white border border-gray-100 rounded-2xl p-5">
             <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center mb-3">
@@ -285,9 +323,9 @@ export default function AdminUsers() {
             <p className="text-xs text-gray-500 mt-1">{label}</p>
           </div>
         ))}
-      </div>
+      </div>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {isUsersMenuPage && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-100 rounded-2xl p-5">
           <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center mb-3">
             <PackageCheck className="w-5 h-5 text-green-600" />
@@ -302,9 +340,9 @@ export default function AdminUsers() {
           <p className="text-2xl font-bold text-gray-900">৳{deliveredGrandTotal.toLocaleString('en-BD')}</p>
           <p className="text-xs text-gray-500 mt-1">Total delivered amount by delivery men</p>
         </div>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      {isCreateEmployeePage && <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-5">
           <UserPlus className="w-5 h-5 text-blue-600" />
           <h2 className="font-bold text-gray-900">Create Employee</h2>
@@ -363,9 +401,9 @@ export default function AdminUsers() {
         >
           <UserPlus className="w-4 h-4" /> Create & Send SMS
         </button>
-      </div>
+      </div>}
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      {isRegisterDeliveryPage && <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-5">
           <Truck className="w-5 h-5 text-green-600" />
           <h2 className="font-bold text-gray-900">Register Delivery Man & Base Point</h2>
@@ -424,9 +462,9 @@ export default function AdminUsers() {
         >
           <Truck className="w-4 h-4" /> Register Delivery Man, Base Point & Send SMS
         </button>
-      </div>
+      </div>}
 
-      {loading ? (
+      {isUsersMenuPage && (loading ? (
         <div className="p-8 text-center text-gray-400">Loading users...</div>
       ) : (
         <>
@@ -656,7 +694,7 @@ export default function AdminUsers() {
             </div>
           </section>
         </>
-      )}
+      ))}
     </div>
   );
 }

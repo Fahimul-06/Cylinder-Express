@@ -146,6 +146,8 @@ function AppRoutes() {
           <Route path="hero" element={<AdminRoute permission="offers"><AdminHeroImages /></AdminRoute>} />
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
+          <Route path="users/create-employee" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
+          <Route path="users/register-delivery" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
           <Route path="delivery-chat" element={<AdminRoute permission="delivery_chat"><AdminDeliveryChat /></AdminRoute>} />
           <Route path="customer-chat" element={<AdminRoute permission="customer_chat"><AdminCustomerChat /></AdminRoute>} />
           <Route path="cylinder-usage" element={<AdminRoute permission="cylinder_usage"><AdminCylinderUsage /></AdminRoute>} />
