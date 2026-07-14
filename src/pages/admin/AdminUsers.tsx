@@ -144,6 +144,10 @@ export default function AdminUsers() {
       setError('Delivery man password must be at least 6 characters.');
       return;
     }
+    if (!deliveryForm.permanent_address.trim() && !deliveryForm.permanent_plus_code.trim()) {
+      setError('Enter a delivery base address or Plus Code.');
+      return;
+    }
     try {
       const result = await apiClient<CreateResponse>('/api/admin/delivery-men', {
         method: 'POST',
@@ -357,7 +361,7 @@ export default function AdminUsers() {
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-5">
           <Truck className="w-5 h-5 text-green-600" />
-          <h2 className="font-bold text-gray-900">Create Delivery Man</h2>
+          <h2 className="font-bold text-gray-900">Register Delivery Man & Base Point</h2>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <input
@@ -404,12 +408,12 @@ export default function AdminUsers() {
             />
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-3">Save delivery man base location by Plus Code only. Latitude and longitude are not shown or saved from the Administration Head dashboard.</p>
+        <p className="text-xs text-gray-500 mt-3">Enter a base address or Plus Code. The backend converts it into a map point and saves the readable address; coordinates remain internal.</p>
         <button
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
         >
-          <Truck className="w-4 h-4" /> Create Delivery Account & Send SMS
+          <Truck className="w-4 h-4" /> Register Delivery Man, Base Point & Send SMS
         </button>
       </div>
 

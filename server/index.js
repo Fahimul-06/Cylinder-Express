@@ -47,6 +47,33 @@ const SMS_ENABLED = Boolean(BULKSMSBD_API_KEY && BULKSMSBD_SENDER_ID);
 const CHATBOT_API_KEY = process.env.OPENAI_API_KEY || process.env.CHATBOT_API_KEY || '';
 const CHATBOT_API_URL = process.env.CHATBOT_API_URL || 'https://api.openai.com/v1/chat/completions';
 const CHATBOT_MODEL = process.env.CHATBOT_MODEL || 'gpt-4.1-mini';
+const GOOGLE_GEOCODING_API_KEY = process.env.GOOGLE_GEOCODING_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
+
+async function geocodeDeliveryBase(permanentAddress, permanentPlusCode) {
+  const query = [permanentPlusCode, permanentAddress].map((value) => String(value || '').trim()).filter(Boolean).join(', ');
+  if (!query) return null;
+  if (!GOOGLE_GEOCODING_API_KEY) {
+    const error = new Error('Google Geocoding API key is missing. Add GOOGLE_GEOCODING_API_KEY to the backend environment.');
+    error.statusCode = 503;
+    throw error;
+  }
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&region=bd&key=${encodeURIComponent(GOOGLE_GEOCODING_API_KEY)}`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error(`Google geocoding request failed (${response.status}).`);
+  const payload = await response.json();
+  if (payload.status !== 'OK' || !payload.results?.[0]?.geometry?.location) {
+    const message = payload.error_message || `Base point could not be found (${payload.status || 'unknown status'}).`;
+    const error = new Error(message);
+    error.statusCode = 400;
+    throw error;
+  }
+  const result = payload.results[0];
+  return {
+    latitude: Number(result.geometry.location.lat),
+    longitude: Number(result.geometry.location.lng),
+    formattedAddress: result.formatted_address || permanentAddress || permanentPlusCode,
+  };
+}
 const CHATBOT_ENABLED = Boolean(CHATBOT_API_KEY);
 
 function isAllowedOrigin(origin) {
@@ -172,7 +199,6 @@ const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, un
 const CustomerLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
-const DeliveryBasePointSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, address: { type: String, required: true, trim: true }, plus_code: { type: String, default: null, trim: true }, latitude: { type: Number, required: true }, longitude: { type: Number, required: true }, is_active: { type: Boolean, default: true }, created_by: { type: String, default: null }, ...common }, { toJSON });
 
 const LpgUsageProfileSchema = new mongoose.Schema({
   user_id: { type: String, required: true, index: true },
@@ -254,7 +280,6 @@ const models = {
   customer_location_points: mongoose.model('CustomerLocationPoint', CustomerLocationPointSchema),
   delivery_locations: mongoose.model('DeliveryLocation', DeliveryLocationSchema),
   delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
-  delivery_base_points: mongoose.model('DeliveryBasePoint', DeliveryBasePointSchema),
   notifications: mongoose.model('Notification', NotificationSchema),
   delivery_admin_messages: mongoose.model('DeliveryAdminMessage', DeliveryAdminMessageSchema),
   customer_admin_messages: mongoose.model('CustomerAdminMessage', CustomerAdminMessageSchema),
@@ -1406,6 +1431,9 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
   try {
     const { full_name, phone, password, permanent_address, permanent_plus_code } = req.body;
     if (!full_name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password are required.' });
+    if (!String(permanent_address || '').trim() && !String(permanent_plus_code || '').trim()) {
+      return res.status(400).json({ error: 'A delivery base address or Plus Code is required.' });
+    }
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const normalizedPhone = normalizePhoneForSms(phone);
     const email = `${normalizedPhone}@delivery.cylinderexpress.bd`;
@@ -1413,6 +1441,7 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
       return res.status(409).json({ error: 'A user with this phone already exists.' });
     }
 
+    const basePoint = await geocodeDeliveryBase(permanent_address, permanent_plus_code);
     const user = await models.users.create({ email, phone: normalizedPhone, password_hash: await bcrypt.hash(password, 12) });
     const profile = await models.profiles.create({
       user_id: user.id,
@@ -1423,9 +1452,9 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
       role: 'delivery',
       permissions: {},
       is_active: true,
-      permanent_address: permanent_address || null,
-      permanent_latitude: null,
-      permanent_longitude: null,
+      permanent_address: basePoint?.formattedAddress || permanent_address || null,
+      permanent_latitude: basePoint?.latitude ?? null,
+      permanent_longitude: basePoint?.longitude ?? null,
       permanent_plus_code: permanent_plus_code ? String(permanent_plus_code).trim() : null,
     });
 
@@ -1440,7 +1469,7 @@ app.post('/api/admin/delivery-men', requireAuth, requireAdminUserManagement, asy
 
     res.json({ data: profile.toJSON(), sms, error: null });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
@@ -1451,11 +1480,20 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     if (req.body.full_name !== undefined) update.full_name = req.body.full_name;
     if (req.body.phone !== undefined) update.phone = req.body.phone;
     if (req.body.is_active !== undefined) update.is_active = Boolean(req.body.is_active);
-    if (req.body.permanent_address !== undefined) update.permanent_address = req.body.permanent_address || null;
-    if (req.body.permanent_plus_code !== undefined) {
-      update.permanent_plus_code = req.body.permanent_plus_code ? String(req.body.permanent_plus_code).trim() : null;
-      update.permanent_latitude = null;
-      update.permanent_longitude = null;
+    const baseChanged = req.body.permanent_address !== undefined || req.body.permanent_plus_code !== undefined;
+    if (baseChanged) {
+      const existing = await models.profiles.findOne({ _id: req.params.profileId, role: 'delivery' }).lean();
+      if (!existing) return res.status(404).json({ error: 'Delivery man profile not found.' });
+      const nextAddress = req.body.permanent_address !== undefined ? req.body.permanent_address : existing.permanent_address;
+      const nextPlusCode = req.body.permanent_plus_code !== undefined ? req.body.permanent_plus_code : existing.permanent_plus_code;
+      if (!String(nextAddress || '').trim() && !String(nextPlusCode || '').trim()) {
+        return res.status(400).json({ error: 'A delivery base address or Plus Code is required.' });
+      }
+      const basePoint = await geocodeDeliveryBase(nextAddress, nextPlusCode);
+      update.permanent_address = basePoint?.formattedAddress || nextAddress || null;
+      update.permanent_plus_code = nextPlusCode ? String(nextPlusCode).trim() : null;
+      update.permanent_latitude = basePoint?.latitude ?? null;
+      update.permanent_longitude = basePoint?.longitude ?? null;
     }
     update.updated_at = new Date();
     const profile = await models.profiles.findOneAndUpdate({ _id: req.params.profileId, role: 'delivery' }, update, { new: true });
@@ -1466,7 +1504,7 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     if (Object.keys(userUpdate).length) await models.users.findByIdAndUpdate(profile.user_id, userUpdate);
     res.json({ data: profile.toJSON(), error: null });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
