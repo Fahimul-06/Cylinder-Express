@@ -582,7 +582,7 @@ export default function CheckoutPage() {
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Add phone number</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  We need a verified phone number so delivery staff and support can contact you about this order.
+                  We need a verified phone number so HUB staff and support can contact you about this order.
                 </p>
               </div>
             </div>

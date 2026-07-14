@@ -285,7 +285,7 @@ export default function DeliveryDashboard() {
       markersRef.current.push(new window.google!.maps.Marker({
         position: pos,
         map: mapInstanceRef.current,
-        title: 'Delivery Man',
+        title: 'HUB Man',
         icon: { path: window.google!.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#16a34a', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2 },
       }));
     }

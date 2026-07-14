@@ -56,7 +56,7 @@ function DeliveryMovementMap({
   const directionsRendererRef = useRef<any | null>(null);
   const overlaysRef = useRef<any[]>([]);
   const [mapError, setMapError] = useState('');
-  const [deliveryPlaceName, setDeliveryPlaceName] = useState('Detecting delivery man place...');
+  const [deliveryPlaceName, setDeliveryPlaceName] = useState('Detecting HUB man place...');
 
   useEffect(() => {
     let cancelled = false;
@@ -124,7 +124,7 @@ function DeliveryMovementMap({
         const deliveryMarker = new maps.Marker({
           position: current,
           map: mapInstanceRef.current,
-          title: 'Delivery man live location',
+          title: 'HUB Man live location',
           label: 'D',
         });
         overlaysRef.current.push(deliveryMarker);
@@ -223,7 +223,7 @@ function DeliveryMovementMap({
             <p className="text-blue-700 mt-0.5">{customerAddressText || 'Customer delivery address will show when saved.'}</p>
           </div>
           <div className="rounded-lg bg-green-50 px-2.5 py-2">
-            <p className="font-bold text-green-800">Delivery man live place</p>
+            <p className="font-bold text-green-800">HUB Man live place</p>
             <p className="text-green-700 mt-0.5">{deliveryPlaceName}</p>
           </div>
         </div>
@@ -661,14 +661,14 @@ export default function OrdersPage() {
                               <div className="flex items-center justify-between gap-3 mb-2">
                                 <div className="flex items-center gap-2">
                                   <Truck className="w-4 h-4 text-green-700" />
-                                  <span className="font-bold text-green-900">Assigned Delivery Man</span>
+                                  <span className="font-bold text-green-900">Assigned HUB Man</span>
                                 </div>
                                 {deliveryLive && <span className="text-[11px] font-bold text-green-700 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" /> Live</span>}
                               </div>
                               <div className="grid sm:grid-cols-2 gap-2">
                                 <div>
                                   <p className="text-xs text-green-700">Name</p>
-                                  <p className="font-semibold text-gray-900">{deliveryMan?.full_name || 'Delivery man assigned'}</p>
+                                  <p className="font-semibold text-gray-900">{deliveryMan?.full_name || 'HUB Man assigned'}</p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-green-700">Phone</p>
@@ -686,7 +686,7 @@ export default function OrdersPage() {
                                 />
                               ) : (
                                 <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
-                                  {isDeliveryActive ? 'Delivery man has not started live location sharing yet.' : 'Delivery completed. Live delivery location sharing has stopped.'}
+                                  {isDeliveryActive ? 'HUB Man has not started live location sharing yet.' : 'Delivery completed. Live delivery location sharing has stopped.'}
                                 </p>
                               )}
                             </div>

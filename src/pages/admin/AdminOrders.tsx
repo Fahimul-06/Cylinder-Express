@@ -480,7 +480,7 @@ export default function AdminOrders() {
                     <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <UserCheck className="w-4 h-4 text-blue-600" />
-                        <p className="text-sm font-semibold text-gray-900">Assign Delivery Man</p>
+                        <p className="text-sm font-semibold text-gray-900">Assign HUB Man</p>
                       </div>
                       <select
                         value={order.delivery_man_id || ''}
@@ -497,9 +497,9 @@ export default function AdminOrders() {
                       {order.delivery_man_id ? (
                         <p className="text-xs text-blue-700 mt-2">Assigned driver can see this order and customer route in the delivery dashboard.</p>
                       ) : targetPoint ? (
-                        <p className="text-xs text-blue-700 mt-2">Showing {nearestDeliveryMen.length} delivery man{nearestDeliveryMen.length === 1 ? '' : 's'} within 600m of the {targetPoint.source}. Select one after confirming/processing the order.</p>
+                        <p className="text-xs text-blue-700 mt-2">Showing {nearestDeliveryMen.length} HUB man{nearestDeliveryMen.length === 1 ? '' : 's'} within 600m of the {targetPoint.source}. Select one after confirming/processing the order.</p>
                       ) : (
-                        <p className="text-xs text-red-600 mt-2">No customer coordinate found yet. Save customer address latitude/longitude or wait for customer live location to assign nearest delivery man.</p>
+                        <p className="text-xs text-red-600 mt-2">No customer coordinate found yet. Save customer address latitude/longitude or wait for customer live location to assign nearest HUB man.</p>
                       )}
                     </div>
 

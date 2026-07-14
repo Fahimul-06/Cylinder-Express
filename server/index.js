@@ -673,7 +673,7 @@ async function runOrderAlertChecks() {
       order_id: order.id,
       type: 'delivery_not_delivered_20m_admin',
       title: 'Delivery not completed',
-      message: `Order #${String(order.id).slice(-6)} has not been marked delivered within 20 minutes. Check the driver and assign another nearby delivery man if needed.`,
+      message: `Order #${String(order.id).slice(-6)} has not been marked delivered within 20 minutes. Check the driver and assign another nearby HUB man if needed.`,
       urgent: true,
       buzz: true,
     });
@@ -1026,7 +1026,7 @@ app.get('/api/delivery-chat/conversations', requireAuth, async (req, res) => {
       ]);
       return {
         delivery_user_id: deliveryId,
-        full_name: delivery.full_name || 'Delivery Person',
+        full_name: delivery.full_name || 'HUB Man',
         phone: delivery.phone || '',
         avatar_url: delivery.avatar_url || null,
         last_message: latest?.message || '',
@@ -1047,7 +1047,7 @@ app.get('/api/delivery-chat/messages', requireAuth, async (req, res) => {
     if (profile?.role === 'delivery') deliveryUserId = req.auth.id;
     else if (profile?.is_admin) deliveryUserId = String(req.query.delivery_user_id || '');
     else return res.status(403).json({ error: 'Delivery or admin access required.' });
-    if (!deliveryUserId) return res.status(400).json({ error: 'Delivery person is required.' });
+    if (!deliveryUserId) return res.status(400).json({ error: 'HUB Man is required.' });
     const messages = await models.delivery_admin_messages.find({ delivery_user_id: deliveryUserId }).sort({ created_at: 1 }).limit(300).lean();
     res.set('Cache-Control', 'no-store');
     res.json({ data: messages.map(m => ({ ...m, id: String(m._id) })), error: null });
@@ -1065,12 +1065,12 @@ app.post('/api/delivery-chat/messages', requireAuth, async (req, res) => {
     if (profile?.role === 'delivery') { deliveryUserId = req.auth.id; senderRole = 'delivery'; }
     else if (profile?.is_admin) { deliveryUserId = String(req.body.delivery_user_id || ''); senderRole = 'admin'; }
     else return res.status(403).json({ error: 'Delivery or admin access required.' });
-    if (!deliveryUserId) return res.status(400).json({ error: 'Delivery person is required.' });
+    if (!deliveryUserId) return res.status(400).json({ error: 'HUB Man is required.' });
     const delivery = await models.profiles.findOne({ user_id: deliveryUserId, role: 'delivery' });
-    if (!delivery) return res.status(404).json({ error: 'Delivery person not found.' });
+    if (!delivery) return res.status(404).json({ error: 'HUB Man not found.' });
     const senderName = senderRole === 'admin'
       ? (profile?.full_name || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
-      : (profile?.full_name || 'Delivery Person');
+      : (profile?.full_name || 'HUB Man');
     const senderPosition = senderRole === 'admin'
       ? (profile?.employee_position || (profile?.role === 'sub_admin' ? 'Employee' : 'Administration Head'))
       : null;
@@ -1100,7 +1100,7 @@ app.post('/api/delivery-chat/read', requireAuth, async (req, res) => {
       deliveryUserId = String(req.body.delivery_user_id || '');
       update = { read_by_admin: true, updated_at: new Date() };
     } else return res.status(403).json({ error: 'Delivery or admin access required.' });
-    if (!deliveryUserId) return res.status(400).json({ error: 'Delivery person is required.' });
+    if (!deliveryUserId) return res.status(400).json({ error: 'HUB Man is required.' });
     await models.delivery_admin_messages.updateMany({ delivery_user_id: deliveryUserId }, { $set: update });
     res.json({ success: true, error: null });
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -1491,7 +1491,7 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     const baseChanged = req.body.permanent_address !== undefined || req.body.permanent_plus_code !== undefined || req.body.permanent_latitude !== undefined || req.body.permanent_longitude !== undefined;
     if (baseChanged) {
       const existing = await models.profiles.findOne({ _id: req.params.profileId, role: 'delivery' }).lean();
-      if (!existing) return res.status(404).json({ error: 'Delivery man profile not found.' });
+      if (!existing) return res.status(404).json({ error: 'HUB Man profile not found.' });
       const nextAddress = req.body.permanent_address !== undefined ? req.body.permanent_address : existing.permanent_address;
       const nextPlusCode = req.body.permanent_plus_code !== undefined ? req.body.permanent_plus_code : existing.permanent_plus_code;
       const nextLatRaw = req.body.permanent_latitude !== undefined ? req.body.permanent_latitude : existing.permanent_latitude;
@@ -1515,7 +1515,7 @@ app.patch('/api/admin/delivery-men/:profileId', requireAuth, requireAdminUserMan
     }
     update.updated_at = new Date();
     const profile = await models.profiles.findOneAndUpdate({ _id: req.params.profileId, role: 'delivery' }, update, { new: true });
-    if (!profile) return res.status(404).json({ error: 'Delivery man profile not found.' });
+    if (!profile) return res.status(404).json({ error: 'HUB Man profile not found.' });
     const userUpdate = {};
     if (req.body.phone !== undefined) userUpdate.phone = req.body.phone;
     if (req.body.password) userUpdate.password_hash = await bcrypt.hash(String(req.body.password), 12);
@@ -1814,9 +1814,9 @@ app.post('/api/tables/:table', async (req, res) => {
           { $set: { active_order_id: null, is_sharing: false, updated_at: new Date() } }
         );
 
-        // Delivery man's device location sharing stays ON after completing an order.
+        // HUB Man's device location sharing stays ON after completing an order.
         // Customer visibility is controlled by order status on the customer app, so delivered/cancelled
-        // orders no longer display the delivery man's live location while the driver can continue
+        // orders no longer display the HUB man's live location while the driver can continue
         // sharing for the next assigned delivery without turning location on again.
       }
     }

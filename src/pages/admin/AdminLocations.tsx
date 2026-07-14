@@ -411,7 +411,7 @@ export default function AdminLocations() {
                   <MapPin className="w-8 h-8 text-gray-300" />
                 </div>
                 <p className="text-gray-700 font-semibold">No active order live routes or delivery base points</p>
-                <p className="text-sm text-gray-400 mt-1">Only customers with pending, confirmed, or processing orders appear here. Delivery men with permanent coordinates also appear as fixed green points.</p>
+                <p className="text-sm text-gray-400 mt-1">Only customers with pending, confirmed, or processing orders appear here. HUB Men with permanent coordinates also appear as fixed green points.</p>
               </div>
             </div>
           )}

@@ -143,11 +143,11 @@ export default function AdminUsers() {
     setError('');
     setMessage('');
     if (!deliveryForm.full_name.trim() || !deliveryForm.phone.trim() || !deliveryForm.password.trim()) {
-      setError('Delivery man name, phone and password are required.');
+      setError('HUB Man name, phone and password are required.');
       return;
     }
     if (deliveryForm.password.length < 6) {
-      setError('Delivery man password must be at least 6 characters.');
+      setError('HUB Man password must be at least 6 characters.');
       return;
     }
     const hasManualCoordinates = deliveryForm.permanent_latitude.trim() !== '' || deliveryForm.permanent_longitude.trim() !== '';
@@ -165,13 +165,13 @@ export default function AdminUsers() {
         body: JSON.stringify(deliveryForm),
       });
       setMessage(result.sms?.sent
-        ? `Delivery man account created and login credentials were sent by SMS to ${result.sms.number || deliveryForm.phone}.`
-        : `Delivery man account created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
+        ? `HUB Man account created and login credentials were sent by SMS to ${result.sms.number || deliveryForm.phone}.`
+        : `HUB Man account created, but SMS was not sent: ${result.sms?.error || result.sms?.reason || 'unknown SMS error'}. Share the credentials manually once.`
       );
       setDeliveryForm({ full_name: '', phone: '', password: '', permanent_address: '', permanent_plus_code: '', permanent_latitude: '', permanent_longitude: '' });
       await loadProfiles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create delivery man.');
+      setError(err instanceof Error ? err.message : 'Failed to create HUB man.');
     }
   };
 
@@ -221,10 +221,10 @@ export default function AdminUsers() {
       });
       const passwordInput = document.getElementById(`delivery-password-${profile.id}`) as HTMLInputElement | null;
       if (passwordInput) passwordInput.value = '';
-      setMessage('Delivery man details updated.');
+      setMessage('HUB Man details updated.');
       await loadProfiles();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update delivery man location.');
+      setError(err instanceof Error ? err.message : 'Failed to update HUB man location.');
     }
     setSavingId(null);
   };
@@ -237,7 +237,7 @@ export default function AdminUsers() {
 
   const deleteAccount = async (profile: Profile) => {
     if (!canDeleteAccounts) { setError('You do not have permission to delete accounts.'); return; }
-    const label = profile.role === 'delivery' ? 'delivery person' : profile.role === 'sub_admin' ? 'employee' : 'customer';
+    const label = profile.role === 'delivery' ? 'HUB man' : profile.role === 'sub_admin' ? 'employee' : 'customer';
     if (!window.confirm(`Permanently delete ${label} ${profile.full_name}? This cannot be undone.`)) return;
     const password = window.prompt('Enter your current password to confirm deletion:');
     if (!password) return;
@@ -254,7 +254,7 @@ export default function AdminUsers() {
     { label: 'Registered Users', value: profiles.filter((p) => !p.is_admin && p.role !== 'delivery').length, icon: Users },
     { label: 'Administration Head & Employee Accounts', value: profiles.filter((p) => p.is_admin).length, icon: ShieldCheck },
     { label: 'Employees', value: profiles.filter((p) => p.role === 'sub_admin').length, icon: UserPlus },
-    { label: 'Delivery Men', value: profiles.filter((p) => p.role === 'delivery').length, icon: Truck },
+    { label: 'HUB Men', value: profiles.filter((p) => p.role === 'delivery').length, icon: Truck },
   ];
 
   return (
@@ -267,16 +267,16 @@ export default function AdminUsers() {
             </button>
           )}
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{isCreateEmployeePage ? 'Create Employee' : isRegisterDeliveryPage ? 'Register Delivery Man & Base Point' : 'Users & Employees'}</h1>
-            <p className="text-sm text-gray-500 mt-1">{isCreateEmployeePage ? 'Create an employee account and assign separate permissions.' : isRegisterDeliveryPage ? 'Register a delivery person and set the exact delivery base point.' : 'View registered customers and manage employee and delivery accounts.'}</p>
+            <h1 className="text-2xl font-bold text-gray-900">{isCreateEmployeePage ? 'Create Employee' : isRegisterDeliveryPage ? 'Register HUB Man & Base Point' : 'Users & Employees'}</h1>
+            <p className="text-sm text-gray-500 mt-1">{isCreateEmployeePage ? 'Create an employee account and assign separate permissions.' : isRegisterDeliveryPage ? 'Register a HUB man and set the exact delivery base point.' : 'View registered customers and manage employee and delivery accounts.'}</p>
           </div>
         </div>
-        {isUsersMenuPage && <div className="relative w-full lg:w-80">
+        {(isUsersMenuPage || isCreateEmployeePage || isRegisterDeliveryPage) && <div className="relative w-full lg:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, phone, email, role..."
+            placeholder={isCreateEmployeePage ? 'Search Administration Head or employee by name, phone, code or position...' : isRegisterDeliveryPage ? 'Search HUB man by name, phone, address or Plus Code...' : 'Search name, phone, email, role...'}
             className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
           />
         </div>}
@@ -307,7 +307,7 @@ export default function AdminUsers() {
               </div>
               <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-green-600" />
             </div>
-            <h2 className="font-bold text-gray-900 mt-5">Register Delivery Man & Base Point</h2>
+            <h2 className="font-bold text-gray-900 mt-5">Register HUB Man & Base Point</h2>
             <p className="text-sm text-gray-500 mt-1">Create a delivery account and assign its exact map base point.</p>
           </button>
         </div>
@@ -331,14 +331,14 @@ export default function AdminUsers() {
             <PackageCheck className="w-5 h-5 text-green-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{deliveredOrders.length}</p>
-          <p className="text-xs text-gray-500 mt-1">Total delivered orders by delivery men</p>
+          <p className="text-xs text-gray-500 mt-1">Total delivered orders by HUB men</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-5">
           <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-3">
             <Wallet className="w-5 h-5 text-emerald-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">৳{deliveredGrandTotal.toLocaleString('en-BD')}</p>
-          <p className="text-xs text-gray-500 mt-1">Total delivered amount by delivery men</p>
+          <p className="text-xs text-gray-500 mt-1">Total delivered amount by HUB men</p>
         </div>
       </div>}
 
@@ -406,7 +406,7 @@ export default function AdminUsers() {
       {isRegisterDeliveryPage && <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-5">
           <Truck className="w-5 h-5 text-green-600" />
-          <h2 className="font-bold text-gray-900">Register Delivery Man & Base Point</h2>
+          <h2 className="font-bold text-gray-900">Register HUB Man & Base Point</h2>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <input
@@ -460,17 +460,18 @@ export default function AdminUsers() {
           onClick={createDeliveryMan}
           className="mt-4 px-5 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 flex items-center gap-2"
         >
-          <Truck className="w-4 h-4" /> Register Delivery Man, Base Point & Send SMS
+          <Truck className="w-4 h-4" /> Register HUB Man, Base Point & Send SMS
         </button>
       </div>}
 
-      {isUsersMenuPage && (loading ? (
+      {(isUsersMenuPage || isCreateEmployeePage || isRegisterDeliveryPage) && (loading ? (
         <div className="p-8 text-center text-gray-400">Loading users...</div>
       ) : (
         <>
-          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {(isCreateEmployeePage || isUsersMenuPage) && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">Administration Head & Employee Accounts</h2>
+              <p className="text-xs text-gray-500 mt-1">Search, edit and manage Administration Head and employee accounts.</p>
             </div>
             <div className="divide-y divide-gray-50">
               {admins.map((profile) => (
@@ -568,12 +569,12 @@ export default function AdminUsers() {
               ))}
               {admins.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">No Administration Head or employee accounts found.</div>}
             </div>
-          </section>
+          </section>}
 
-          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {(isRegisterDeliveryPage || isUsersMenuPage) && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
-              <h2 className="font-bold text-gray-900">Delivery Men Performance</h2>
-              <p className="text-xs text-gray-500 mt-1">Check each delivery man's delivered orders and total delivered amount.</p>
+              <h2 className="font-bold text-gray-900">HUB Men Performance</h2>
+              <p className="text-xs text-gray-500 mt-1">Check each HUB man's delivered orders and total delivered amount.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -650,14 +651,14 @@ export default function AdminUsers() {
                     );
                   })}
                   {deliveryMen.length === 0 && (
-                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">No delivery men found.</td></tr>
+                    <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">No HUB men found.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
 
-          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {isUsersMenuPage && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">Registered Customers</h2>
             </div>
@@ -692,7 +693,7 @@ export default function AdminUsers() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </section>}
         </>
       ))}
     </div>
