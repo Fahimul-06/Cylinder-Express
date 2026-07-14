@@ -1,130 +1,143 @@
-function resolveApiBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
-  if (envUrl) return envUrl.replace(/\/+$/, '');
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-  if (typeof window !== 'undefined') {
-    const { protocol, hostname, origin } = window.location;
+function getToken() {
+  return localStorage.getItem('admin_token') || '';
+}
 
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:5000';
-    }
+async function apiFetch(path: string, options: RequestInit = {}) {
+  const headers = new Headers(options.headers || {});
+  const token = getToken();
 
-    // Render static frontend fallback:
-    // cylinder-express-web.onrender.com -> cylinder-express-api.onrender.com
-    if (hostname.endsWith('.onrender.com') && hostname.includes('-web.')) {
-      return `${protocol}//${hostname.replace('-web.', '-api.')}`;
-    }
-
-    // If frontend and backend are served from the same origin, this works without env.
-    return origin;
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
 
-  return 'http://localhost:5000';
-}
-
-export const API_BASE_URL = resolveApiBaseUrl();
-const TOKEN_KEY = 'cylinder_express_auth_token';
-
-type Filter = { field: string; op: 'eq' | 'in' | 'gte'; value: unknown };
-type OrderBy = { field: string; ascending: boolean };
-
-type ApiResult<T = unknown> = { data: T | null; error: { message: string } | null; count?: number | null };
-
-export type User = { id: string; email?: string | null; phone?: string | null };
-export type Session = { access_token: string; user: User };
-
-type AuthListener = (event: string, session: Session | null) => void;
-const listeners = new Set<AuthListener>();
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...authHeaders(),
-    ...(options.headers || {}),
-  } as Record<string, string>;
-
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-  } catch (_error) {
-    throw new Error(
-      `Cannot connect to Cylinder Express server. Check VITE_API_BASE_URL, backend Render service status, and CLIENT_ORIGIN. Current API: ${API_BASE_URL}`
-    );
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.error || payload.message || 'Request failed');
-  return payload as T;
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json() : null;
+
+  if (!response.ok) {
+    return {
+      data: null,
+      error: {
+        message: payload?.message || payload?.error || `Request failed with status ${response.status}`,
+      },
+    };
+  }
+
+  return { data: payload, error: null };
 }
 
+type OrderOptions = { ascending?: boolean };
 
-export async function apiClient<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
-  return api<T>(path, options);
-}
+type QueryState = {
+  table: string;
+  action: 'select' | 'insert' | 'update' | 'delete';
+  payload?: unknown;
+  orderColumn?: string;
+  ascending?: boolean;
+  single?: boolean;
+  eqColumn?: string;
+  eqValue?: string;
+};
 
-function emitAuth(event: string, session: Session | null) {
-  listeners.forEach((listener) => listener(event, session));
-}
+class QueryBuilder implements PromiseLike<{ data: any; error: any }> {
+  private state: QueryState;
 
-class QueryBuilder implements PromiseLike<any> {
-  private action: 'select' | 'insert' | 'update' | 'delete' | 'upsert' = 'select';
-  private selectQuery = '*';
-  private filters: Filter[] = [];
-  private orderBy?: OrderBy;
-  private limitValue?: number;
-  private body?: unknown;
-  private singleMode: 'none' | 'single' | 'maybeSingle' = 'none';
-  private countOption?: string;
+  constructor(table: string) {
+    this.state = { table, action: 'select' };
+  }
 
-  constructor(private table: string) {}
-
-  select(query = '*', options?: { count?: string }) {
-    this.action = this.action === 'select' ? 'select' : this.action;
-    this.selectQuery = query;
-    this.countOption = options?.count;
+  select(_columns = '*') {
+    this.state.action = 'select';
     return this;
   }
 
-  insert(payload: unknown) { this.action = 'insert'; this.body = payload; return this; }
-  update(payload: unknown) { this.action = 'update'; this.body = payload; return this; }
-  upsert(payload: unknown, _options?: unknown) { this.action = 'upsert'; this.body = payload; return this; }
-  delete() { this.action = 'delete'; return this; }
-  eq(field: string, value: unknown) { this.filters.push({ field, op: 'eq', value }); return this; }
-  in(field: string, value: unknown[]) { this.filters.push({ field, op: 'in', value }); return this; }
-  gte(field: string, value: unknown) { this.filters.push({ field, op: 'gte', value }); return this; }
-  order(field: string, options?: { ascending?: boolean }) { this.orderBy = { field, ascending: options?.ascending ?? true }; return this; }
-  limit(value: number) { this.limitValue = value; return this; }
-  single() { this.singleMode = 'single'; return this; }
-  maybeSingle() { this.singleMode = 'maybeSingle'; return this; }
-
-  private async execute(): Promise<ApiResult<any>> {
-    try {
-      const payload = await api<ApiResult<any>>(`/api/tables/${this.table}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: this.action,
-          select: this.selectQuery,
-          filters: this.filters,
-          order: this.orderBy,
-          limit: this.limitValue,
-          body: this.body,
-          single: this.singleMode,
-          count: this.countOption,
-        }),
-      });
-      return payload;
-    } catch (error) {
-      return { data: null, error: { message: error instanceof Error ? error.message : 'Request failed' }, count: null };
-    }
+  insert(payload: unknown) {
+    this.state.action = 'insert';
+    this.state.payload = payload;
+    return this;
   }
 
-  then<TResult1 = any, TResult2 = never>(
-    onfulfilled?: ((value: ApiResult<any>) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  update(payload: unknown) {
+    this.state.action = 'update';
+    this.state.payload = payload;
+    return this;
+  }
+
+  delete() {
+    this.state.action = 'delete';
+    return this;
+  }
+
+  eq(column: string, value: string) {
+    this.state.eqColumn = column;
+    this.state.eqValue = value;
+    return this;
+  }
+
+  order(column: string, options: OrderOptions = {}) {
+    this.state.orderColumn = column;
+    this.state.ascending = options.ascending !== false;
+    return this;
+  }
+
+  single() {
+    this.state.single = true;
+    return this;
+  }
+
+  async execute() {
+    const { table, action, payload, orderColumn, ascending, single, eqColumn, eqValue } = this.state;
+
+    if (action === 'select') {
+      const params = new URLSearchParams();
+      if (orderColumn) params.set('order', `${orderColumn}:${ascending ? 'asc' : 'desc'}`);
+      if (single) params.set('single', 'true');
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      return apiFetch(`/${table}${qs}`);
+    }
+
+    if (action === 'insert') {
+      return apiFetch(`/${table}`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    }
+
+    if (action === 'update') {
+      if (!eqValue || eqColumn !== 'id') {
+        return { data: null, error: { message: 'MongoDB API updates require eq("id", value).' } };
+      }
+      return apiFetch(`/${table}/${eqValue}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    }
+
+    if (action === 'delete') {
+      if (!eqValue || eqColumn !== 'id') {
+        return { data: null, error: { message: 'MongoDB API deletes require eq("id", value).' } };
+      }
+      return apiFetch(`/${table}/${eqValue}`, {
+        method: 'DELETE',
+      });
+    }
+
+    return { data: null, error: { message: 'Unsupported query action.' } };
+  }
+
+  then<TResult1 = { data: any; error: any }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
   ): PromiseLike<TResult1 | TResult2> {
     return this.execute().then(onfulfilled, onrejected);
   }
@@ -134,114 +147,217 @@ export const supabase = {
   from(table: string) {
     return new QueryBuilder(table);
   },
-  rpc(name: string, args: Record<string, unknown>) {
-    return api<ApiResult<any>>(`/api/rpc/${name}`,  { method: 'POST', body: JSON.stringify(args) })
-      .catch((error) => ({ data: null, error: { message: error.message } }));
-  },
   auth: {
-    async signUp({ email, password, options }: { email: string; password: string; options?: { data?: { full_name?: string; phone?: string } } }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/signup', {
-          method: 'POST',
-          body: JSON.stringify({ email, password, full_name: options?.data?.full_name, phone: options?.data?.phone }),
-        });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('SIGNED_IN', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Sign up failed' } };
+    async signInWithPassword(credentials: { email: string; password: string }) {
+      const result = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+
+      if (result.data?.token) {
+        localStorage.setItem('admin_token', result.data.token);
+        localStorage.setItem('admin_user', JSON.stringify(result.data.user));
       }
-    },
-    async signInWithPassword({ email, password }: { email: string; password: string }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/signin', {
-          method: 'POST',
-          body: JSON.stringify({ emailOrPhone: email, password }),
-        });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('SIGNED_IN', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
-      }
-    },
-    async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/social', {
-          method: 'POST',
-          body: JSON.stringify({ provider, accessToken }),
-        });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('SIGNED_IN', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Social login failed' } };
-      }
-    },
-    async signOut() {
-      localStorage.removeItem(TOKEN_KEY);
-      emitAuth('SIGNED_OUT', null);
-      return { error: null };
+
+      return result;
     },
     async getSession() {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = getToken();
       if (!token) return { data: { session: null }, error: null };
-      try {
-        const data = await api<{ session: Session }>('/api/auth/session');
-        return { data: { session: data.session }, error: null };
-      } catch {
-        localStorage.removeItem(TOKEN_KEY);
-        return { data: { session: null }, error: null };
+
+      const result = await apiFetch('/auth/me');
+      if (result.error) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        return { data: { session: null }, error: result.error };
       }
+
+      return { data: { session: { access_token: token, user: result.data.user } }, error: null };
     },
     async getUser() {
-      const sessionResponse = await this.getSession();
-      return { data: { user: sessionResponse.data.session?.user ?? null }, error: null };
+      const result = await apiFetch('/auth/me');
+      if (result.error) return { data: { user: null }, error: result.error };
+      return { data: { user: result.data.user }, error: null };
     },
-    async updateUser(updates: { email?: string; password?: string }) {
-      try {
-        const data = await api<{ session: Session; user: User }>('/api/auth/user', {
-          method: 'PATCH',
-          body: JSON.stringify(updates),
-        });
-        if (data.session?.access_token) localStorage.setItem(TOKEN_KEY, data.session.access_token);
-        emitAuth('USER_UPDATED', data.session);
-        return { data, error: null };
-      } catch (error) {
-        return { data: null, error: { message: error instanceof Error ? error.message : 'Update failed' } };
-      }
-    },
-    onAuthStateChange(callback: AuthListener) {
-      listeners.add(callback);
-      return { data: { subscription: { unsubscribe: () => { listeners.delete(callback); } } } };
+    async signOut() {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      return { error: null };
     },
   },
-  storage: {
-    from(bucket: string) {
-      return {
-        async upload(path: string, file: File, _options?: unknown) {
-          try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('bucket', bucket);
-            formData.append('path', path);
-            const res = await fetch(`${API_BASE_URL}/api/uploads`, { method: 'POST', headers: authHeaders(), body: formData });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Upload failed');
-            return { data: { path: data.path }, error: null };
-          } catch (error) {
-            return { data: null, error: { message: error instanceof Error ? error.message : 'Upload failed' } };
-          }
-        },
-        getPublicUrl(path: string) {
-          return { data: { publicUrl: `${API_BASE_URL}/uploads/${path}` } };
-        },
-      };
-    },
-  },
-  channel(_name?: string) {
-    const channel = { on: (_event: string, _filter: unknown, _callback: unknown) => channel, subscribe: () => channel };
-    return channel;
-  },
-  removeChannel(_channel?: unknown) {},
 };
+
+export async function uploadFile(file: File, folder: string): Promise<string | null> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  const result = await apiFetch('/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (result.error) {
+    console.error('Upload error:', result.error);
+    return null;
+  }
+
+  return result.data?.url || null;
+}
+
+export async function deleteFile(url: string): Promise<boolean> {
+  const result = await apiFetch('/upload', {
+    method: 'DELETE',
+    body: JSON.stringify({ url }),
+  });
+
+  return !result.error;
+}
+
+export type AboutInfo = {
+  id: string;
+  name: string;
+  title: string;
+  bio: string;
+  tagline: string;
+  years_experience: number;
+  projects_completed: number;
+  resume_url: string;
+  profile_image_url: string;
+  logo_url: string;
+  hero_background_url: string;
+  hero_status_text: string;
+  hero_cta_primary_text: string;
+  hero_cta_secondary_text: string;
+  hero_greeting: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Skill = {
+  id: string;
+  name: string;
+  category: 'frontend' | 'backend' | 'database' | 'mobile';
+  level: number;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Project = {
+  id: string;
+  title: string;
+  description: string;
+  detailed_description: string;
+  tech: string[];
+  image_url: string;
+  gallery_urls: string[];
+  live_url: string;
+  github_url: string;
+  github_url_public: boolean;
+  category: 'fullstack' | 'frontend' | 'backend' | 'mobile';
+  display_order: number;
+  is_featured: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Experience = {
+  id: string;
+  title: string;
+  company: string;
+  period: string;
+  description: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Education = {
+  id: string;
+  degree: string;
+  institution: string;
+  period: string;
+  location: string;
+  result: string;
+  description: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContactInfo = {
+  id: string;
+  email: string;
+  phone: string;
+  location: string;
+  github_url: string;
+  linkedin_url: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Message = {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type ProjectComment = {
+  id: string;
+  project_id: string;
+  project_title: string;
+  name: string;
+  email: string;
+  comment: string;
+  is_approved: boolean;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Certificate = {
+  id: string;
+  title: string;
+  issuer: string;
+  issue_date: string;
+  credential_id: string;
+  credential_url: string;
+  image_url: string;
+  description: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+
+export type HeroMedia = {
+  id: string;
+  title: string;
+  media_url: string;
+  media_type: 'image' | 'video';
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+export type DeliveryBasePoint = {
+  id: string;
+  name: string;
+  address: string;
+  plus_code: string;
+  latitude: number;
+  longitude: number;
+  contact_person: string;
+  phone: string;
+  notes: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
