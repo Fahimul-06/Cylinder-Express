@@ -23,13 +23,13 @@ import AdminProducts from './pages/admin/AdminProducts';
 import AdminOffers from './pages/admin/AdminOffers';
 import AdminHeroImages from './pages/admin/AdminHeroImages';
 import AdminLocations from './pages/admin/AdminLocations';
+import AdminBasePoints from './pages/admin/AdminBasePoints';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import DeliveryAdminChatPage from './pages/DeliveryAdminChatPage';
 import AdminDeliveryChat from './pages/admin/AdminDeliveryChat';
 import AdminCustomerChat from './pages/admin/AdminCustomerChat';
 import AdminCylinderUsage from './pages/admin/AdminCylinderUsage';
-import AdminDeliveryBasePoints from './pages/admin/AdminDeliveryBasePoints';
 import { AdminPermissionKey, profileHasPermission } from './lib/types';
 import NotificationCenter from './components/NotificationCenter';
 import Footer from './components/Footer';
@@ -86,7 +86,7 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
   if (!user) return <Navigate to="/login" replace />;
   if (!profile?.is_admin || profile.is_active === false) return <Navigate to="/home" replace />;
   if (permission && !profileHasPermission(profile, permission)) {
-    const fallback = (['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'delivery_chat', 'customer_chat', 'cylinder_usage', 'base_points'] as AdminPermissionKey[])
+    const fallback = (['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'base_points', 'users', 'delivery_chat', 'customer_chat', 'cylinder_usage'] as AdminPermissionKey[])
       .find((key) => profileHasPermission(profile, key));
     const fallbackPath = fallback === 'dashboard' ? ADMIN_DASHBOARD_PATH : fallback ? adminPath(fallback) : '/home';
     return <Navigate to={fallbackPath} replace />;
@@ -146,11 +146,11 @@ function AppRoutes() {
           <Route path="offers" element={<AdminRoute permission="offers"><AdminOffers /></AdminRoute>} />
           <Route path="hero" element={<AdminRoute permission="offers"><AdminHeroImages /></AdminRoute>} />
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
+          <Route path="base-points" element={<AdminRoute permission="base_points"><AdminBasePoints /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
           <Route path="delivery-chat" element={<AdminRoute permission="delivery_chat"><AdminDeliveryChat /></AdminRoute>} />
           <Route path="customer-chat" element={<AdminRoute permission="customer_chat"><AdminCustomerChat /></AdminRoute>} />
           <Route path="cylinder-usage" element={<AdminRoute permission="cylinder_usage"><AdminCylinderUsage /></AdminRoute>} />
-          <Route path="base-points" element={<AdminRoute permission="base_points"><AdminDeliveryBasePoints /></AdminRoute>} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>

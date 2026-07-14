@@ -168,7 +168,7 @@ export type SortOption = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' |
 export type TypeFilter = 'all' | 'new' | 'refill' | 'service';
 
 
-export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'hero' | 'locations' | 'users' | 'account_delete' | 'delivery_chat' | 'customer_chat' | 'cylinder_usage' | 'base_points';
+export type AdminPermissionKey = 'dashboard' | 'orders' | 'products' | 'offers' | 'hero' | 'locations' | 'base_points' | 'users' | 'account_delete' | 'delivery_chat' | 'customer_chat' | 'cylinder_usage';
 
 export interface DeliveryLocation {
   id: string;
@@ -199,12 +199,12 @@ export const ADMIN_PERMISSION_LABELS: Record<AdminPermissionKey, string> = {
   offers: 'Offers',
   hero: 'Hero Photos',
   locations: 'Live Locations',
+  base_points: 'Delivery Base Points',
   users: 'Users & Employees',
   account_delete: 'Delete Accounts',
   delivery_chat: 'Delivery Messages',
   customer_chat: 'Customer Messages',
   cylinder_usage: 'Cylinder Usage',
-  base_points: 'Delivery Base Points',
 };
 
 export function profileHasPermission(profile: Profile | null | undefined, permission: AdminPermissionKey) {

@@ -2,7 +2,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, ShoppingBag, Package, Tag, Image as ImageIcon, ArrowLeft,
-  ChevronRight, MapPin, Users, MessageCircle, Cylinder, Warehouse
+  ChevronRight, MapPin, Users, MessageCircle, Cylinder
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import LanguageToggle from './LanguageToggle';
@@ -23,11 +23,11 @@ export default function AdminLayout() {
     { path: adminPath('offers'), label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
     { path: adminPath('hero'), label: 'Hero Photos', icon: ImageIcon, permission: 'hero' as AdminPermissionKey },
     { path: adminPath('locations'), label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
+    { path: adminPath('base-points'), label: 'Delivery Base Points', icon: MapPin, permission: 'base_points' as AdminPermissionKey },
     { path: adminPath('users'), label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
     { path: adminPath('delivery-chat'), label: 'Delivery Messages', icon: MessageCircle, permission: 'delivery_chat' as AdminPermissionKey },
     { path: adminPath('customer-chat'), label: 'Customer Messages', icon: MessageCircle, permission: 'customer_chat' as AdminPermissionKey },
     { path: adminPath('cylinder-usage'), label: 'Cylinder Usage', icon: Cylinder, permission: 'cylinder_usage' as AdminPermissionKey },
-    { path: adminPath('base-points'), label: 'Delivery Base Points', icon: Warehouse, permission: 'base_points' as AdminPermissionKey },
   ].filter((link) => profileHasPermission(profile, link.permission));
 
   const isActive = (path: string, end?: boolean) =>

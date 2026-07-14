@@ -172,18 +172,7 @@ const CustomerLocationSchema = new mongoose.Schema({ user_id: { type: String, un
 const CustomerLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationSchema = new mongoose.Schema({ user_id: { type: String, unique: true, index: true }, latitude: Number, longitude: Number, accuracy: Number, is_sharing: { type: Boolean, default: false }, last_seen: { type: Date, default: Date.now }, updated_at: { type: Date, default: Date.now } }, { toJSON });
 const DeliveryLocationPointSchema = new mongoose.Schema({ user_id: { type: String, index: true }, order_id: { type: String, default: null, index: true }, latitude: Number, longitude: Number, accuracy: Number, recorded_at: { type: Date, default: Date.now, index: true }, created_at: { type: Date, default: Date.now } }, { toJSON });
-
-const DeliveryBasePointSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
-  address: { type: String, required: true, trim: true },
-  plus_code: { type: String, default: null, trim: true },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
-  is_active: { type: Boolean, default: true, index: true },
-  created_by: { type: String, default: null },
-  created_at: { type: Date, default: Date.now },
-  updated_at: { type: Date, default: Date.now },
-}, { toJSON });
+const DeliveryBasePointSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, address: { type: String, required: true, trim: true }, latitude: { type: Number, required: true }, longitude: { type: Number, required: true }, notes: { type: String, default: '' }, is_active: { type: Boolean, default: true }, created_by: { type: String, default: null }, updated_by: { type: String, default: null }, ...common }, { toJSON });
 
 const LpgUsageProfileSchema = new mongoose.Schema({
   user_id: { type: String, required: true, index: true },
@@ -265,11 +254,11 @@ const models = {
   customer_location_points: mongoose.model('CustomerLocationPoint', CustomerLocationPointSchema),
   delivery_locations: mongoose.model('DeliveryLocation', DeliveryLocationSchema),
   delivery_location_points: mongoose.model('DeliveryLocationPoint', DeliveryLocationPointSchema),
+  delivery_base_points: mongoose.model('DeliveryBasePoint', DeliveryBasePointSchema),
   notifications: mongoose.model('Notification', NotificationSchema),
   delivery_admin_messages: mongoose.model('DeliveryAdminMessage', DeliveryAdminMessageSchema),
   customer_admin_messages: mongoose.model('CustomerAdminMessage', CustomerAdminMessageSchema),
   lpg_usage_profiles: mongoose.model('LpgUsageProfile', LpgUsageProfileSchema),
-  delivery_base_points: mongoose.model('DeliveryBasePoint', DeliveryBasePointSchema),
 };
 
 function signUser(user) {
@@ -367,7 +356,7 @@ async function signInOrCreateSocialUser(socialProfile) {
   return user;
 }
 
-const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'account_delete', 'delivery_chat', 'customer_chat', 'cylinder_usage', 'base_points'];
+const ADMIN_PERMISSIONS = ['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'base_points', 'users', 'account_delete', 'delivery_chat', 'customer_chat', 'cylinder_usage'];
 
 function sanitizePermissions(input = {}) {
   return ADMIN_PERMISSIONS.reduce((acc, key) => {
@@ -1110,6 +1099,53 @@ app.get('/api/notifications', requireAuth, async (req, res) => {
 });
 
 
+
+
+
+app.get('/api/admin/delivery-base-points', requireAuth, requireAdminPermission('base_points'), async (_req, res) => {
+  try {
+    const points = await models.delivery_base_points.find({}).sort({ name: 1 }).lean();
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: points.map((point) => ({ ...point, id: String(point._id) })), error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/admin/delivery-base-points', requireAuth, requireAdminPermission('base_points'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const address = String(req.body.address || '').trim();
+    const latitude = Number(req.body.latitude);
+    const longitude = Number(req.body.longitude);
+    if (!name || !address) return res.status(400).json({ error: 'Base point name and address are required.' });
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return res.status(400).json({ error: 'Valid latitude and longitude are required.' });
+    const point = await models.delivery_base_points.create({ name, address, latitude, longitude, notes: String(req.body.notes || '').trim(), is_active: req.body.is_active !== false, created_by: req.auth.id, updated_by: req.auth.id });
+    res.status(201).json({ data: { ...point.toJSON(), id: String(point._id) }, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.patch('/api/admin/delivery-base-points/:id', requireAuth, requireAdminPermission('base_points'), async (req, res) => {
+  try {
+    const point = await models.delivery_base_points.findById(String(req.params.id || ''));
+    if (!point) return res.status(404).json({ error: 'Delivery base point not found.' });
+    const name = String(req.body.name ?? point.name).trim();
+    const address = String(req.body.address ?? point.address).trim();
+    const latitude = Number(req.body.latitude ?? point.latitude);
+    const longitude = Number(req.body.longitude ?? point.longitude);
+    if (!name || !address) return res.status(400).json({ error: 'Base point name and address are required.' });
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return res.status(400).json({ error: 'Valid latitude and longitude are required.' });
+    Object.assign(point, { name, address, latitude, longitude, notes: String(req.body.notes ?? point.notes ?? '').trim(), is_active: req.body.is_active ?? point.is_active, updated_by: req.auth.id, updated_at: new Date() });
+    await point.save();
+    res.json({ data: { ...point.toJSON(), id: String(point._id) }, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.delete('/api/admin/delivery-base-points/:id', requireAuth, requireAdminPermission('base_points'), async (req, res) => {
+  try {
+    const deleted = await models.delivery_base_points.findByIdAndDelete(String(req.params.id || ''));
+    if (!deleted) return res.status(404).json({ error: 'Delivery base point not found.' });
+    res.json({ success: true, error: null });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
 
 app.get('/api/admin/lpg-usage', requireAuth, async (req, res) => {
   try {
