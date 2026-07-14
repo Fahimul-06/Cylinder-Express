@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, Users, ShieldCheck, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Search, Users, UserPlus, Phone, Lock, Image as ImageIcon, CheckCircle, XCircle, Truck, PackageCheck, Wallet, ChevronDown, MapPin, Barcode, Save, Trash2, ArrowLeft, ChevronRight } from 'lucide-react';
 import { apiClient, supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADMIN_PERMISSION_LABELS, AdminPermissionKey, Order, Profile } from '../../lib/types';
@@ -252,7 +252,6 @@ export default function AdminUsers() {
 
   const statCards = [
     { label: 'Registered Users', value: profiles.filter((p) => !p.is_admin && p.role !== 'delivery').length, icon: Users },
-    { label: 'Administration Head & Employee Accounts', value: profiles.filter((p) => p.is_admin).length, icon: ShieldCheck },
     { label: 'Employees', value: profiles.filter((p) => p.role === 'sub_admin').length, icon: UserPlus },
     { label: 'HUB Men', value: profiles.filter((p) => p.role === 'delivery').length, icon: Truck },
   ];
@@ -468,7 +467,7 @@ export default function AdminUsers() {
         <div className="p-8 text-center text-gray-400">Loading users...</div>
       ) : (
         <>
-          {(isCreateEmployeePage || isUsersMenuPage) && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {isCreateEmployeePage && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">Administration Head & Employee Accounts</h2>
               <p className="text-xs text-gray-500 mt-1">Search, edit and manage Administration Head and employee accounts.</p>
@@ -571,7 +570,7 @@ export default function AdminUsers() {
             </div>
           </section>}
 
-          {(isRegisterDeliveryPage || isUsersMenuPage) && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {isRegisterDeliveryPage && <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="p-5 border-b border-gray-100">
               <h2 className="font-bold text-gray-900">HUB Men Performance</h2>
               <p className="text-xs text-gray-500 mt-1">Check each HUB man's delivered orders and total delivered amount.</p>

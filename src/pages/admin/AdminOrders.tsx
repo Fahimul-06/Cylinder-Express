@@ -495,7 +495,7 @@ export default function AdminOrders() {
                         ))}
                       </select>
                       {order.delivery_man_id ? (
-                        <p className="text-xs text-blue-700 mt-2">Assigned driver can see this order and customer route in the delivery dashboard.</p>
+                        <p className="text-xs text-blue-700 mt-2">Assigned HUB Man can see this order and customer route in the HUB Man Dashboard.</p>
                       ) : targetPoint ? (
                         <p className="text-xs text-blue-700 mt-2">Showing {nearestDeliveryMen.length} HUB man{nearestDeliveryMen.length === 1 ? '' : 's'} within 600m of the {targetPoint.source}. Select one after confirming/processing the order.</p>
                       ) : (
