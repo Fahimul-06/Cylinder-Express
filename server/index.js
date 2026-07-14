@@ -1930,80 +1930,10 @@ async function ensureDefaultCatalog() {
     categoriesBySlug[category.slug] = saved;
   }
 
-  const products = [
-    // LPG cylinders
-    { category: 'lpg-cylinders', name: 'Bashundhara LPG 12kg Refill', company_name: 'Bashundhara LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Standard Bashundhara 12kg LPG refill cylinder for household cooking.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 1 },
-    { category: 'lpg-cylinders', name: 'Omera LPG 12kg Refill', company_name: 'Omera LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Omera 12kg LPG refill cylinder for home and small business use.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: true, sort_order: 2 },
-    { category: 'lpg-cylinders', name: 'Jamuna LPG 12kg Refill', company_name: 'Jamuna LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Jamuna 12kg LPG refill cylinder with home delivery support.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 3 },
-    { category: 'lpg-cylinders', name: 'Beximco LPG 12kg Refill', company_name: 'Beximco LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Beximco 12kg LPG refill cylinder for regular household usage.', price: 1350, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 4 },
-    { category: 'lpg-cylinders', name: 'Petromax LPG 12kg Refill', company_name: 'Petromax LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Petromax 12kg LPG refill cylinder.', price: 1330, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 5 },
-    { category: 'lpg-cylinders', name: 'Fresh LPG 12kg Refill', company_name: 'Fresh LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Fresh 12kg LPG refill cylinder.', price: 1340, type: 'refill', size: '12kg', unit: 'cylinder', is_bestseller: false, sort_order: 6 },
-    { category: 'lpg-cylinders', name: 'Bashundhara LPG 12kg New Cylinder', company_name: 'Bashundhara LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'New 12kg LPG cylinder package for first-time users.', price: 3200, type: 'new', size: '12kg', unit: 'package', is_bestseller: true, sort_order: 7 },
-    { category: 'lpg-cylinders', name: 'Omera LPG 35kg Refill', company_name: 'Omera LPG', valve_size: '22mm', valve_connection: 'Pin', description: 'Large 35kg LPG refill cylinder for restaurants and commercial kitchens.', price: 3900, type: 'refill', size: '35kg', unit: 'cylinder', is_bestseller: false, sort_order: 8 },
-
-    // Stoves and burners
-    { category: 'stoves-burners', name: 'Single Burner Gas Stove', description: 'Compact single burner LPG stove for small kitchens and bachelor homes.', price: 950, type: 'new', size: 'single burner', unit: 'piece', is_bestseller: true, sort_order: 20 },
-    { category: 'stoves-burners', name: 'Double Burner Gas Stove', description: 'Two-burner LPG gas stove for regular family cooking.', price: 2200, type: 'new', size: 'double burner', unit: 'piece', is_bestseller: true, sort_order: 21 },
-    { category: 'stoves-burners', name: 'Glass Top Double Burner Stove', description: 'Premium glass top double burner LPG stove.', price: 3800, type: 'new', size: 'double burner', unit: 'piece', is_bestseller: false, sort_order: 22 },
-    { category: 'stoves-burners', name: 'Auto Ignition Gas Stove', description: 'Auto ignition double burner LPG stove for easy daily use.', price: 4500, type: 'new', size: 'double burner', unit: 'piece', is_bestseller: false, sort_order: 23 },
-    { category: 'stoves-burners', name: 'Gas Burner Head Replacement', description: 'Replacement burner head for compatible LPG stoves.', price: 450, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 24 },
-    { category: 'stoves-burners', name: 'Burner Stand / Pan Support', description: 'Durable pan support stand for LPG gas stoves.', price: 300, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 25 },
-
-    // Accessories
-    { category: 'accessories', name: 'Gas Regulator', description: 'Standard LPG gas regulator for safe cylinder connection.', price: 550, type: 'new', size: null, unit: 'piece', is_bestseller: true, sort_order: 40 },
-    { category: 'accessories', name: 'Premium Safety Regulator', description: 'Heavy-duty safety regulator with better pressure control.', price: 900, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 41 },
-    { category: 'accessories', name: 'Gas Pipe 1 Meter', description: 'Safety LPG gas pipe for regular stove connection.', price: 250, type: 'new', size: '1 meter', unit: 'piece', is_bestseller: false, sort_order: 42 },
-    { category: 'accessories', name: 'Gas Pipe 2 Meter', description: 'Longer LPG safety pipe for flexible kitchen setup.', price: 450, type: 'new', size: '2 meter', unit: 'piece', is_bestseller: false, sort_order: 43 },
-    { category: 'accessories', name: 'Gas Raiser', description: 'LPG cylinder raiser/stand for safer cylinder placement.', price: 650, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 44 },
-    { category: 'accessories', name: 'Cylinder Stand with Wheels', description: 'Movable LPG cylinder stand with wheels.', price: 750, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 45 },
-    { category: 'accessories', name: 'Gas Lighter', description: 'Kitchen gas lighter for LPG stoves.', price: 120, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 46 },
-    { category: 'accessories', name: 'Hose Clip / Clamp Set', description: 'Metal hose clip set for securing gas pipe connections.', price: 80, type: 'new', size: 'set', unit: 'set', is_bestseller: false, sort_order: 47 },
-    { category: 'accessories', name: 'Gas Leak Detector Spray', description: 'Leak detection spray for checking LPG pipe and regulator joints.', price: 350, type: 'new', size: null, unit: 'piece', is_bestseller: false, sort_order: 48 },
-
-    // Services
-    { category: 'services', name: 'Cylinder Installation Service', description: 'Professional LPG cylinder installation and first-time connection setup.', price: 300, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 70 },
-    { category: 'services', name: 'Gas Stove Installation', description: 'Technician visit for new LPG gas stove setup and connection testing.', price: 350, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 71 },
-    { category: 'services', name: 'Burner Cleaning Service', description: 'Cleaning service for weak flame, blocked burner holes and dirty stove heads.', price: 250, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 72 },
-    { category: 'services', name: 'Gas Leak Safety Check', description: 'Safety inspection for cylinder, regulator, pipe and stove joints.', price: 300, type: 'service', size: null, unit: 'service', is_bestseller: true, sort_order: 73 },
-    { category: 'services', name: 'Regulator Replacement Service', description: 'Technician service for regulator replacement and connection check.', price: 200, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 74 },
-    { category: 'services', name: 'Gas Pipe Replacement Service', description: 'Technician service for replacing old or damaged LPG gas pipe.', price: 220, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 75 },
-    { category: 'services', name: 'Emergency Gas Support Visit', description: 'Urgent technician visit for LPG connection, leakage or stove issue support.', price: 500, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 76 },
-    { category: 'services', name: 'Monthly Kitchen Safety Check', description: 'Monthly safety checkup for home LPG setup, pipe, regulator and stove.', price: 450, type: 'service', size: null, unit: 'service', is_bestseller: false, sort_order: 77 },
-  ];
-
-  for (const product of products) {
-    const category = categoriesBySlug[product.category];
-    if (!category) continue;
-    const { category: _category, ...productData } = product;
-    const {
-      company_name = null,
-      size = null,
-      valve_size = null,
-      valve_connection = null,
-      ...insertOnlyProductData
-    } = productData;
-
-    await models.products.findOneAndUpdate(
-      { name: productData.name },
-      {
-        $setOnInsert: {
-          ...insertOnlyProductData,
-          image_url: null,
-          is_available: true,
-          created_at: new Date(),
-        },
-        $set: {
-          category_id: category.id,
-          company_name,
-          size,
-          valve_size,
-          valve_connection,
-          updated_at: new Date(),
-        },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-  }
+  // Products are intentionally NOT seeded during application startup.
+  // Admin-created/deleted catalog data must remain authoritative across deploys.
+  // This prevents deleted LPG cylinders and other default products from being
+  // recreated whenever Render or a manual deployment restarts the backend.
 
   await models.offers.findOneAndUpdate(
     { code: 'FIRST5' },
