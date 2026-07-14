@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { MapPin, Users, RefreshCw, Navigation, Route, ShoppingBag, Clock } from 'lucide-react';
+import { MapPin, Users, RefreshCw, Navigation, Route, ShoppingBag, Clock, Plus, Pencil, Save, X, Trash2 } from 'lucide-react';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -31,6 +31,18 @@ interface DeliveryBase {
   permanent_latitude: number;
   permanent_longitude: number;
 }
+
+interface ManagedBasePoint {
+  id: string;
+  name: string;
+  address: string;
+  plus_code?: string | null;
+  latitude: number;
+  longitude: number;
+  is_active: boolean;
+}
+
+const EMPTY_BASE_FORM = { name: '', address: '', plus_code: '', latitude: '', longitude: '', is_active: true };
 
 interface LocationRecord {
   id: string;
@@ -91,8 +103,14 @@ export default function AdminLocations() {
   const mapInstanceRef = useRef<any | null>(null);
   const markersRef = useRef<Map<string, any>>(new Map());
   const polylinesRef = useRef<Map<string, any>>(new Map());
+  const draftMarkerRef = useRef<any | null>(null);
   const [locations, setLocations] = useState<LocationRecord[]>([]);
   const [deliveryBases, setDeliveryBases] = useState<DeliveryBase[]>([]);
+  const [managedBases, setManagedBases] = useState<ManagedBasePoint[]>([]);
+  const [showBaseForm, setShowBaseForm] = useState(false);
+  const [editingBaseId, setEditingBaseId] = useState<string | null>(null);
+  const [baseForm, setBaseForm] = useState(EMPTY_BASE_FORM);
+  const [savingBase, setSavingBase] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mapsReady, setMapsReady] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
@@ -109,6 +127,12 @@ export default function AdminLocations() {
     const permanentBases = ((deliveryProfilesData || []) as DeliveryBase[])
       .filter((profile) => typeof profile.permanent_latitude === 'number' && typeof profile.permanent_longitude === 'number');
     setDeliveryBases(permanentBases);
+
+    const { data: managedBaseData } = await supabase
+      .from('delivery_base_points')
+      .select('*')
+      .order('created_at', { ascending: true });
+    setManagedBases(((managedBaseData || []) as ManagedBasePoint[]).filter((point) => typeof point.latitude === 'number' && typeof point.longitude === 'number'));
 
     const { data: activeOrdersData } = await supabase
       .from('orders')
@@ -218,11 +242,29 @@ export default function AdminLocations() {
   }, [mapsReady]);
 
   useEffect(() => {
+    if (!mapsReady || !mapInstanceRef.current) return;
+    const listener = mapInstanceRef.current.addListener('click', (event: any) => {
+      if (!showBaseForm || !event?.latLng) return;
+      const latitude = event.latLng.lat();
+      const longitude = event.latLng.lng();
+      setBaseForm((current) => ({ ...current, latitude: latitude.toFixed(6), longitude: longitude.toFixed(6) }));
+      if (draftMarkerRef.current) draftMarkerRef.current.setMap(null);
+      draftMarkerRef.current = new window.google!.maps.Marker({
+        position: { lat: latitude, lng: longitude },
+        map: mapInstanceRef.current,
+        title: 'Selected delivery base point',
+      });
+    });
+    return () => listener?.remove?.();
+  }, [mapsReady, showBaseForm]);
+
+  useEffect(() => {
     if (!mapInstanceRef.current || !mapsReady) return;
 
     const activeMarkerIds = new Set([
       ...locations.map(l => `customer:${l.user_id}`),
       ...deliveryBases.map(d => `delivery:${d.user_id}`),
+      ...managedBases.map(d => `base:${d.id}`),
     ]);
     const activeCustomerIds = new Set(locations.map(l => l.user_id));
 
@@ -338,17 +380,39 @@ export default function AdminLocations() {
       }
     });
 
-    if ((locations.length > 0 || deliveryBases.length > 0) && mapInstanceRef.current) {
+    managedBases.forEach((base) => {
+      const markerKey = `base:${base.id}`;
+      const pos = { lat: base.latitude, lng: base.longitude };
+      const existing = markersRef.current.get(markerKey);
+      if (existing) {
+        existing.setPosition(pos);
+      } else {
+        const marker = new window.google!.maps.Marker({
+          position: pos,
+          map: mapInstanceRef.current!,
+          title: base.name,
+          label: { text: 'B', color: '#ffffff', fontWeight: '700' },
+        });
+        const infoWindow = new window.google!.maps.InfoWindow({
+          content: `<div style="font-family:sans-serif;padding:4px 2px;min-width:210px"><p style="font-weight:700;margin:0 0 3px">${base.name}</p><p style="color:#374151;margin:0;font-size:12px">${base.address}</p><p style="color:#7c3aed;margin:5px 0 0;font-size:11px;font-weight:700">${base.plus_code || 'Managed delivery base point'}</p></div>`,
+        });
+        marker.addListener('click', () => infoWindow.open(mapInstanceRef.current!, marker));
+        markersRef.current.set(markerKey, marker);
+      }
+    });
+
+    if ((locations.length > 0 || deliveryBases.length > 0 || managedBases.length > 0) && mapInstanceRef.current) {
       const bounds = new window.google!.maps.LatLngBounds();
       locations.forEach(location => {
         bounds.extend({ lat: location.latitude, lng: location.longitude });
         (location.route || []).forEach(point => bounds.extend({ lat: point.latitude, lng: point.longitude }));
       });
       deliveryBases.forEach(driver => bounds.extend({ lat: driver.permanent_latitude, lng: driver.permanent_longitude }));
+      managedBases.forEach(base => bounds.extend({ lat: base.latitude, lng: base.longitude }));
       mapInstanceRef.current.fitBounds(bounds);
-      if (locations.length + deliveryBases.length === 1) mapInstanceRef.current.setZoom(15);
+      if (locations.length + deliveryBases.length + managedBases.length === 1) mapInstanceRef.current.setZoom(15);
     }
-  }, [locations, deliveryBases, mapsReady]);
+  }, [locations, deliveryBases, managedBases, mapsReady]);
 
   useEffect(() => {
     fetchLocations();
@@ -356,8 +420,54 @@ export default function AdminLocations() {
     return () => clearInterval(interval);
   }, [fetchLocations]);
 
+  const resetBaseForm = () => {
+    setShowBaseForm(false);
+    setEditingBaseId(null);
+    setBaseForm(EMPTY_BASE_FORM);
+    if (draftMarkerRef.current) { draftMarkerRef.current.setMap(null); draftMarkerRef.current = null; }
+  };
+
+  const openNewBaseForm = () => {
+    setEditingBaseId(null);
+    setBaseForm(EMPTY_BASE_FORM);
+    setShowBaseForm(true);
+  };
+
+  const openEditBaseForm = (base: ManagedBasePoint) => {
+    setEditingBaseId(base.id);
+    setBaseForm({ name: base.name, address: base.address, plus_code: base.plus_code || '', latitude: String(base.latitude), longitude: String(base.longitude), is_active: base.is_active !== false });
+    setShowBaseForm(true);
+    mapInstanceRef.current?.panTo({ lat: base.latitude, lng: base.longitude });
+    mapInstanceRef.current?.setZoom(16);
+  };
+
+  const saveBasePoint = async () => {
+    const latitude = Number(baseForm.latitude);
+    const longitude = Number(baseForm.longitude);
+    if (!baseForm.name.trim() || !baseForm.address.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      alert('Enter a base name and address, then select a valid point on the map.');
+      return;
+    }
+    setSavingBase(true);
+    const payload = { name: baseForm.name.trim(), address: baseForm.address.trim(), plus_code: baseForm.plus_code.trim() || null, latitude, longitude, is_active: baseForm.is_active };
+    const result = editingBaseId
+      ? await supabase.from('delivery_base_points').update(payload).eq('id', editingBaseId).select()
+      : await supabase.from('delivery_base_points').insert(payload).select();
+    setSavingBase(false);
+    if (result.error) { alert(result.error.message); return; }
+    resetBaseForm();
+    fetchLocations();
+  };
+
+  const deleteBasePoint = async (base: ManagedBasePoint) => {
+    if (!confirm(`Delete delivery base point “${base.name}”?`)) return;
+    const result = await supabase.from('delivery_base_points').delete().eq('id', base.id);
+    if (result.error) { alert(result.error.message); return; }
+    fetchLocations();
+  };
+
   const activeCount = locations.length;
-  const baseCount = deliveryBases.length;
+  const baseCount = deliveryBases.length + managedBases.length;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 h-screen flex flex-col">
@@ -369,6 +479,7 @@ export default function AdminLocations() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={openNewBaseForm} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700"><Plus className="w-4 h-4" /> Add Base Point</button>
           <span className="text-xs text-gray-400">
             Updated {lastRefresh.toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </span>
@@ -415,7 +526,27 @@ export default function AdminLocations() {
           )}
         </div>
 
-        <div className="lg:w-80 flex flex-col gap-2 overflow-y-auto">
+        <div className="lg:w-80 flex flex-col gap-3 overflow-y-auto">
+          {showBaseForm && (
+            <div className="bg-white rounded-2xl border border-violet-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3"><div><p className="font-bold text-gray-900">{editingBaseId ? 'Edit Base Point' : 'Add Base Point'}</p><p className="text-xs text-gray-500">Click the map to set its location.</p></div><button onClick={resetBaseForm} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button></div>
+              <div className="space-y-2">
+                <input value={baseForm.name} onChange={(e) => setBaseForm({ ...baseForm, name: e.target.value })} placeholder="Base point name" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+                <textarea value={baseForm.address} onChange={(e) => setBaseForm({ ...baseForm, address: e.target.value })} placeholder="Address / area name" rows={2} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none" />
+                <input value={baseForm.plus_code} onChange={(e) => setBaseForm({ ...baseForm, plus_code: e.target.value })} placeholder="Plus Code (optional)" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+                <div className="grid grid-cols-2 gap-2"><input value={baseForm.latitude} onChange={(e) => setBaseForm({ ...baseForm, latitude: e.target.value })} placeholder="Latitude" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs" /><input value={baseForm.longitude} onChange={(e) => setBaseForm({ ...baseForm, longitude: e.target.value })} placeholder="Longitude" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs" /></div>
+                <label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={baseForm.is_active} onChange={(e) => setBaseForm({ ...baseForm, is_active: e.target.checked })} /> Active base point</label>
+                <button onClick={saveBasePoint} disabled={savingBase} className="w-full inline-flex justify-center items-center gap-2 px-3 py-2 rounded-xl bg-violet-600 text-white text-sm font-semibold disabled:opacity-60"><Save className="w-4 h-4" /> {savingBase ? 'Saving...' : 'Save Base Point'}</button>
+              </div>
+            </div>
+          )}
+
+          {managedBases.map((base) => (
+            <div key={base.id} onClick={() => { mapInstanceRef.current?.panTo({ lat: base.latitude, lng: base.longitude }); mapInstanceRef.current?.setZoom(16); }} className="bg-white rounded-2xl border border-violet-100 p-4 cursor-pointer hover:border-violet-300">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center"><MapPin className="w-4 h-4 text-violet-700" /></div><div><p className="font-semibold text-sm text-gray-900 truncate">{base.name}</p><p className="text-[11px] text-violet-700 font-semibold">Managed delivery base</p></div></div><p className="text-xs text-gray-500 mt-2">{base.address}</p>{base.plus_code && <p className="text-[11px] text-gray-400 mt-1">{base.plus_code}</p>}</div><div className="flex gap-1"><button onClick={(e) => { e.stopPropagation(); openEditBaseForm(base); }} className="p-2 rounded-lg bg-blue-50 text-blue-700"><Pencil className="w-3.5 h-3.5" /></button><button onClick={(e) => { e.stopPropagation(); deleteBasePoint(base); }} className="p-2 rounded-lg bg-red-50 text-red-700"><Trash2 className="w-3.5 h-3.5" /></button></div></div>
+            </div>
+          ))}
+
           {loading ? (
             [...Array(3)].map((_, i) => (
               <div key={i} className="h-24 bg-gray-100 rounded-xl animate-pulse" />
