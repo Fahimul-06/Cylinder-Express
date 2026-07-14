@@ -371,7 +371,7 @@ export default function CustomerCareChat() {
           role: message.sender === 'user' ? 'user' : 'assistant',
           content: message.text,
         }));
-      const result = await apiClient<{ data: { reply: string; source: 'ai' | 'safety' } }>('/api/customer-chatbot/respond', {
+      const result = await apiClient<{ data: { reply: string; source: 'ai' | 'safety' | 'local' } }>('/api/customer-chatbot/respond', {
         method: 'POST',
         body: JSON.stringify({ message: value, language, history }),
       });
