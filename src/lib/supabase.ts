@@ -152,17 +152,33 @@ export const supabase = {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Sign up failed' } };
       }
     },
-    async signInWithPassword({ email, password }: { email: string; password: string }) {
+    async signInCustomer({ identifier, password }: { identifier: string; password: string }) {
       try {
         const data = await api<{ session: Session; user: User }>('/api/auth/signin', {
           method: 'POST',
-          body: JSON.stringify({ emailOrPhone: email, password }),
+          body: JSON.stringify({ emailOrPhone: identifier, password }),
         });
         localStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
         return { data: null, error: { message: error instanceof Error ? error.message : 'Login failed' } };
+      }
+    },
+    async signInWithPassword({ email, password }: { email: string; password: string }) {
+      return this.signInCustomer({ identifier: email, password });
+    },
+    async signInManagement({ identifier, password }: { identifier: string; password: string }) {
+      try {
+        const data = await api<{ session: Session; user: User }>('/api/auth/management-signin', {
+          method: 'POST',
+          body: JSON.stringify({ identifier, password }),
+        });
+        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        emitAuth('SIGNED_IN', data.session);
+        return { data, error: null };
+      } catch (error) {
+        return { data: null, error: { message: error instanceof Error ? error.message : 'Management login failed' } };
       }
     },
     async signInWithSocial({ provider, accessToken }: { provider: 'google' | 'facebook'; accessToken: string }) {

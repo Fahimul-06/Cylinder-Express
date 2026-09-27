@@ -9,9 +9,10 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: string | null }>;
   signIn: (emailOrPhone: string, password: string) => Promise<{ error: string | null }>;
+  signInManagement: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signInWithSocial: (provider: 'google' | 'facebook', accessToken: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => Promise<{ error: string | null }>;
+  updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number }) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
 
@@ -81,19 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (emailOrPhone: string, password: string) => {
-    const isEmail = emailOrPhone.includes('@');
-    let email = emailOrPhone;
-    if (!isEmail) {
-      // Look up the actual auth email registered for this phone number
-      const { data } = await supabase.rpc('get_email_by_phone', { p_phone: emailOrPhone });
-      if (data) {
-        email = String(data);
-      } else {
-        // Fallback: no profile found, try the phone-as-email convention
-        email = `${emailOrPhone}@cylinderexpress.bd`;
-      }
-    }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInCustomer({ identifier: emailOrPhone, password });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const signInManagement = async (identifier: string, password: string) => {
+    const { error } = await supabase.auth.signInManagement({ identifier, password });
     if (error) return { error: error.message };
     return { error: null };
   };
@@ -111,15 +106,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   };
 
-  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string }) => {
+  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number }) => {
     if (!user) return { error: 'Not authenticated' };
-    const profileUpdates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; updated_at: string } = {
+    const profileUpdates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number; updated_at: string } = {
       updated_at: new Date().toISOString(),
     };
     if (updates.full_name !== undefined) profileUpdates.full_name = updates.full_name;
     if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
     if (updates.email !== undefined) profileUpdates.email = updates.email;
     if (updates.avatar_url !== undefined) profileUpdates.avatar_url = updates.avatar_url;
+    if (updates.family_members !== undefined) profileUpdates.family_members = updates.family_members;
+    if (updates.daily_cooking_times !== undefined) profileUpdates.daily_cooking_times = updates.daily_cooking_times;
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -143,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInWithSocial, signOut, updateProfile, updatePassword }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signInManagement, signInWithSocial, signOut, updateProfile, updatePassword }}>
       {children}
     </AuthContext.Provider>
   );

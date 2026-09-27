@@ -18,6 +18,8 @@ export default function ProfileDetailsPage() {
     full_name: profile?.full_name || '',
     email: profile?.email || '',
     phone: profile?.phone || '',
+    family_members: profile?.family_members || 4,
+    daily_cooking_times: profile?.daily_cooking_times || 3,
   });
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -50,6 +52,8 @@ export default function ProfileDetailsPage() {
       full_name: form.full_name,
       email: form.email || undefined,
       phone: form.phone,
+      family_members: Number(form.family_members),
+      daily_cooking_times: Number(form.daily_cooking_times),
     });
     if (error) {
       setProfileError(error);
@@ -233,6 +237,28 @@ export default function ProfileDetailsPage() {
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">Phone changes may require re-verification</p>
+            </div>
+
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Family Members</label>
+                <input
+                  type="number" min="1" max="30" value={form.family_members}
+                  onChange={e => setForm(prev => ({ ...prev, family_members: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+                <p className="text-xs text-gray-400 mt-1">Required for cylinder-empty prediction</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Daily Cooking Times</label>
+                <input
+                  type="number" min="1" max="10" value={form.daily_cooking_times}
+                  onChange={e => setForm(prev => ({ ...prev, daily_cooking_times: Math.max(1, Number(e.target.value)) }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+                <p className="text-xs text-gray-400 mt-1">How many cooking sessions per day</p>
+              </div>
             </div>
 
             <button

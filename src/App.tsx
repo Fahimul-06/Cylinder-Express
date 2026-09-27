@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
+import ManagementLoginPage from './pages/ManagementLoginPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -82,7 +83,7 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/management-login" replace />;
   if (!profile?.is_admin || profile.is_active === false) return <Navigate to="/home" replace />;
   if (permission && !profileHasPermission(profile, permission)) {
     const fallback = (['dashboard', 'orders', 'products', 'offers', 'hero', 'locations', 'users', 'delivery_chat', 'customer_chat', 'cylinder_usage'] as AdminPermissionKey[])
@@ -110,6 +111,7 @@ function AppRoutes() {
   const currentPath = window.location.hash.replace(/^#/, '') || window.location.pathname;
   const isAdminRoute = isAdminDashboardPath(currentPath);
   const isDeliveryRoute = isDeliveryDashboardPath(currentPath);
+  const isManagementLogin = currentPath === '/management-login';
 
   return (
     <>
@@ -117,13 +119,14 @@ function AppRoutes() {
       {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
-        <Route path="/login" element={user ? <Navigate to="/home" replace /> : <LoginPage />} />
+        <Route path="/login" element={user ? <Navigate to={profile?.is_admin ? ADMIN_DASHBOARD_PATH : '/home'} replace /> : <LoginPage />} />
+        <Route path="/management-login" element={<ManagementLoginPage />} />
         <Route path="/about" element={<StaticPage type="about" />} />
         <Route path="/faq" element={<StaticPage type="faq" />} />
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
         <Route path="/terms-of-use" element={<StaticPage type="terms" />} />
         <Route path="/contact-us" element={<StaticPage type="contact" />} />
-        <Route path="/home" element={<ProtectedRoute>{profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />}</ProtectedRoute>} />
+        <Route path="/home" element={<ProtectedRoute>{profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />}</ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
         <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
         <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
@@ -152,10 +155,10 @@ function AppRoutes() {
           <Route path="customer-chat" element={<AdminRoute permission="customer_chat"><AdminCustomerChat /></AdminRoute>} />
           <Route path="cylinder-usage" element={<AdminRoute permission="cylinder_usage"><AdminCylinderUsage /></AdminRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to={user ? (profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={user ? (profile?.is_admin ? ADMIN_DASHBOARD_PATH : profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
       {user && profile?.role !== 'delivery' && !isAdminRoute && !isDeliveryRoute && <CustomerCareChat />}
-      {!isAdminRoute && !isDeliveryRoute && <Footer />}
+      {!isAdminRoute && !isDeliveryRoute && !isManagementLogin && <Footer />}
     </>
   );
 }

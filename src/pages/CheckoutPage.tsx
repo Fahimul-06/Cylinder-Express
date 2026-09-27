@@ -36,6 +36,7 @@ export default function CheckoutPage() {
   );
   const totalCylinderQty = cylinderItems.reduce((s, i) => s + i.quantity, 0);
   const hasCylinders = totalCylinderQty > 0;
+  const hasUsageProfile = Boolean(profile?.family_members && profile?.daily_cooking_times);
 
   const floorsAboveGround = selectedFloor - 1;
   const floorCharge = hasCylinders ? floorsAboveGround * FLOOR_CHARGE_PER_FLOOR * totalCylinderQty : 0;
@@ -177,6 +178,10 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async () => {
     if (!user || !selectedAddress || items.length === 0) return;
+    if (hasCylinders && !hasUsageProfile) {
+      navigate('/profile/details');
+      return;
+    }
     if (!customerHasPhone) {
       setPhoneModalOpen(true);
       setPhoneError('Please add and verify your phone number before placing an order.');
@@ -267,6 +272,18 @@ export default function CheckoutPage() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
+
+            {hasCylinders && !hasUsageProfile && (
+              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-orange-900">Cooking profile required</h3>
+                    <p className="text-sm text-orange-700 mt-1">Add your family members and daily cooking times so AI can estimate when this cylinder may finish and alert you 3 days earlier.</p>
+                  </div>
+                  <button onClick={() => navigate('/profile/details')} className="px-4 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold hover:bg-orange-700 whitespace-nowrap">Add Details</button>
+                </div>
+              </div>
+            )}
 
             {!customerHasPhone && (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
@@ -557,7 +574,7 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePlaceOrder}
-                disabled={placing || !selectedAddress}
+                disabled={placing || !selectedAddress || (hasCylinders && !hasUsageProfile)}
                 className="w-full mt-5 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-5 h-5" />

@@ -5,6 +5,8 @@ export interface Profile {
   phone: string;
   email: string | null;
   avatar_url: string | null;
+  family_members?: number | null;
+  daily_cooking_times?: number | null;
   is_admin: boolean;
   role?: 'customer' | 'admin' | 'sub_admin' | 'delivery';
   permissions?: Record<string, boolean>;

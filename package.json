@@ -12,7 +12,9 @@
     "server": "node server/index.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "render:frontend:build": "npm ci --no-audit --no-fund && npm run build",
-    "render:backend:build": "npm ci --omit=dev --no-audit --no-fund"
+    "render:backend:build": "npm ci --omit=dev --no-audit --no-fund",
+    "server:indexes": "node server/scripts/createIndexes.js",
+    "check": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
