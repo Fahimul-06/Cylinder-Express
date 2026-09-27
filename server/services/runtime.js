@@ -100,16 +100,15 @@ export async function signInOrCreateSocialUser(socialProfile) {
 
   let profile = await models.profiles.findOne({ user_id: user.id });
   if (!profile) {
-    const existingProfiles = await models.profiles.countDocuments();
     profile = await models.profiles.create({
       user_id: user.id,
       full_name: socialProfile.name,
       phone: socialPhone,
       email: socialProfile.email || null,
       avatar_url: socialProfile.avatar || null,
-      is_admin: existingProfiles === 0,
-      role: existingProfiles === 0 ? 'admin' : 'customer',
-      permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+      is_admin: false,
+      role: 'customer',
+      permissions: {},
       is_active: true,
     });
   } else {
@@ -129,6 +128,64 @@ export async function signInOrCreateSocialUser(socialProfile) {
 }
 
 
+
+export async function ensureAdministrationHeadAccount() {
+  const email = String(config.ADMIN_HEAD_EMAIL || '').trim().toLowerCase();
+  const password = String(config.ADMIN_HEAD_PASSWORD || '');
+  if (!email) {
+    console.warn('[admin-bootstrap] ADMIN_HEAD_EMAIL is not configured.');
+    return null;
+  }
+
+  let user = await models.users.findOne({ email });
+  if (!user) {
+    if (!password) {
+      console.warn('[admin-bootstrap] Administration Head account does not exist and ADMIN_HEAD_PASSWORD is not configured.');
+      return null;
+    }
+    user = await models.users.create({
+      email,
+      phone: null,
+      password_hash: await bcrypt.hash(password, 12),
+    });
+  }
+
+  if (password && !(await bcrypt.compare(password, user.password_hash))) {
+    user.password_hash = await bcrypt.hash(password, 12);
+    await user.save();
+  }
+
+  let profile = await models.profiles.findOne({ user_id: user.id });
+  const allPermissions = sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true])));
+  if (!profile) {
+    profile = await models.profiles.create({
+      user_id: user.id,
+      full_name: config.ADMIN_HEAD_FULL_NAME,
+      email,
+      phone: user.phone || null,
+      is_admin: true,
+      role: 'admin',
+      permissions: allPermissions,
+      is_active: true,
+    });
+  } else {
+    profile.full_name = profile.full_name || config.ADMIN_HEAD_FULL_NAME;
+    profile.email = email;
+    profile.is_admin = true;
+    profile.role = 'admin';
+    profile.permissions = allPermissions;
+    profile.is_active = true;
+    await profile.save();
+  }
+
+  // Only the configured account may hold the primary Administration Head role.
+  await models.profiles.updateMany(
+    { _id: { $ne: profile._id }, role: 'admin' },
+    { $set: { role: 'customer', is_admin: false, permissions: {} } }
+  );
+
+  return profile;
+}
 
 export async function getOrderAdmins() {
   const admins = await models.profiles.find({ is_admin: true, is_active: { $ne: false } });

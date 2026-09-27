@@ -9,15 +9,14 @@ export function createRouter(ctx) {
       if (!password || !phone || !full_name) return res.status(400).json({ error: 'Name, phone and password are required' });
       if (await models.users.findOne({ $or: [{ email }, { phone }] })) return res.status(409).json({ error: 'Account already exists' });
       const user = await models.users.create({ email, phone, password_hash: await bcrypt.hash(password, 12) });
-      const existingProfiles = await models.profiles.countDocuments();
       await models.profiles.create({
         user_id: user.id,
         full_name,
         phone,
         email,
-        is_admin: existingProfiles === 0,
-        role: existingProfiles === 0 ? 'admin' : 'customer',
-        permissions: existingProfiles === 0 ? sanitizePermissions(Object.fromEntries(ADMIN_PERMISSIONS.map((key) => [key, true]))) : {},
+        is_admin: false,
+        role: 'customer',
+        permissions: {},
         is_active: true,
       });
       const session = signUser(user);

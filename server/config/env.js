@@ -45,6 +45,9 @@ export const config = {
   RATE_LIMIT_MAX: Number(process.env.RATE_LIMIT_MAX || 180),
   AUTH_RATE_LIMIT_MAX: Number(process.env.AUTH_RATE_LIMIT_MAX || 25),
   ENABLE_STARTUP_BACKFILLS: String(process.env.ENABLE_STARTUP_BACKFILLS || 'false').toLowerCase() === 'true',
+  ADMIN_HEAD_EMAIL: String(process.env.ADMIN_HEAD_EMAIL || 'cyexpress.help@gmail.com').trim().toLowerCase(),
+  ADMIN_HEAD_PASSWORD: process.env.ADMIN_HEAD_PASSWORD || '',
+  ADMIN_HEAD_FULL_NAME: process.env.ADMIN_HEAD_FULL_NAME || 'Cylinder Express Administration Head',
 };
 config.SMS_ENABLED = Boolean(config.BULKSMSBD_API_KEY && config.BULKSMSBD_SENDER_ID);
 config.CHATBOT_ENABLED = Boolean(config.CHATBOT_API_KEY);
