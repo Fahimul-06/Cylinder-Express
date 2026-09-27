@@ -533,6 +533,10 @@ export default function LoginPage() {
                     Sign Up
                   </button>
                 </p>
+                <div className="mt-5 flex items-center justify-center gap-5 text-xs font-bold">
+                  <button type="button" onClick={() => navigate('/hub-login')} className="text-slate-600 hover:text-blue-700 hover:underline">HUB Man Login</button>
+                  <button type="button" onClick={() => navigate('/management-login')} className="text-slate-600 hover:text-blue-700 hover:underline">Management Login</button>
+                </div>
               </div>
             </section>
 

@@ -168,6 +168,19 @@ export const supabase = {
     async signInWithPassword({ email, password }: { email: string; password: string }) {
       return this.signInCustomer({ identifier: email, password });
     },
+    async signInHub({ identifier, password }: { identifier: string; password: string }) {
+      try {
+        const data = await api<{ session: Session; user: User }>('/api/auth/hub-signin', {
+          method: 'POST',
+          body: JSON.stringify({ identifier, password }),
+        });
+        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        emitAuth('SIGNED_IN', data.session);
+        return { data, error: null };
+      } catch (error) {
+        return { data: null, error: { message: error instanceof Error ? error.message : 'HUB Man login failed' } };
+      }
+    },
     async signInManagement({ identifier, password }: { identifier: string; password: string }) {
       try {
         const data = await api<{ session: Session; user: User }>('/api/auth/management-signin', {

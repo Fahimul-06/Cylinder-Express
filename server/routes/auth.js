@@ -62,9 +62,34 @@ export function createRouter(ctx) {
       if (profile?.is_admin || profile?.role === 'admin' || profile?.role === 'sub_admin') {
         return res.status(403).json({ error: 'Administration Head and Employee accounts must use the Management Login page.' });
       }
+      if (profile?.role === 'delivery') {
+        return res.status(403).json({ error: 'HUB Man accounts must use the HUB Man Login page.' });
+      }
+      if (profile?.role !== 'customer') {
+        return res.status(403).json({ error: 'This account cannot use the Customer Sign In page.' });
+      }
       if (profile?.is_active === false) return res.status(403).json({ error: 'This account is inactive. Please contact Customer Care.' });
       const session = signUser(user);
       res.json({ session, user: session.user });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+  });
+
+
+  router.post('/api/auth/hub-signin', async (req, res) => {
+    try {
+      const { identifier, password } = req.body;
+      const { user, profile } = await findUserForLogin(identifier);
+      if (!user || !profile || !(await bcrypt.compare(password || '', user.password_hash))) {
+        return res.status(401).json({ error: 'Invalid HUB Man login credentials' });
+      }
+      if (profile.role !== 'delivery' || profile.is_admin) {
+        return res.status(403).json({ error: 'This login page is only for HUB Man accounts.' });
+      }
+      if (profile.is_active === false) {
+        return res.status(403).json({ error: 'This HUB Man account is inactive. Please contact the Administration Head.' });
+      }
+      const session = signUser(user);
+      res.json({ session, user: session.user, profile: { role: profile.role, is_admin: profile.is_admin } });
     } catch (error) { res.status(500).json({ error: error.message }); }
   });
 

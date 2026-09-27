@@ -7,6 +7,7 @@ import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
 import ManagementLoginPage from './pages/ManagementLoginPage';
+import HubLoginPage from './pages/HubLoginPage';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -66,7 +67,7 @@ function DeliveryRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/hub-login" replace />;
   if (profile?.role !== 'delivery' || profile.is_active === false) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
@@ -112,6 +113,7 @@ function AppRoutes() {
   const isAdminRoute = isAdminDashboardPath(currentPath);
   const isDeliveryRoute = isDeliveryDashboardPath(currentPath);
   const isManagementLogin = currentPath === '/management-login';
+  const isHubLogin = currentPath === '/hub-login';
 
   return (
     <>
@@ -119,8 +121,9 @@ function AppRoutes() {
       {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
-        <Route path="/login" element={user ? <Navigate to={profile?.is_admin ? ADMIN_DASHBOARD_PATH : '/home'} replace /> : <LoginPage />} />
+        <Route path="/login" element={user ? <Navigate to={profile?.is_admin ? ADMIN_DASHBOARD_PATH : profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home'} replace /> : <LoginPage />} />
         <Route path="/management-login" element={<ManagementLoginPage />} />
+        <Route path="/hub-login" element={<HubLoginPage />} />
         <Route path="/about" element={<StaticPage type="about" />} />
         <Route path="/faq" element={<StaticPage type="faq" />} />
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
@@ -158,7 +161,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to={user ? (profile?.is_admin ? ADMIN_DASHBOARD_PATH : profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
       </Routes>
       {user && profile?.role !== 'delivery' && !isAdminRoute && !isDeliveryRoute && <CustomerCareChat />}
-      {!isAdminRoute && !isDeliveryRoute && !isManagementLogin && <Footer />}
+      {!isAdminRoute && !isDeliveryRoute && !isManagementLogin && !isHubLogin && <Footer />}
     </>
   );
 }

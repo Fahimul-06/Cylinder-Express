@@ -88,9 +88,10 @@ export default function ManagementLoginPage() {
         </form>
 
         <div className="mt-6 border-t border-slate-100 pt-5 text-center">
-          <button type="button" onClick={() => navigate('/login')} className="text-sm font-bold text-blue-700 hover:underline">
-            Customer Sign In
-          </button>
+          <div className="flex items-center justify-center gap-5">
+            <button type="button" onClick={() => navigate('/login')} className="text-sm font-bold text-blue-700 hover:underline">Customer Sign In</button>
+            <button type="button" onClick={() => navigate('/hub-login')} className="text-sm font-bold text-slate-600 hover:underline">HUB Man Login</button>
+          </div>
         </div>
       </div>
     </div>
