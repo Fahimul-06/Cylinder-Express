@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCart } from '../contexts/CartContext';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { FLOOR_CHARGE_PER_FLOOR } from '../lib/constants';
 import { calculateCartDeliveryFee, getDeliveryFeeLabel, getProductDeliveryFee, isLpgCylinder } from '../lib/deliveryCharges';
 import {
@@ -14,6 +15,7 @@ export default function CartPage() {
     promoCode, appliedOffer, promoError, applyPromo, removePromo, discountAmount,
   } = useCart();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [promoInput, setPromoInput] = useState('');
 
   // Floor preview (default ground floor; user picks exact floor at checkout)
@@ -253,14 +255,28 @@ export default function CartPage() {
               </div>
 
               <button
-                onClick={() => navigate('/checkout')}
+                onClick={() => {
+                  if (!user) {
+                    sessionStorage.setItem('post_auth_redirect', '/checkout');
+                    navigate('/login');
+                    return;
+                  }
+                  navigate('/checkout');
+                }}
                 className="w-full mt-5 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
               >
                 Proceed to Checkout <ArrowRight className="w-4 h-4" />
               </button>
 
               <button
-                onClick={() => navigate('/addresses')}
+                onClick={() => {
+                  if (!user) {
+                    sessionStorage.setItem('post_auth_redirect', '/addresses');
+                    navigate('/login');
+                    return;
+                  }
+                  navigate('/addresses');
+                }}
                 className="w-full mt-3 py-3 bg-blue-50 text-blue-700 rounded-xl font-semibold text-sm hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
               >
                 <MapPin className="w-4 h-4" /> Set Delivery Address

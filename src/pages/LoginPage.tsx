@@ -300,7 +300,8 @@ export default function LoginPage() {
         ? 'Invalid credentials. Please check your phone/email and password.'
         : signInError);
     } else {
-      navigate('/home');
+      navigate(sessionStorage.getItem('post_auth_redirect') || '/home');
+      sessionStorage.removeItem('post_auth_redirect');
     }
     setLoading(false);
   };
@@ -316,7 +317,8 @@ export default function LoginPage() {
     if (socialError) {
       setError(socialError);
     } else {
-      navigate('/home');
+      navigate(sessionStorage.getItem('post_auth_redirect') || '/home');
+      sessionStorage.removeItem('post_auth_redirect');
     }
     setLoading(false);
   }

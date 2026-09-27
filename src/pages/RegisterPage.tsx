@@ -107,7 +107,8 @@ export default function RegisterPage() {
     if (signUpError) {
       setError(signUpError);
     } else {
-      navigate('/home');
+      navigate(sessionStorage.getItem('post_auth_redirect') || '/home');
+      sessionStorage.removeItem('post_auth_redirect');
     }
     setLoading(false);
   };

@@ -19,7 +19,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { t } = useLanguage();
 
-  if (!user || profile?.role === 'delivery') return null;
+  if (profile?.role === 'delivery') return null;
 
   const navItems = [
     { path: '/home', label: t('nav.home'), icon: Package, badge: 0 },
@@ -68,20 +68,40 @@ export default function Navbar() {
 
             <div className="hidden md:flex items-center gap-3">
               <LanguageToggle />
-              <NotificationBell compact />
-              <button
-                onClick={() => navigate('/profile')}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors"
-              >
-                <User className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">{profile?.full_name}</span>
-              </button>
-              <button
-                onClick={signOut}
-                className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all text-sm"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              {user ? (
+                <>
+                  <NotificationBell compact />
+                  <button
+                    onClick={() => navigate('/profile')}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    <User className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">{profile?.full_name || 'My Account'}</span>
+                  </button>
+                  <button
+                    onClick={signOut}
+                    className="flex items-center gap-2 px-3 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all text-sm"
+                    aria-label="Sign out"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigate('/login')}
+                    className="px-4 py-2 text-sm font-semibold text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => navigate('/register')}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              )}
             </div>
 
             <button
@@ -116,21 +136,43 @@ export default function Navbar() {
                 </button>
               ))}
               <div className="pt-2 border-t border-gray-100 space-y-2">
-                <div className="px-4 flex items-center gap-2"><LanguageToggle compact /><NotificationBell compact /></div>
-                <button
-                  onClick={() => { navigate('/profile'); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
-                >
-                  <User className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">{profile?.full_name}</span>
-                </button>
-                <button
-                  onClick={signOut}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg text-sm"
-                >
-                  <LogOut className="w-5 h-5" />
-                  {t('nav.signOut')}
-                </button>
+                <div className="px-4 flex items-center gap-2">
+                  <LanguageToggle compact />
+                  {user && <NotificationBell compact />}
+                </div>
+                {user ? (
+                  <>
+                    <button
+                      onClick={() => { navigate('/profile'); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 rounded-lg"
+                    >
+                      <User className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm">{profile?.full_name || 'My Account'}</span>
+                    </button>
+                    <button
+                      onClick={signOut}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg text-sm"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      {t('nav.signOut')}
+                    </button>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 px-1">
+                    <button
+                      onClick={() => { navigate('/login'); setMenuOpen(false); }}
+                      className="px-4 py-3 text-sm font-semibold text-blue-700 border border-blue-200 rounded-lg"
+                    >
+                      Login
+                    </button>
+                    <button
+                      onClick={() => { navigate('/register'); setMenuOpen(false); }}
+                      className="px-4 py-3 text-sm font-semibold text-white bg-blue-600 rounded-lg"
+                    >
+                      Sign Up
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

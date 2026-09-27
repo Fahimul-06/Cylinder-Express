@@ -117,7 +117,7 @@ function AppRoutes() {
 
   return (
     <>
-      {user && !isAdminRoute && <Navbar />}
+      {!isAdminRoute && !isDeliveryRoute && !isManagementLogin && !isHubLogin && <Navbar />}
       {user && <NotificationCenter />}
       <Routes>
         <Route path="/register" element={user ? <Navigate to="/home" replace /> : <RegisterPage />} />
@@ -129,17 +129,18 @@ function AppRoutes() {
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
         <Route path="/terms-of-use" element={<StaticPage type="terms" />} />
         <Route path="/contact-us" element={<StaticPage type="contact" />} />
-        <Route path="/home" element={<ProtectedRoute>{profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />}</ProtectedRoute>} />
-        <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-        <Route path="/product/:id" element={<ProtectedRoute><ProductDetailPage /></ProtectedRoute>} />
-        <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/product/:id" element={<ProductDetailPage />} />
+        <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
         <Route path="/addresses" element={<ProtectedRoute><AddressesPage /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsPage /></ProtectedRoute>} />
         <Route path="/cylinder-usage" element={<ProtectedRoute><CylinderUsagePage /></ProtectedRoute>} />
-        <Route path="/offers" element={<ProtectedRoute><OffersPage /></ProtectedRoute>} />
+        <Route path="/offers" element={<OffersPage />} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path={DELIVERY_DASHBOARD_PATH} element={<DeliveryRoute><DeliveryDashboard /></DeliveryRoute>} />
         <Route path={`${DELIVERY_DASHBOARD_PATH}/chat`} element={<DeliveryRoute><DeliveryAdminChatPage /></DeliveryRoute>} />
@@ -158,7 +159,7 @@ function AppRoutes() {
           <Route path="customer-chat" element={<AdminRoute permission="customer_chat"><AdminCustomerChat /></AdminRoute>} />
           <Route path="cylinder-usage" element={<AdminRoute permission="cylinder_usage"><AdminCylinderUsage /></AdminRoute>} />
         </Route>
-        <Route path="*" element={<Navigate to={user ? (profile?.is_admin ? ADMIN_DASHBOARD_PATH : profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={user ? (profile?.is_admin ? ADMIN_DASHBOARD_PATH : profile?.role === 'delivery' ? DELIVERY_DASHBOARD_PATH : '/home') : '/home'} replace />} />
       </Routes>
       {user && profile?.role !== 'delivery' && !isAdminRoute && !isDeliveryRoute && <CustomerCareChat />}
       {!isAdminRoute && !isDeliveryRoute && !isManagementLogin && !isHubLogin && <Footer />}
