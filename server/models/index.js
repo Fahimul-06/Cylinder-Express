@@ -37,7 +37,7 @@ const ProfileSchema = new mongoose.Schema({
   role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
   employee_position: { type: String, default: null, trim: true },
-  employee_code: { type: String, default: null, trim: true, index: true, sparse: true, unique: true },
+  employee_code: { type: String, default: null, trim: true },
   is_active: { type: Boolean, default: true },
   permanent_address: { type: String, default: null },
   permanent_latitude: { type: Number, default: null },
@@ -45,6 +45,15 @@ const ProfileSchema = new mongoose.Schema({
   permanent_plus_code: { type: String, default: null, trim: true },
   ...common,
 }, { toJSON });
+
+ProfileSchema.index(
+  { employee_code: 1 },
+  {
+    name: 'employee_code_unique_nonempty',
+    unique: true,
+    partialFilterExpression: { employee_code: { $type: 'string', $gt: '' } },
+  }
+);
 
 const CategorySchema = new mongoose.Schema({ name: String, slug: String, icon: String, description: String, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const ProductSchema = new mongoose.Schema({ category_id: { type: String, index: true }, name: String, description: String, price: Number, gas_price: { type: Number, default: null }, bottle_price: { type: Number, default: null }, image_url: String, type: String, company_name: String, size: String, valve_size: String, valve_connection: String, unit: { type: String, default: 'piece' }, is_bestseller: Boolean, is_available: Boolean, sort_order: Number, ...common }, { toJSON });

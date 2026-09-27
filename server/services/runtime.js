@@ -793,3 +793,38 @@ export async function ensureDefaultCatalog() {
   );
 }
 
+
+
+export async function ensureEmployeeCodeIndex() {
+  const collection = models.profiles.collection;
+  let indexes = [];
+  try { indexes = await collection.indexes(); } catch (error) {
+    console.warn(JSON.stringify({ level: 'warn', message: 'Could not inspect profile indexes', error: error.message }));
+    return;
+  }
+
+  const desiredName = 'employee_code_unique_nonempty';
+  const legacy = indexes.find((idx) => idx.name === 'employee_code_1');
+  const desired = indexes.find((idx) => idx.name === desiredName);
+
+  if (legacy) {
+    try {
+      await collection.dropIndex(legacy.name);
+      console.log(JSON.stringify({ level: 'info', message: 'Dropped legacy employee_code unique index', index: legacy.name }));
+    } catch (error) {
+      if (error?.codeName !== 'IndexNotFound') throw error;
+    }
+  }
+
+  if (!desired) {
+    await collection.createIndex(
+      { employee_code: 1 },
+      {
+        name: desiredName,
+        unique: true,
+        partialFilterExpression: { employee_code: { $type: 'string', $gt: '' } },
+      }
+    );
+    console.log(JSON.stringify({ level: 'info', message: 'Created partial unique employee_code index', index: desiredName }));
+  }
+}
