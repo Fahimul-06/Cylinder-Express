@@ -37,7 +37,7 @@ type AuthListener = (event: string, session: Session | null) => void;
 const listeners = new Set<AuthListener>();
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = sessionStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -145,7 +145,7 @@ export const supabase = {
           method: 'POST',
           body: JSON.stringify({ email, password, full_name: options?.data?.full_name, phone: options?.data?.phone }),
         });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
@@ -158,7 +158,7 @@ export const supabase = {
           method: 'POST',
           body: JSON.stringify({ emailOrPhone: identifier, password }),
         });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
@@ -174,7 +174,7 @@ export const supabase = {
           method: 'POST',
           body: JSON.stringify({ identifier, password }),
         });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
@@ -187,7 +187,7 @@ export const supabase = {
           method: 'POST',
           body: JSON.stringify({ identifier, password }),
         });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
@@ -200,7 +200,7 @@ export const supabase = {
           method: 'POST',
           body: JSON.stringify({ provider, accessToken }),
         });
-        localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('SIGNED_IN', data.session);
         return { data, error: null };
       } catch (error) {
@@ -208,18 +208,18 @@ export const supabase = {
       }
     },
     async signOut() {
-      localStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
       emitAuth('SIGNED_OUT', null);
       return { error: null };
     },
     async getSession() {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = sessionStorage.getItem(TOKEN_KEY);
       if (!token) return { data: { session: null }, error: null };
       try {
         const data = await api<{ session: Session }>('/api/auth/session');
         return { data: { session: data.session }, error: null };
       } catch {
-        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
         return { data: { session: null }, error: null };
       }
     },
@@ -233,7 +233,7 @@ export const supabase = {
           method: 'PATCH',
           body: JSON.stringify(updates),
         });
-        if (data.session?.access_token) localStorage.setItem(TOKEN_KEY, data.session.access_token);
+        if (data.session?.access_token) sessionStorage.setItem(TOKEN_KEY, data.session.access_token);
         emitAuth('USER_UPDATED', data.session);
         return { data, error: null };
       } catch (error) {

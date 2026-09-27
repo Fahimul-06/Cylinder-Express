@@ -25,7 +25,7 @@ export default function CylinderUsagePage() {
     let active = true;
     const loadUsage = async () => {
       try {
-        const token = localStorage.getItem('cylinder_express_auth_token');
+        const token = sessionStorage.getItem('cylinder_express_auth_token');
         const response = await fetch(`${API_BASE_URL}/api/lpg-usage`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
