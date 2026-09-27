@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getNotificationCache, subscribeNotificationCache } from '../lib/notificationCache';
 
 type NotificationResponse = {
   unread_count: number;
@@ -13,12 +14,12 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(() => getNotificationCache(user?.id)?.unreadCount || 0);
 
   async function loadUnread() {
     if (!user) return;
     try {
-      const response = await apiClient<NotificationResponse>('/api/notifications');
+      const response = await apiClient<NotificationResponse>('/api/notifications/unread-count');
       setUnreadCount(response.unread_count || 0);
     } catch {
       // Do not block navigation if notifications cannot be loaded.
@@ -26,12 +27,19 @@ export default function NotificationBell({ compact = false }: { compact?: boolea
   }
 
   useEffect(() => {
+    if (!user) return;
+    const cached = getNotificationCache(user.id);
+    if (cached) setUnreadCount(cached.unreadCount);
+    const unsubscribe = subscribeNotificationCache((value) => {
+      if (value.userId === user.id) setUnreadCount(value.unreadCount);
+    });
     loadUnread();
-    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 1000 : 15000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 8000 : 30000;
     const timer = window.setInterval(loadUnread, intervalMs);
     const onFocus = () => loadUnread();
     window.addEventListener('focus', onFocus);
     return () => {
+      unsubscribe();
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };

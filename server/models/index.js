@@ -170,6 +170,7 @@ OrderSchema.index({ user_id: 1, created_at: -1 });
 OrderSchema.index({ status: 1, created_at: -1 });
 OrderSchema.index({ delivery_man_id: 1, status: 1, created_at: -1 });
 ProductSchema.index({ category_id: 1, is_available: 1, sort_order: 1 });
+NotificationSchema.index({ user_id: 1, created_at: -1 });
 NotificationSchema.index({ user_id: 1, is_read: 1, created_at: -1 });
 NotificationSchema.index({ role_target: 1, is_read: 1, created_at: -1 });
 

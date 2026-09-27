@@ -5,18 +5,51 @@ export function createRouter(ctx) {
   const { requireAuth, models, hasAdminPermission, createNotification, runOrderAlertChecks, runLpgEmptyReminderChecks } = ctx;
   router.get('/api/notifications', requireAuth, async (req, res) => {
     try {
-      const [notifications, unread_count] = await Promise.all([
-        models.notifications
-          .find({ user_id: req.auth.id })
-          .sort({ created_at: -1 })
-          .limit(50)
-          .lean(),
-        models.notifications.countDocuments({ user_id: req.auth.id, is_read: false }),
-      ]);
-      res.set('Cache-Control', 'no-store');
-      res.json({ data: notifications.map((notification) => ({ ...notification, id: String(notification._id) })), unread_count, error: null });
+      const requestedLimit = Number(req.query.limit || 20);
+      const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20, 50));
+      const before = String(req.query.before || '').trim();
+      const query = { user_id: req.auth.id };
+      if (before) {
+        const beforeDate = new Date(before);
+        if (!Number.isNaN(beforeDate.getTime())) query.created_at = { $lt: beforeDate };
+      }
+
+      const notificationsPromise = models.notifications
+        .find(query)
+        .sort({ created_at: -1 })
+        .limit(limit + 1)
+        .lean()
+        .maxTimeMS(2500);
+
+      const unreadPromise = before
+        ? Promise.resolve(null)
+        : models.notifications.countDocuments({ user_id: req.auth.id, is_read: false }).maxTimeMS(2500);
+
+      const [rows, unreadCount] = await Promise.all([notificationsPromise, unreadPromise]);
+      const has_more = rows.length > limit;
+      const notifications = has_more ? rows.slice(0, limit) : rows;
+      res.set('Cache-Control', 'private, no-store');
+      res.json({
+        data: notifications.map((notification) => ({ ...notification, id: String(notification._id) })),
+        unread_count: unreadCount,
+        has_more,
+        next_before: notifications.length ? notifications[notifications.length - 1].created_at : null,
+        error: null,
+      });
     } catch (error) {
       res.status(500).json({ data: null, error: error.message });
+    }
+  });
+
+  router.get('/api/notifications/unread-count', requireAuth, async (req, res) => {
+    try {
+      const unread_count = await models.notifications
+        .countDocuments({ user_id: req.auth.id, is_read: false })
+        .maxTimeMS(2000);
+      res.set('Cache-Control', 'private, no-store');
+      res.json({ unread_count, error: null });
+    } catch (error) {
+      res.status(500).json({ unread_count: 0, error: error.message });
     }
   });
 

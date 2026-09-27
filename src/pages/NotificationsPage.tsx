@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, CheckCheck, Volume2, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Bell, CheckCheck, Volume2, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getNotificationTargetPath } from '../lib/notificationRoutes';
+import { getNotificationCache, setNotificationCache, updateNotificationCacheReadState } from '../lib/notificationCache';
 
 type NotificationItem = {
   id: string;
@@ -21,17 +22,23 @@ type NotificationItem = {
 
 type NotificationResponse = {
   data: NotificationItem[];
-  unread_count: number;
+  unread_count: number | null;
+  has_more?: boolean;
+  next_before?: string | null;
   error: string | null;
 };
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { profile } = useAuth();
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const { user, profile } = useAuth();
+  const initialCache = getNotificationCache(user?.id);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(initialCache?.data || []);
+  const [unreadCount, setUnreadCount] = useState(initialCache?.unreadCount || 0);
+  const [loading, setLoading] = useState(!initialCache?.data?.length);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const urgentUnread = useMemo(
@@ -39,39 +46,80 @@ export default function NotificationsPage() {
     [notifications]
   );
 
-  async function loadNotifications() {
+  async function loadNotifications(silent = false) {
+    if (!user) return;
     try {
+      if (!silent && notifications.length === 0) setLoading(true);
       setError('');
-      const response = await apiClient<NotificationResponse>('/api/notifications');
-      setNotifications(response.data || []);
-      setUnreadCount(response.unread_count || 0);
+      const response = await apiClient<NotificationResponse>('/api/notifications?limit=20');
+      const next = response.data || [];
+      setNotifications(next);
+      if (response.unread_count !== null) setUnreadCount(response.unread_count || 0);
+      setHasMore(Boolean(response.has_more));
+      setNextBefore(response.next_before || null);
+      setNotificationCache(user.id, next, response.unread_count ?? unreadCount);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('notifications.loadFailed'));
+      if (notifications.length === 0) setError(err instanceof Error ? err.message : t('notifications.loadFailed'));
     } finally {
       setLoading(false);
     }
   }
 
+  async function loadOlder() {
+    if (!nextBefore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const response = await apiClient<NotificationResponse>(`/api/notifications?limit=20&before=${encodeURIComponent(nextBefore)}`);
+      const older = response.data || [];
+      setNotifications((current) => {
+        const ids = new Set(current.map((item) => item.id));
+        return [...current, ...older.filter((item) => !ids.has(item.id))];
+      });
+      setHasMore(Boolean(response.has_more));
+      setNextBefore(response.next_before || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('notifications.loadFailed'));
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function markAllRead() {
-    await apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({}) });
-    await loadNotifications();
+    if (!user) return;
+    setNotifications((current) => current.map((notification) => ({ ...notification, is_read: true, buzz: false })));
+    setUnreadCount(0);
+    updateNotificationCacheReadState(user.id);
+    try {
+      await apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({}) });
+    } catch {
+      loadNotifications(true);
+    }
   }
 
   async function openNotification(item: NotificationItem) {
     const targetPath = getNotificationTargetPath(item, profile);
-    if (!item.is_read) {
+    if (!item.is_read && user) {
       setNotifications((current) => current.map((notification) => notification.id === item.id ? { ...notification, is_read: true, buzz: false } : notification));
       setUnreadCount((count) => Math.max(0, count - 1));
+      updateNotificationCacheReadState(user.id, [item.id]);
       apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids: [item.id] }) }).catch(() => {});
     }
     navigate(targetPath);
   }
 
   useEffect(() => {
-    loadNotifications();
-    const timer = window.setInterval(loadNotifications, profile?.is_admin || profile?.role === 'delivery' ? 1000 : 5000);
+    if (!user) return;
+    const cached = getNotificationCache(user.id);
+    if (cached?.data?.length) {
+      setNotifications(cached.data);
+      setUnreadCount(cached.unreadCount);
+      setLoading(false);
+    }
+    loadNotifications(Boolean(cached?.data?.length));
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 5000 : 15000;
+    const timer = window.setInterval(() => loadNotifications(true), intervalMs);
     return () => window.clearInterval(timer);
-  }, [profile?.is_admin, profile?.role]);
+  }, [user?.id, profile?.is_admin, profile?.role]);
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -133,7 +181,7 @@ export default function NotificationsPage() {
 
         {loading ? (
           <div className="rounded-2xl bg-white p-8 text-center text-gray-500">{t('loading')}</div>
-        ) : error ? (
+        ) : error && notifications.length === 0 ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700">{error}</div>
         ) : notifications.length === 0 ? (
           <div className="rounded-2xl bg-white p-10 text-center">
@@ -142,38 +190,54 @@ export default function NotificationsPage() {
             <p className="mt-1 text-sm text-gray-500">{t('notifications.emptyText')}</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {notifications.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => openNotification(item)}
-                className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  item.is_read
-                    ? 'border-gray-100 bg-white'
-                    : item.urgent
-                      ? 'border-red-200 bg-red-50'
-                      : 'border-blue-100 bg-blue-50'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className={`font-bold ${item.urgent ? 'text-red-800' : 'text-gray-900'}`}>{item.title}</p>
-                    <p className="mt-1 text-sm leading-relaxed text-gray-700">{item.message}</p>
+          <>
+            <div className="space-y-3">
+              {notifications.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => openNotification(item)}
+                  className={`w-full rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    item.is_read
+                      ? 'border-gray-100 bg-white'
+                      : item.urgent
+                        ? 'border-red-200 bg-red-50'
+                        : 'border-blue-100 bg-blue-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-bold ${item.urgent ? 'text-red-800' : 'text-gray-900'}`}>{item.title}</p>
+                      <p className="mt-1 text-sm leading-relaxed text-gray-700">{item.message}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!item.is_read && (
+                        <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                          {t('notifications.new')}
+                        </span>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-gray-400" />
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {!item.is_read && (
-                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                        {t('notifications.new')}
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </div>
-                </div>
-                <p className="mt-3 text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
-              </button>
-            ))}
-          </div>
+                  <p className="mt-3 text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
+                </button>
+              ))}
+            </div>
+            {hasMore && nextBefore && (
+              <div className="mt-5 flex justify-center">
+                <button
+                  type="button"
+                  onClick={loadOlder}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {loadingMore ? 'Loading…' : 'Load older notifications'}
+                </button>
+              </div>
+            )}
+            {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
+          </>
         )}
       </div>
     </div>

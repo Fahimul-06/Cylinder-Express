@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getNotificationTargetPath } from '../lib/notificationRoutes';
+import { getNotificationCache, setNotificationCache } from '../lib/notificationCache';
 
 type NotificationItem = {
   id: string;
@@ -19,7 +20,7 @@ type NotificationItem = {
 
 type NotificationResponse = {
   data: NotificationItem[];
-  unread_count: number;
+  unread_count: number | null;
   error: string | null;
 };
 
@@ -82,7 +83,7 @@ function playAlarm() {
 export default function NotificationCenter() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => getNotificationCache(user?.id)?.data || []);
   const lastBuzzIds = useRef(new Set<string>());
   const lastRepeatingBuzzAt = useRef(0);
   const notificationPermissionAsked = useRef(false);
@@ -95,19 +96,22 @@ export default function NotificationCenter() {
   async function loadNotifications() {
     if (!user) return;
     try {
-      if (profile?.is_admin || profile?.role === 'delivery') {
-        apiClient('/api/alerts/run', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
-      }
-      const response = await apiClient<NotificationResponse>('/api/notifications');
-      setNotifications(response.data || []);
+      const response = await apiClient<NotificationResponse>('/api/notifications?limit=20');
+      const next = response.data || [];
+      setNotifications(next);
+      const cached = getNotificationCache(user.id);
+      setNotificationCache(user.id, next, response.unread_count ?? cached?.unreadCount ?? 0);
     } catch {
       // Keep notification polling silent; main app should not break because alerts fail.
     }
   }
 
   useEffect(() => {
+    if (!user) return;
+    const cached = getNotificationCache(user.id);
+    if (cached) setNotifications(cached.data);
     loadNotifications();
-    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 1000 : 5000;
+    const intervalMs = profile?.is_admin || profile?.role === 'delivery' ? 5000 : 15000;
     const timer = window.setInterval(loadNotifications, intervalMs);
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
@@ -115,6 +119,14 @@ export default function NotificationCenter() {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
+  }, [user?.id, profile?.is_admin, profile?.role]);
+
+  useEffect(() => {
+    if (!user || (!profile?.is_admin && profile?.role !== 'delivery')) return;
+    const runAlerts = () => apiClient('/api/alerts/run', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
+    runAlerts();
+    const timer = window.setInterval(runAlerts, 10000);
+    return () => window.clearInterval(timer);
   }, [user?.id, profile?.is_admin, profile?.role]);
 
   useEffect(() => {
