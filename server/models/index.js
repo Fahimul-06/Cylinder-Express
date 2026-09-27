@@ -28,7 +28,7 @@ const UserSchema = new mongoose.Schema({
 const ProfileSchema = new mongoose.Schema({
   user_id: { type: String, required: true, index: true, unique: true },
   full_name: { type: String, required: true },
-  phone: { type: String, required: true, index: true },
+  phone: { type: String, default: null, index: true },
   email: { type: String, default: null },
   avatar_url: { type: String, default: null },
   family_members: { type: Number, default: null, min: 1, max: 30 },

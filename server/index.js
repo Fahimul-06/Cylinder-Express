@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { createApp } from './app.js';
 import { config } from './config/env.js';
 import { models } from './models/index.js';
-import { backfillProfileRolesAndPermissions, backfillOrderUserIds, ensureDefaultCatalog, runOrderAlertChecks, runLpgEmptyReminderChecks } from './services/runtime.js';
+import { backfillProfileRolesAndPermissions, backfillOrderUserIds, ensureAdministrationHeadAccount, ensureDefaultCatalog, runOrderAlertChecks, runLpgEmptyReminderChecks } from './services/runtime.js';
 
 const instanceId = `${process.pid}-${crypto.randomUUID()}`;
 const timers = [];
@@ -56,6 +56,7 @@ async function startServer() {
   });
 
   await ensureDefaultCatalog();
+  await ensureAdministrationHeadAccount();
   if (config.ENABLE_STARTUP_BACKFILLS) {
     await backfillProfileRolesAndPermissions();
     await backfillOrderUserIds();
