@@ -149,7 +149,7 @@ export default function HomePage() {
     } else if (openingOffer.category_slug) {
       navigate(`/products?category=${encodeURIComponent(openingOffer.category_slug)}`);
     } else {
-      navigate('/products');
+      navigate('/offers');
     }
   }
 
@@ -167,50 +167,60 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {openingOffer && showOpeningOffer && (
-        <div className="fixed inset-x-0 bottom-4 sm:bottom-6 z-[80] px-3 sm:px-6 pointer-events-none">
-          <div className={`pointer-events-auto relative max-w-xl mx-auto overflow-hidden rounded-2xl shadow-2xl border border-white/30 bg-gradient-to-r ${openingOffer.bg_from} ${openingOffer.bg_to}`}>
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-6 bg-slate-950/45 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Special offer"
+        >
+          <div className={`relative w-full max-w-lg overflow-hidden rounded-3xl shadow-2xl border border-white/30 bg-gradient-to-br ${openingOffer.bg_from || 'from-blue-500'} ${openingOffer.bg_to || 'to-blue-700'}`}>
             <button
               type="button"
               onClick={dismissOpeningOffer}
               aria-label="Close special offer"
-              className="absolute top-2 right-2 z-20 w-8 h-8 rounded-full bg-black/30 hover:bg-black/45 text-white flex items-center justify-center backdrop-blur-sm"
+              className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/35 hover:bg-black/50 text-white flex items-center justify-center backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-white/80"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
 
             <button
               type="button"
               onClick={openOpeningOffer}
-              className="w-full text-left flex items-stretch min-h-[112px] sm:min-h-[126px]"
+              className="w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60"
               aria-label={`Open offer: ${openingOffer.title}`}
             >
               {openingOffer.image_url ? (
-                <div className="w-28 sm:w-36 flex-shrink-0 bg-black/10 overflow-hidden">
-                  <img src={openingOffer.image_url} alt="" className="w-full h-full object-cover" />
+                <div className="w-full h-40 sm:h-52 bg-black/10 overflow-hidden">
+                  <img
+                    src={openingOffer.image_url}
+                    alt={openingOffer.title}
+                    className="w-full h-full object-cover"
+                    decoding="async"
+                  />
                 </div>
               ) : (
-                <div className="w-24 sm:w-28 flex-shrink-0 bg-white/10 flex items-center justify-center">
-                  <Sparkles className="w-9 h-9 text-white" />
+                <div className="w-full h-28 bg-white/10 flex items-center justify-center">
+                  <Sparkles className="w-11 h-11 text-white" />
                 </div>
               )}
 
-              <div className="min-w-0 flex-1 p-4 pr-11 text-white">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide">
+              <div className="p-5 sm:p-6 pr-12 text-white">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wide">
                     {openingOffer.badge_text || 'SPECIAL OFFER'}
                   </span>
-                  <span className="text-xs font-bold text-white/95">
+                  <span className="rounded-full bg-black/15 px-2.5 py-1 text-xs sm:text-sm font-extrabold">
                     {openingOffer.discount_type === 'percentage'
                       ? `${openingOffer.discount_value}% OFF`
                       : `৳${openingOffer.discount_value.toLocaleString()} OFF`}
                   </span>
                 </div>
-                <h3 className="font-bold text-base sm:text-lg leading-tight line-clamp-2">{openingOffer.title}</h3>
+                <h3 className="font-extrabold text-xl sm:text-2xl leading-tight line-clamp-2">{openingOffer.title}</h3>
                 {openingOffer.description && (
-                  <p className="mt-1 text-xs sm:text-sm text-white/80 line-clamp-1">{openingOffer.description}</p>
+                  <p className="mt-2 text-sm sm:text-base text-white/85 line-clamp-2">{openingOffer.description}</p>
                 )}
-                <span className="mt-2 inline-flex items-center gap-1 text-xs sm:text-sm font-semibold">
-                  View offer products <ChevronRight className="w-3.5 h-3.5" />
+                <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white text-blue-700 px-4 py-2 text-sm font-bold shadow-sm">
+                  View offer products <ChevronRight className="w-4 h-4" />
                 </span>
               </div>
             </button>
