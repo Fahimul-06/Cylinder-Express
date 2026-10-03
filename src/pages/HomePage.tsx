@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import {
   Flame, Package, Wrench, Shield, Truck, ChevronRight,
-  Star, MapPin, Sparkles, Tag, Handshake, ChevronLeft, X
+  Star, MapPin, Tag, Handshake, ChevronLeft, X
 } from 'lucide-react';
 import { dedupeCustomerProducts } from '../lib/productCatalog';
 
@@ -31,6 +31,7 @@ export default function HomePage() {
   const [openingOffer, setOpeningOffer] = useState<Offer | null>(null);
   const [showOpeningOffer, setShowOpeningOffer] = useState(false);
   const partnerSliderRef = useRef<HTMLDivElement>(null);
+  const categorySliderRef = useRef<HTMLDivElement>(null);
   const fallbackHeroImages = ['/home-hero-1.png', '/home-hero-2.png'];
   const heroImages = heroSlides.length > 0 ? heroSlides.map(slide => slide.image_url) : fallbackHeroImages;
 
@@ -86,7 +87,7 @@ export default function HomePage() {
       // The old Special Offers box is removed from Home. Instead the first
       // active special offer (admin sort order) is shown once per app/tab session
       // as a floating opening banner.
-      const firstSpecialOffer = allActiveOffers.find(offer => !offer.product_id && isCurrentlyValid(offer)) || null;
+      const firstSpecialOffer = allActiveOffers.find(offer => !offer.product_id && !!offer.image_url && isCurrentlyValid(offer)) || null;
       setOpeningOffer(firstSpecialOffer);
       if (firstSpecialOffer) {
         try {
@@ -149,8 +150,16 @@ export default function HomePage() {
     } else if (openingOffer.category_slug) {
       navigate(`/products?category=${encodeURIComponent(openingOffer.category_slug)}`);
     } else {
-      navigate('/offers');
+      navigate('/products');
     }
+  }
+
+  function scrollCategories(direction: -1 | 1) {
+    const el = categorySliderRef.current;
+    if (!el) return;
+    const first = el.querySelector<HTMLElement>('[data-category-card]');
+    const step = (first?.offsetWidth || 128) + 12;
+    el.scrollBy({ left: direction * step * 2, behavior: 'smooth' });
   }
 
   if (loading) {
@@ -166,19 +175,19 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {openingOffer && showOpeningOffer && (
+      {openingOffer && showOpeningOffer && openingOffer.image_url && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-6 bg-slate-950/45 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-label="Special offer"
         >
-          <div className={`relative w-full max-w-lg overflow-hidden rounded-3xl shadow-2xl border border-white/30 bg-gradient-to-br ${openingOffer.bg_from || 'from-blue-500'} ${openingOffer.bg_to || 'to-blue-700'}`}>
+          <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
             <button
               type="button"
               onClick={dismissOpeningOffer}
               aria-label="Close special offer"
-              className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/35 hover:bg-black/50 text-white flex items-center justify-center backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-white/80"
+              className="absolute top-3 right-3 z-20 w-9 h-9 rounded-full bg-black/55 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-white/80"
             >
               <X className="w-5 h-5" />
             </button>
@@ -186,43 +195,15 @@ export default function HomePage() {
             <button
               type="button"
               onClick={openOpeningOffer}
-              className="w-full text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60"
+              className="block w-full bg-white focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-300"
               aria-label={`Open offer: ${openingOffer.title}`}
             >
-              {openingOffer.image_url ? (
-                <div className="w-full h-40 sm:h-52 bg-black/10 overflow-hidden">
-                  <img
-                    src={openingOffer.image_url}
-                    alt={openingOffer.title}
-                    className="w-full h-full object-cover"
-                    decoding="async"
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-28 bg-white/10 flex items-center justify-center">
-                  <Sparkles className="w-11 h-11 text-white" />
-                </div>
-              )}
-
-              <div className="p-5 sm:p-6 pr-12 text-white">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wide">
-                    {openingOffer.badge_text || 'SPECIAL OFFER'}
-                  </span>
-                  <span className="rounded-full bg-black/15 px-2.5 py-1 text-xs sm:text-sm font-extrabold">
-                    {openingOffer.discount_type === 'percentage'
-                      ? `${openingOffer.discount_value}% OFF`
-                      : `৳${openingOffer.discount_value.toLocaleString()} OFF`}
-                  </span>
-                </div>
-                <h3 className="font-extrabold text-xl sm:text-2xl leading-tight line-clamp-2">{openingOffer.title}</h3>
-                {openingOffer.description && (
-                  <p className="mt-2 text-sm sm:text-base text-white/85 line-clamp-2">{openingOffer.description}</p>
-                )}
-                <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-white text-blue-700 px-4 py-2 text-sm font-bold shadow-sm">
-                  View offer products <ChevronRight className="w-4 h-4" />
-                </span>
-              </div>
+              <img
+                src={openingOffer.image_url}
+                alt={openingOffer.title}
+                className="block w-full h-auto max-h-[72vh] object-contain"
+                decoding="async"
+              />
             </button>
           </div>
         </div>
@@ -280,30 +261,53 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* Categories */}
+        {/* Categories - single-row swipe slider */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Shop by Category</h2>
-            <button
-              onClick={() => navigate('/products')}
-              className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700"
-            >
-              View All <ChevronRight className="w-4 h-4" />
-            </button>
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h2 className="text-lg font-bold text-gray-900 whitespace-nowrap">Shop by Categories</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => scrollCategories(-1)}
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                aria-label="Previous categories"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollCategories(1)}
+                className="hidden sm:flex w-8 h-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                aria-label="Next categories"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate('/products')}
+                className="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:text-blue-700 whitespace-nowrap"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
+          <div
+            ref={categorySliderRef}
+            className="flex flex-nowrap gap-2.5 sm:gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            aria-label="Shop by categories"
+          >
             {categories.map(cat => {
               const Icon = categoryIcons[cat.slug] || Package;
               return (
                 <button
                   key={cat.id}
-                  onClick={() => navigate(`/products?category=${cat.slug}`)}
-                  className="flex min-h-[112px] flex-col items-center justify-center gap-2 p-3 sm:p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group"
+                  data-category-card
+                  onClick={() => navigate(`/products?category=${encodeURIComponent(cat.slug)}`)}
+                  className="flex-none snap-start w-[112px] sm:w-[132px] min-h-[106px] flex flex-col items-center justify-center gap-2 p-3 sm:p-4 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all group"
                 >
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                     <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
-                  <span className="text-xs sm:text-sm font-medium text-gray-700 text-center leading-tight">{cat.name}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 text-center leading-tight line-clamp-2">{cat.name}</span>
                 </button>
               );
             })}
