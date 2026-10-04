@@ -33,6 +33,14 @@ const ProfileSchema = new mongoose.Schema({
   avatar_url: { type: String, default: null },
   family_members: { type: Number, default: null, min: 1, max: 30 },
   daily_cooking_times: { type: Number, default: null, min: 1, max: 10 },
+  customer_settings: {
+    language: { type: String, enum: ['en', 'bn'], default: 'en' },
+    browser_notifications: { type: Boolean, default: true },
+    order_updates: { type: Boolean, default: true },
+    cylinder_reminders: { type: Boolean, default: true },
+    special_offer_popups: { type: Boolean, default: true },
+    location_features: { type: Boolean, default: true },
+  },
   is_admin: { type: Boolean, default: false },
   role: { type: String, enum: ['customer', 'admin', 'sub_admin', 'delivery'], default: 'customer', index: true },
   permissions: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -85,6 +93,7 @@ const OrderItemSchema = new mongoose.Schema({ order_id: { type: String, index: t
 const ServiceBookingSchema = new mongoose.Schema({ user_id: { type: String, index: true }, product_id: { type: String, index: true }, address_id: { type: String, index: true }, status: { type: String, default: 'pending' }, scheduled_date: String, scheduled_time: String, notes: String, ...common }, { toJSON });
 const OfferSchema = new mongoose.Schema({ title: String, description: String, badge_text: String, discount_type: String, discount_value: Number, code: String, product_id: String, category_slug: String, max_uses_per_customer: { type: Number, default: 1 }, bg_from: String, bg_to: String, image_url: String, valid_from: { type: Date, default: Date.now }, valid_until: Date, is_active: Boolean, sort_order: Number, created_at: { type: Date, default: Date.now } }, { toJSON });
 const HeroSlideSchema = new mongoose.Schema({ title: String, subtitle: String, image_url: { type: String, required: true }, sort_order: { type: Number, default: 0 }, is_active: { type: Boolean, default: true }, ...common }, { toJSON });
+const PartnerBrandSchema = new mongoose.Schema({ name: { type: String, required: true, trim: true }, logo_url: { type: String, required: true }, sort_order: { type: Number, default: 0, index: true }, is_active: { type: Boolean, default: true, index: true }, ...common }, { toJSON });
 const UploadAssetSchema = new mongoose.Schema({
   filename: { type: String, required: true },
   original_name: { type: String, default: null },
@@ -192,6 +201,7 @@ export const models = {
   service_bookings: mongoose.model('ServiceBooking', ServiceBookingSchema),
   offers: mongoose.model('Offer', OfferSchema),
   hero_slides: mongoose.model('HeroSlide', HeroSlideSchema),
+  partner_brands: mongoose.model('PartnerBrand', PartnerBrandSchema),
   upload_assets: mongoose.model('UploadAsset', UploadAssetSchema),
   otp_verifications: mongoose.model('OtpVerification', OtpSchema),
   password_reset_sessions: mongoose.model('PasswordResetSession', PasswordResetSchema),
