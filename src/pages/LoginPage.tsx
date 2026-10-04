@@ -281,6 +281,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  const isAndroidCustomerApp = typeof navigator !== 'undefined' && navigator.userAgent.includes('CylinderExpressCustomerAndroid');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -506,28 +507,32 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                <div className="my-6 flex items-center gap-3 text-xs font-semibold text-slate-400">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  or continue with
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
+                {!isAndroidCustomerApp && (
+                  <>
+                    <div className="my-6 flex items-center gap-3 text-xs font-semibold text-slate-400">
+                      <div className="h-px flex-1 bg-slate-200" />
+                      or continue with
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleLogin}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-                  >
-                    <span className="text-base font-black text-red-500">G</span> Google
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleFacebookLogin}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-                  >
-                    <span className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-xs font-black text-white">f</span> Facebook
-                  </button>
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={handleGoogleLogin}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                      >
+                        <span className="text-base font-black text-red-500">G</span> Google
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFacebookLogin}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/80 py-3 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-blue-600 text-xs font-black text-white">f</span> Facebook
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 <p className="mt-7 text-center text-sm font-medium text-slate-500">
                   Don't have an account?{' '}
@@ -535,10 +540,12 @@ export default function LoginPage() {
                     Sign Up
                   </button>
                 </p>
-                <div className="mt-5 flex items-center justify-center gap-5 text-xs font-bold">
-                  <button type="button" onClick={() => navigate('/hub-login')} className="text-slate-600 hover:text-blue-700 hover:underline">HUB Man Login</button>
-                  <button type="button" onClick={() => navigate('/management-login')} className="text-slate-600 hover:text-blue-700 hover:underline">Management Login</button>
-                </div>
+                {!isAndroidCustomerApp && (
+                  <div className="mt-5 flex items-center justify-center gap-5 text-xs font-bold">
+                    <button type="button" onClick={() => navigate('/hub-login')} className="text-slate-600 hover:text-blue-700 hover:underline">HUB Man Login</button>
+                    <button type="button" onClick={() => navigate('/management-login')} className="text-slate-600 hover:text-blue-700 hover:underline">Management Login</button>
+                  </div>
+                )}
               </div>
             </section>
 

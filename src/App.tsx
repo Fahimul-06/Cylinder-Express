@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
@@ -24,6 +25,7 @@ import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOffers from './pages/admin/AdminOffers';
 import AdminHeroImages from './pages/admin/AdminHeroImages';
+import AdminPartnerBrands from './pages/admin/AdminPartnerBrands';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminUsers from './pages/admin/AdminUsers';
 import DeliveryDashboard from './pages/DeliveryDashboard';
@@ -37,6 +39,8 @@ import Footer from './components/Footer';
 import CustomerCareChat from './components/CustomerCareChat';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
+import AccountDeletionPage from './pages/AccountDeletionPage';
+import SettingsPage from './pages/SettingsPage';
 import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -97,6 +101,12 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
 
 function AppRoutes() {
   const { user, loading, profile } = useAuth();
+  const { setLanguage } = useLanguage();
+
+  useEffect(() => {
+    const preferredLanguage = profile?.customer_settings?.language;
+    if (profile?.role === 'customer' && (preferredLanguage === 'en' || preferredLanguage === 'bn')) setLanguage(preferredLanguage);
+  }, [profile?.user_id, profile?.role, profile?.customer_settings?.language, setLanguage]);
 
   if (loading) {
     return (
@@ -129,6 +139,7 @@ function AppRoutes() {
         <Route path="/privacy-policy" element={<StaticPage type="privacy" />} />
         <Route path="/terms-of-use" element={<StaticPage type="terms" />} />
         <Route path="/contact-us" element={<StaticPage type="contact" />} />
+        <Route path="/account-deletion" element={<AccountDeletionPage />} />
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={profile?.is_admin ? <Navigate to={ADMIN_DASHBOARD_PATH} replace /> : profile?.role === 'delivery' ? <Navigate to={DELIVERY_DASHBOARD_PATH} replace /> : <HomePage />} />
         <Route path="/products" element={<ProductsPage />} />
@@ -139,6 +150,7 @@ function AppRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/profile/details" element={<ProtectedRoute><ProfileDetailsPage /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         <Route path="/cylinder-usage" element={<ProtectedRoute><CylinderUsagePage /></ProtectedRoute>} />
         <Route path="/offers" element={<OffersPage />} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
@@ -150,7 +162,8 @@ function AppRoutes() {
           <Route path="orders" element={<AdminRoute permission="orders"><AdminOrders /></AdminRoute>} />
           <Route path="products" element={<AdminRoute permission="products"><AdminProducts /></AdminRoute>} />
           <Route path="offers" element={<AdminRoute permission="offers"><AdminOffers /></AdminRoute>} />
-          <Route path="hero" element={<AdminRoute permission="offers"><AdminHeroImages /></AdminRoute>} />
+          <Route path="hero" element={<AdminRoute permission="hero"><AdminHeroImages /></AdminRoute>} />
+          <Route path="partner-brands" element={<AdminRoute permission="hero"><AdminPartnerBrands /></AdminRoute>} />
           <Route path="locations" element={<AdminRoute permission="locations"><AdminLocations /></AdminRoute>} />
           <Route path="users" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />
           <Route path="users/create-employee" element={<AdminRoute permission="users"><AdminUsers /></AdminRoute>} />

@@ -1,7 +1,7 @@
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  LayoutDashboard, ShoppingBag, Package, Tag, Image as ImageIcon, ArrowLeft,
+  LayoutDashboard, ShoppingBag, Package, Tag, Image as ImageIcon, ArrowLeft, Handshake,
   ChevronRight, MapPin, Users, MessageCircle, Cylinder
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -22,6 +22,7 @@ export default function AdminLayout() {
     { path: adminPath('products'), label: t('admin.products'), icon: Package, permission: 'products' as AdminPermissionKey },
     { path: adminPath('offers'), label: t('admin.offers'), icon: Tag, permission: 'offers' as AdminPermissionKey },
     { path: adminPath('hero'), label: 'Hero Photos', icon: ImageIcon, permission: 'hero' as AdminPermissionKey },
+    { path: adminPath('partner-brands'), label: 'Partner Brands', icon: Handshake, permission: 'hero' as AdminPermissionKey },
     { path: adminPath('locations'), label: t('admin.locations'), icon: MapPin, permission: 'locations' as AdminPermissionKey },
     { path: adminPath('users'), label: t('admin.users'), icon: Users, permission: 'users' as AdminPermissionKey },
     { path: adminPath('delivery-chat'), label: 'Delivery Messages', icon: MessageCircle, permission: 'delivery_chat' as AdminPermissionKey },

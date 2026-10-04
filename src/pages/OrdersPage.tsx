@@ -248,7 +248,7 @@ const statusConfig: Record<string, { color: string; icon: typeof Clock; label: s
   cancelled: { color: 'bg-red-50 text-red-700', icon: X, label: 'Cancelled' },
 };
 
-function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOrder: Order | null }) {
+function LocationShareBanner({ userId, activeOrder, locationEnabled }: { userId: string; activeOrder: Order | null; locationEnabled: boolean }) {
   const activeOrderId = activeOrder?.id || null;
   const isLockedByAdmin = Boolean(activeOrder && ['confirmed', 'processing'].includes(activeOrder.status));
   const [isSharing, setIsSharing] = useState(false);
@@ -283,7 +283,7 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
   }
 
   function startWatching(uid: string, orderId: string) {
-    if (!navigator.geolocation || !orderId) return;
+    if (!locationEnabled || !navigator.geolocation || !orderId) return;
     if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -295,6 +295,10 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
   }
 
   function requestAndStartSharing(uid: string, orderId: string) {
+    if (!locationEnabled) {
+      setError('Location features are turned off in Settings.');
+      return;
+    }
     if (!navigator.geolocation) {
       setError('Geolocation not supported by your browser');
       return;
@@ -312,6 +316,17 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
 
   useEffect(() => {
     let mounted = true;
+    if (!locationEnabled) {
+      if (watchRef.current !== null) navigator.geolocation?.clearWatch(watchRef.current);
+      watchRef.current = null;
+      setIsSharing(false);
+      setLoading(false);
+      supabase.from('customer_locations').upsert(
+        { user_id: userId, active_order_id: null, latitude: 0, longitude: 0, is_sharing: false, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+      return () => { mounted = false; };
+    }
     supabase
       .from('customer_locations')
       .select('is_sharing, active_order_id')
@@ -329,9 +344,15 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
       mounted = false;
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     };
-  }, [userId]);
+  }, [userId, locationEnabled]);
 
   useEffect(() => {
+    if (!locationEnabled) {
+      if (watchRef.current !== null) navigator.geolocation?.clearWatch(watchRef.current);
+      watchRef.current = null;
+      setIsSharing(false);
+      return;
+    }
     if (!activeOrderId) {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
       watchRef.current = null;
@@ -351,7 +372,7 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
     } else {
       startWatching(userId, activeOrderId);
     }
-  }, [activeOrderId]);
+  }, [activeOrderId, locationEnabled]);
 
   async function toggleSharing() {
     setError('');
@@ -377,6 +398,21 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
   }
 
   if (loading || !activeOrder) return null;
+
+  if (!locationEnabled) {
+    return (
+      <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <div className="flex items-start gap-3">
+          <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-900">Location features are off</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">Live delivery assistance is disabled for this account. Manual delivery addresses still work.</p>
+            <button type="button" onClick={() => { window.location.hash = '/settings'; }} className="mt-2 text-xs font-black text-blue-700 underline">Open Settings</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`rounded-2xl border p-4 mb-4 transition-all ${isSharing ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
@@ -425,7 +461,7 @@ function LocationShareBanner({ userId, activeOrder }: { userId: string; activeOr
 }
 
 export default function OrdersPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [tab, setTab] = useState<Tab>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItem[]>>({});
@@ -535,7 +571,7 @@ export default function OrdersPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">My Orders & Bookings</h1>
 
-        {user && <LocationShareBanner userId={user.id} activeOrder={activeOrder} />}
+        {user && <LocationShareBanner userId={user.id} activeOrder={activeOrder} locationEnabled={profile?.customer_settings?.location_features !== false} />}
 
         {/* Tabs */}
         <div className="flex bg-gray-100 rounded-xl p-1 mb-6">

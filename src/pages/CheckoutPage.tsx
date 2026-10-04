@@ -145,7 +145,7 @@ export default function CheckoutPage() {
   }
 
   async function startInitialLocationShare(orderId: string) {
-    if (!user || !navigator.geolocation) return;
+    if (!user || profile?.customer_settings?.location_features === false || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const now = new Date().toISOString();

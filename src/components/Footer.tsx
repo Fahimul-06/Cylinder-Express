@@ -11,6 +11,7 @@ export default function Footer() {
     { to: '/privacy-policy', label: t('footer.privacy') },
     { to: '/terms-of-use', label: t('footer.terms') },
     { to: '/contact-us', label: t('footer.contact') },
+    { to: '/account-deletion', label: 'Delete Account' },
   ];
 
   return (

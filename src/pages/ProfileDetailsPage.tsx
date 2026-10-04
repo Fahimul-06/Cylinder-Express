@@ -4,7 +4,7 @@ import { API_BASE_URL, supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, Lock, Eye, EyeOff, Save,
-  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard
+  Check, Shield, ChevronRight, LogOut, MapPin, ShoppingBag, LayoutDashboard, Trash2
 } from 'lucide-react';
 import { ADMIN_DASHBOARD_PATH } from '../lib/secureRoutes';
 
@@ -403,6 +403,22 @@ export default function ProfileDetailsPage() {
               <span className="text-sm font-medium text-gray-900">My Orders & Bookings</span>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-400" />
+          </button>
+          <div className="border-t border-gray-50" />
+          <button
+            onClick={() => navigate('/account-deletion')}
+            className="w-full flex items-center justify-between p-4 hover:bg-red-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </div>
+              <div className="text-left">
+                <span className="text-sm font-medium text-red-700">Delete My Account</span>
+                <p className="text-xs text-gray-400">Permanently remove account and associated data</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-red-300" />
           </button>
         </div>
 

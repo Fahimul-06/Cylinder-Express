@@ -87,10 +87,28 @@ export default function NotificationCenter() {
   const lastBuzzIds = useRef(new Set<string>());
   const lastRepeatingBuzzAt = useRef(0);
   const notificationPermissionAsked = useRef(false);
+  const browserSeenIds = useRef(new Set<string>());
+  const browserSeenSeeded = useRef(false);
+
+  const customerSettings = profile?.customer_settings;
+  const customerBrowserAlertsEnabled = customerSettings?.browser_notifications !== false;
+
+  const customerAlertAllowed = (item: NotificationItem) => {
+    if (profile?.is_admin || profile?.role === 'delivery') return true;
+    if (!customerBrowserAlertsEnabled) return false;
+    if (item.type.startsWith('order_')) return customerSettings?.order_updates !== false;
+    if (item.type === 'lpg_usage_reminder') return customerSettings?.cylinder_reminders !== false;
+    return true;
+  };
 
   const urgentUnread = useMemo(
-    () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz)),
-    [notifications]
+    () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz) && customerAlertAllowed(item)),
+    [notifications, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, customerSettings?.order_updates, customerSettings?.cylinder_reminders]
+  );
+
+  const normalBrowserUnread = useMemo(
+    () => notifications.filter((item) => !item.is_read && !item.urgent && !item.buzz && customerAlertAllowed(item)),
+    [notifications, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, customerSettings?.order_updates, customerSettings?.cylinder_reminders]
   );
 
   async function loadNotifications() {
@@ -159,6 +177,36 @@ export default function NotificationCenter() {
       });
     }
   }, [urgentUnread, navigate, profile]);
+
+  useEffect(() => {
+    if (!user || profile?.is_admin || profile?.role === 'delivery') {
+      browserSeenSeeded.current = false;
+      browserSeenIds.current.clear();
+      return;
+    }
+
+    if (!browserSeenSeeded.current) {
+      normalBrowserUnread.forEach((item) => browserSeenIds.current.add(item.id));
+      browserSeenSeeded.current = true;
+      return;
+    }
+
+    const fresh = normalBrowserUnread.filter((item) => !browserSeenIds.current.has(item.id));
+    fresh.forEach((item) => browserSeenIds.current.add(item.id));
+    if (!fresh.length || !customerBrowserAlertsEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+
+    fresh.slice(0, 3).forEach((item) => {
+      const browserNotification = new Notification(item.title, { body: item.message });
+      browserNotification.onclick = () => {
+        window.focus();
+        navigate(getNotificationTargetPath(item, profile));
+        if (!item.is_read) {
+          apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids: [item.id] }) }).catch(() => {});
+        }
+        browserNotification.close();
+      };
+    });
+  }, [normalBrowserUnread, user?.id, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, navigate, profile]);
 
   useEffect(() => {
     const unlock = () => unlockAlarmAudio();

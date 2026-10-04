@@ -19,7 +19,7 @@ const emptyForm = {
 };
 
 export default function AddressesPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -47,6 +47,10 @@ export default function AddressesPage() {
   }, [user]);
 
   const detectLocation = () => {
+    if (profile?.customer_settings?.location_features === false) {
+      setError('Location features are turned off in Settings. You can still enter the address manually.');
+      return;
+    }
     if (!navigator.geolocation) return;
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(

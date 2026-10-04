@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { UserRound, Flame, ChevronRight, Settings, ShoppingBag, MapPin } from 'lucide-react';
+import { UserRound, Flame, ChevronRight, Settings, ShoppingBag, MapPin, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfilePage() {
@@ -34,6 +34,13 @@ export default function ProfilePage() {
       icon: MapPin,
       path: '/addresses',
       iconClass: 'bg-emerald-100 text-emerald-600',
+    },
+    {
+      title: 'App Settings',
+      description: 'Language, alerts, special offers, location, privacy and account controls.',
+      icon: SlidersHorizontal,
+      path: '/settings',
+      iconClass: 'bg-slate-100 text-slate-700',
     },
   ];
 
