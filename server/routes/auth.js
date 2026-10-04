@@ -2,7 +2,7 @@ import express from 'express';
 
 export function createRouter(ctx) {
   const router = express.Router();
-  const { models, bcrypt, signUser, requireAuth, fetchSocialProfile, signInOrCreateSocialUser, normalizeCustomerPhone, phoneLookupValues } = ctx;
+  const { models, mongoose, bcrypt, signUser, requireAuth, fetchSocialProfile, signInOrCreateSocialUser, normalizeCustomerPhone, phoneLookupValues } = ctx;
   router.post('/api/auth/signup', async (req, res) => {
     try {
       const { email, password, full_name, phone } = req.body;
@@ -135,6 +135,53 @@ export function createRouter(ctx) {
     if (!user) return res.status(404).json({ error: 'User not found' });
     const session = signUser(user);
     res.json({ session, user: session.user });
+  });
+
+  router.delete('/api/auth/account', requireAuth, async (req, res) => {
+    try {
+      if (String(req.body?.confirm || '').trim().toUpperCase() !== 'DELETE') {
+        return res.status(400).json({ error: 'Type DELETE to confirm permanent account deletion.' });
+      }
+
+      const target = await models.profiles.findOne({ user_id: String(req.auth.id) });
+      if (!target) return res.status(404).json({ error: 'Customer profile not found.' });
+      if (target.role !== 'customer' || target.is_admin) {
+        return res.status(403).json({ error: 'Only customer accounts can be deleted from the customer app.' });
+      }
+
+      const targetUserId = String(target.user_id);
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const customerOrders = await models.orders.find({ user_id: targetUserId }).select('_id').session(session);
+          const orderIds = customerOrders.map((order) => String(order._id));
+          if (orderIds.length) {
+            await models.order_items.deleteMany({ order_id: { $in: orderIds } }, { session });
+            await models.notifications.deleteMany({ order_id: { $in: orderIds } }, { session });
+          }
+
+          await Promise.all([
+            models.orders.deleteMany({ user_id: targetUserId }, { session }),
+            models.addresses.deleteMany({ user_id: targetUserId }, { session }),
+            models.service_bookings.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_locations.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_location_points.deleteMany({ user_id: targetUserId }, { session }),
+            models.customer_admin_messages.deleteMany({ $or: [{ customer_user_id: targetUserId }, { sender_id: targetUserId }] }, { session }),
+            models.lpg_usage_profiles.deleteMany({ user_id: targetUserId }, { session }),
+            models.notifications.deleteMany({ user_id: targetUserId }, { session }),
+          ]);
+
+          await models.profiles.deleteOne({ _id: target._id }, { session });
+          await models.users.deleteOne({ _id: targetUserId }, { session });
+        });
+      } finally {
+        await session.endSession();
+      }
+
+      return res.json({ success: true, deleted: true });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
   });
 
   router.post('/api/rpc/get_email_by_phone', async (req, res) => {

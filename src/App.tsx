@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
-import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 import Navbar from './components/Navbar';
 import AdminLayout from './components/AdminLayout';
 import RegisterPage from './pages/RegisterPage';
@@ -18,6 +17,7 @@ import AddressesPage from './pages/AddressesPage';
 import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import ProfileDetailsPage from './pages/ProfileDetailsPage';
+import SettingsPage from './pages/SettingsPage';
 import CylinderUsagePage from './pages/CylinderUsagePage';
 import OffersPage from './pages/OffersPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -40,7 +40,6 @@ import CustomerCareChat from './components/CustomerCareChat';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
 import AccountDeletionPage from './pages/AccountDeletionPage';
-import SettingsPage from './pages/SettingsPage';
 import { ADMIN_DASHBOARD_PATH, DELIVERY_DASHBOARD_PATH, adminPath, isAdminDashboardPath, isDeliveryDashboardPath } from './lib/secureRoutes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -101,12 +100,6 @@ function AdminRoute({ children, permission }: { children: React.ReactNode; permi
 
 function AppRoutes() {
   const { user, loading, profile } = useAuth();
-  const { setLanguage } = useLanguage();
-
-  useEffect(() => {
-    const preferredLanguage = profile?.customer_settings?.language;
-    if (profile?.role === 'customer' && (preferredLanguage === 'en' || preferredLanguage === 'bn')) setLanguage(preferredLanguage);
-  }, [profile?.user_id, profile?.role, profile?.customer_settings?.language, setLanguage]);
 
   if (loading) {
     return (

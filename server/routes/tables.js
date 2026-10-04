@@ -8,6 +8,19 @@ export function createRouter(ctx) {
       const Model = models[req.params.table];
       if (!Model) return res.status(404).json({ error: 'Unknown table' });
       const { action, filters = [], order, limit, offset = 0, page, body, single, select, count } = req.body;
+
+      if (req.params.table === 'partner_brands' && action !== 'select') {
+        const actorId = getOptionalAuthUserId(req);
+        const actor = actorId ? await models.profiles.findOne({ user_id: actorId }) : null;
+        const canManagePartnerBrands = Boolean(
+          actor?.is_admin &&
+          actor?.is_active !== false &&
+          (actor.role !== 'sub_admin' || actor.permissions?.hero === true)
+        );
+        if (!canManagePartnerBrands) {
+          return res.status(403).json({ data: null, error: 'Administration Head or authorized Employee access required.' });
+        }
+      }
       const requestedLimit = Number(limit || ctx.API_DEFAULT_LIMIT || 100);
       const safeLimit = Math.min(Math.max(1, requestedLimit), Number(ctx.API_MAX_LIMIT || 500));
       const safeOffset = Math.max(0, Number.isFinite(Number(page)) ? (Math.max(1, Number(page)) - 1) * safeLimit : Number(offset || 0));

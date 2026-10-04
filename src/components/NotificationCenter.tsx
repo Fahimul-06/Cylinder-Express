@@ -4,6 +4,7 @@ import { apiClient } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { getNotificationTargetPath } from '../lib/notificationRoutes';
 import { getNotificationCache, setNotificationCache } from '../lib/notificationCache';
+import { getCustomerSettings, subscribeCustomerSettings } from '../lib/customerSettings';
 
 type NotificationItem = {
   id: string;
@@ -84,32 +85,25 @@ export default function NotificationCenter() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>(() => getNotificationCache(user?.id)?.data || []);
+  const [customerSettings, setCustomerSettings] = useState(() => getCustomerSettings(user?.id));
   const lastBuzzIds = useRef(new Set<string>());
   const lastRepeatingBuzzAt = useRef(0);
   const notificationPermissionAsked = useRef(false);
-  const browserSeenIds = useRef(new Set<string>());
-  const browserSeenSeeded = useRef(false);
-
-  const customerSettings = profile?.customer_settings;
-  const customerBrowserAlertsEnabled = customerSettings?.browser_notifications !== false;
-
-  const customerAlertAllowed = (item: NotificationItem) => {
-    if (profile?.is_admin || profile?.role === 'delivery') return true;
-    if (!customerBrowserAlertsEnabled) return false;
-    if (item.type.startsWith('order_')) return customerSettings?.order_updates !== false;
-    if (item.type === 'lpg_usage_reminder') return customerSettings?.cylinder_reminders !== false;
-    return true;
-  };
 
   const urgentUnread = useMemo(
-    () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz) && customerAlertAllowed(item)),
-    [notifications, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, customerSettings?.order_updates, customerSettings?.cylinder_reminders]
+    () => notifications.filter((item) => !item.is_read && (item.urgent || item.buzz)),
+    [notifications]
   );
 
-  const normalBrowserUnread = useMemo(
-    () => notifications.filter((item) => !item.is_read && !item.urgent && !item.buzz && customerAlertAllowed(item)),
-    [notifications, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, customerSettings?.order_updates, customerSettings?.cylinder_reminders]
-  );
+  const isStaff = !!profile?.is_admin || profile?.role === 'delivery';
+  const alertsEnabled = isStaff || customerSettings.backgroundAlerts;
+  const soundEnabled = isStaff || customerSettings.notificationSound;
+  const vibrationEnabled = isStaff || customerSettings.vibration;
+
+  useEffect(() => {
+    setCustomerSettings(getCustomerSettings(user?.id));
+    return subscribeCustomerSettings(setCustomerSettings, user?.id);
+  }, [user?.id]);
 
   async function loadNotifications() {
     if (!user) return;
@@ -153,6 +147,8 @@ export default function NotificationCenter() {
       Notification.requestPermission().catch(() => {});
     }
 
+    if (!alertsEnabled) return;
+
     const newUrgent = urgentUnread.filter((item) => !lastBuzzIds.current.has(item.id));
     const now = Date.now();
     const shouldRepeatBuzz = urgentUnread.length > 0 && now - lastRepeatingBuzzAt.current >= 30000;
@@ -160,8 +156,8 @@ export default function NotificationCenter() {
 
     newUrgent.forEach((item) => lastBuzzIds.current.add(item.id));
     lastRepeatingBuzzAt.current = now;
-    playAlarm();
-    if ('vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
+    if (soundEnabled) playAlarm();
+    if (vibrationEnabled && 'vibrate' in navigator) navigator.vibrate?.([650, 180, 650, 180, 650, 180, 650]);
 
     if ('Notification' in window && Notification.permission === 'granted' && newUrgent.length) {
       newUrgent.slice(0, 3).forEach((item) => {
@@ -176,39 +172,10 @@ export default function NotificationCenter() {
         };
       });
     }
-  }, [urgentUnread, navigate, profile]);
+  }, [urgentUnread, navigate, profile, alertsEnabled, soundEnabled, vibrationEnabled]);
 
   useEffect(() => {
-    if (!user || profile?.is_admin || profile?.role === 'delivery') {
-      browserSeenSeeded.current = false;
-      browserSeenIds.current.clear();
-      return;
-    }
-
-    if (!browserSeenSeeded.current) {
-      normalBrowserUnread.forEach((item) => browserSeenIds.current.add(item.id));
-      browserSeenSeeded.current = true;
-      return;
-    }
-
-    const fresh = normalBrowserUnread.filter((item) => !browserSeenIds.current.has(item.id));
-    fresh.forEach((item) => browserSeenIds.current.add(item.id));
-    if (!fresh.length || !customerBrowserAlertsEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-
-    fresh.slice(0, 3).forEach((item) => {
-      const browserNotification = new Notification(item.title, { body: item.message });
-      browserNotification.onclick = () => {
-        window.focus();
-        navigate(getNotificationTargetPath(item, profile));
-        if (!item.is_read) {
-          apiClient('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids: [item.id] }) }).catch(() => {});
-        }
-        browserNotification.close();
-      };
-    });
-  }, [normalBrowserUnread, user?.id, profile?.is_admin, profile?.role, customerBrowserAlertsEnabled, navigate, profile]);
-
-  useEffect(() => {
+    if (!soundEnabled) return;
     const unlock = () => unlockAlarmAudio();
     window.addEventListener('click', unlock, { once: true });
     window.addEventListener('touchstart', unlock, { once: true });
@@ -218,7 +185,7 @@ export default function NotificationCenter() {
       window.removeEventListener('touchstart', unlock);
       window.removeEventListener('keydown', unlock);
     };
-  }, []);
+  }, [soundEnabled]);
 
   return null;
 }

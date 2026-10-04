@@ -36,8 +36,8 @@ export default function ProfilePage() {
       iconClass: 'bg-emerald-100 text-emerald-600',
     },
     {
-      title: 'App Settings',
-      description: 'Language, alerts, special offers, location, privacy and account controls.',
+      title: 'Settings',
+      description: 'Manage notifications, language, privacy, security and support.',
       icon: SlidersHorizontal,
       path: '/settings',
       iconClass: 'bg-slate-100 text-slate-700',
@@ -52,7 +52,7 @@ export default function ProfilePage() {
             <Settings className="w-5 h-5" />
             <span className="text-sm font-medium">Account</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
+          <h1 className="text-2xl font-bold text-gray-900">My Account</h1>
           <p className="mt-1 text-sm text-gray-500">Hello {profile?.full_name || 'Customer'}, choose a section to continue.</p>
         </div>
 

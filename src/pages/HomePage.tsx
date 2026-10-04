@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { dedupeCustomerProducts } from '../lib/productCatalog';
 import { useAuth } from '../contexts/AuthContext';
+import { getCustomerSettings } from '../lib/customerSettings';
 
 const categoryIcons: Record<string, typeof Flame> = {
   cylinders: Flame,
@@ -20,7 +21,7 @@ const categoryIcons: Record<string, typeof Flame> = {
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [bestsellers, setBestsellers] = useState<Product[]>([]);
   const [cylinders, setCylinders] = useState<Product[]>([]);
@@ -91,7 +92,8 @@ export default function HomePage() {
       // as a floating opening banner.
       const firstSpecialOffer = allActiveOffers.find(offer => !offer.product_id && !!offer.image_url && isCurrentlyValid(offer)) || null;
       setOpeningOffer(firstSpecialOffer);
-      if (firstSpecialOffer && profile?.customer_settings?.special_offer_popups !== false) {
+      const offerPopupsEnabled = getCustomerSettings(user?.id).offerPopups;
+      if (firstSpecialOffer && offerPopupsEnabled) {
         try {
           setShowOpeningOffer(sessionStorage.getItem(`cx_offer_banner_dismissed_${firstSpecialOffer.id}`) !== '1');
         } catch {
@@ -130,11 +132,8 @@ export default function HomePage() {
       setLoading(false);
     }
     fetchData();
-  }, []);
+  }, [user?.id]);
 
-  useEffect(() => {
-    if (profile?.customer_settings?.special_offer_popups === false) setShowOpeningOffer(false);
-  }, [profile?.customer_settings?.special_offer_popups]);
 
   function dismissOpeningOffer() {
     if (openingOffer) {

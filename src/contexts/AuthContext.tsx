@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, Session, User } from '../lib/supabase';
-import { CustomerSettings, Profile } from '../lib/types';
+import { Profile } from '../lib/types';
 
 interface AuthContextType {
   user: User | null;
@@ -13,7 +13,7 @@ interface AuthContextType {
   signInHub: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signInWithSocial: (provider: 'google' | 'facebook', accessToken: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number; customer_settings?: CustomerSettings }) => Promise<{ error: string | null }>;
+  updateProfile: (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number }) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
 }
 
@@ -113,9 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
   };
 
-  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number; customer_settings?: CustomerSettings }) => {
+  const updateProfile = async (updates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number }) => {
     if (!user) return { error: 'Not authenticated' };
-    const profileUpdates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number; customer_settings?: CustomerSettings; updated_at: string } = {
+    const profileUpdates: { full_name?: string; email?: string; phone?: string; avatar_url?: string; family_members?: number; daily_cooking_times?: number; updated_at: string } = {
       updated_at: new Date().toISOString(),
     };
     if (updates.full_name !== undefined) profileUpdates.full_name = updates.full_name;
@@ -124,7 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.avatar_url !== undefined) profileUpdates.avatar_url = updates.avatar_url;
     if (updates.family_members !== undefined) profileUpdates.family_members = updates.family_members;
     if (updates.daily_cooking_times !== undefined) profileUpdates.daily_cooking_times = updates.daily_cooking_times;
-    if (updates.customer_settings !== undefined) profileUpdates.customer_settings = updates.customer_settings;
 
     const { error: profileError } = await supabase
       .from('profiles')

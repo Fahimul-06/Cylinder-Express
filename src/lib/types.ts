@@ -33,6 +33,16 @@ export interface HeroSlide {
   updated_at?: string;
 }
 
+export interface PartnerBrand {
+  id: string;
+  name: string;
+  logo_url: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Category {
   id: string;
   name: string;
